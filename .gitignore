@@ -111,4 +111,4 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 # Optional
 # Uncomment if you want to ignore certain files
 # *.min.js
-# *.min.css
+# *.min.css".env.local" 
