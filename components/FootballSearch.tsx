@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react';
-import { Search } from 'lucide-react';
+// REMOVED: import { Search } from 'lucide-react';
 
 interface FootballSearchProps {
   onPlayerSelect: (player: any) => void;
@@ -116,13 +116,17 @@ export default function FootballSearch({
       </h2>
       <form onSubmit={handleSearch} style={{ display: 'flex', gap: '1rem' }}>
         <div style={{ flex: 1, position: 'relative' }}>
-          <Search style={{
+          {/* REMOVED: Search icon component */}
+          <div style={{
             position: 'absolute',
             left: '1rem',
             top: '50%',
             transform: 'translateY(-50%)',
             color: '#94a3b8',
-          }} />
+            fontSize: '1.25rem',
+          }}>
+            🔍
+          </div>
           <input
             type="text"
             value={query}
