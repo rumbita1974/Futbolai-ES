@@ -16,7 +16,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     const completion = await groq.chat.completions.create({
       messages: [{ role: "user", content: "Say 'Hello World' in one word." }],
-      model: "mixtral-8x7b-32768",
+      model: "llama-3.3-70b-versatile",
       max_tokens: 5,
     });
     

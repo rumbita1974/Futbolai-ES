@@ -21,7 +21,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     'llama-3.2-90b-vision-preview',
     'llama-guard-3-8b',
     'gemma2-9b-it',
-    'mixtral-8x7b-32768', // Old one - should fail
+    'llama-3.3-70b-versatile', // Old one - should fail
   ];
   
   const results = [];
