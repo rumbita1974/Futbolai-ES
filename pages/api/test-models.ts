@@ -1,63 +1,68 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
 import { Groq } from 'groq-sdk';
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const GROQ_API_KEY = process.env.GROQ_API_KEY;
-  
-  if (!GROQ_API_KEY) {
-    return res.status(500).json({ 
-      success: false, 
-      error: 'GROQ_API_KEY not found' 
-    });
-  }
-  
-  const groq = new Groq({ apiKey: GROQ_API_KEY });
-  
-  // Try different models
-  const modelsToTest = [
-    'llama-3.3-70b-versatile',
-    'llama-3.1-8b-instant',
-    'llama-3.2-3b-preview',
-    'llama-3.2-90b-vision-preview',
-    'llama-guard-3-8b',
-    'gemma2-9b-it',
-    'llama-3.3-70b-versatile', // Old one - should fail
-  ];
-  
-  const results = [];
-  
-  for (const model of modelsToTest) {
-    try {
-      const startTime = Date.now();
-      const completion = await groq.chat.completions.create({
-        messages: [{ role: "user", content: "Say 'Hello'" }],
-        model: model,
-        max_tokens: 5,
-      });
-      const endTime = Date.now();
-      
-      results.push({
-        model,
-        success: true,
-        response: completion.choices[0]?.message?.content || 'No response',
-        time: `${endTime - startTime}ms`
-      });
-      
-      // Break after first success to save time
-      break;
-    } catch (error: any) {
-      results.push({
-        model,
+export default async function handler(req: any, res: any) {
+  try {
+    const apiKey = process.env.GROQ_API_KEY;
+    
+    if (!apiKey) {
+      return res.status(200).json({
         success: false,
-        error: error.message,
-        code: error.code
+        message: 'GROQ_API_KEY not found',
+        suggestion: 'Add it in Vercel environment variables'
       });
     }
+
+    const groq = new Groq({ apiKey });
+    
+    // List of currently available models (as of Dec 2024)
+    const availableModels = [
+      'llama-3.3-70b-versatile',
+      'llama3-70b-8192',
+      'llama3-8b-8192',
+      'mixtral-8x7b-32768', // Deprecated but listed for reference
+      'gemma2-9b-it',
+      'llama-guard-3-8b'
+    ];
+
+    // Test the first available model
+    const testModel = 'llama-3.3-70b-versatile';
+    
+    const completion = await groq.chat.completions.create({
+      messages: [{ role: 'user', content: 'List 3 popular football players' }],
+      model: testModel,
+      temperature: 0.3,
+      max_tokens: 50,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Groq models test successful',
+      availableModels: availableModels,
+      recommended: 'llama-3.3-70b-versatile',
+      testResult: {
+        model: testModel,
+        response: completion.choices[0]?.message?.content,
+        tokensUsed: completion.usage?.total_tokens
+      },
+      environment: {
+        apiKeyPresent: !!apiKey,
+        keyPreview: `${apiKey.substring(0, 5)}...`
+      }
+    });
+    
+  } catch (error: any) {
+    console.error('Models test error:', error);
+    
+    res.status(200).json({
+      success: false,
+      error: error.message,
+      details: error.response?.data || error,
+      suggestion: 'Check if GROQ_API_KEY is valid and has access to models',
+      currentModels: [
+        'llama-3.3-70b-versatile',
+        'llama3-70b-8192',
+        'llama3-8b-8192'
+      ]
+    });
   }
-  
-  return res.status(200).json({
-    success: results.some(r => r.success),
-    results,
-    keyExists: !!GROQ_API_KEY
-  });
 }
