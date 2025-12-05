@@ -34,20 +34,30 @@ export default function FootballSearch({
       const response = await fetch(`/api/ai?action=search&query=${encodeURIComponent(query)}`);
       const data = await response.json();
       
+      console.log('📡 API Response:', {
+        type: data.type,
+        hasPlayer: !!data.playerInfo,
+        hasTeam: !!data.teamInfo,
+        hasWorldCup: !!data.worldCupInfo
+      });
+      
       if (data.success) {
-        // CLEAR previous selections first
+        // ALWAYS clear previous selections first
         onPlayerSelect(null);
         onTeamSelect(null);
         onWorldCupUpdate(null);
         onTeamsUpdate([]);
         
-        // Check response TYPE to know what to display
-        console.log('API Response type:', data.type);
-        console.log('Player info:', data.playerInfo);
-        console.log('Team info:', data.teamInfo);
+        // Use the type field from API, or determine from data
+        const responseType = data.type || 
+          (data.playerInfo ? 'player' : 
+           data.teamInfo ? 'team' : 
+           data.worldCupInfo ? 'worldCup' : 'general');
         
-        if (data.type === 'player' && data.playerInfo) {
-          console.log('Setting player data');
+        console.log('🎯 Processing as type:', responseType);
+        
+        if (responseType === 'player' && data.playerInfo) {
+          console.log('Setting player data:', data.playerInfo.name);
           onPlayerSelect({
             id: Date.now(),
             name: data.playerInfo.name,
@@ -63,8 +73,8 @@ export default function FootballSearch({
             achievements: data.playerInfo.achievements || [],
           });
         } 
-        else if (data.type === 'team' && data.teamInfo) {
-          console.log('Setting team data');
+        else if (responseType === 'team' && data.teamInfo) {
+          console.log('Setting team data:', data.teamInfo.name);
           onTeamSelect({
             id: Date.now(),
             name: data.teamInfo.name,
@@ -77,8 +87,8 @@ export default function FootballSearch({
             keyPlayers: data.teamInfo.keyPlayers || [],
           });
         }
-        else if (data.type === 'worldCup' && data.worldCupInfo) {
-          console.log('Setting World Cup data');
+        else if (responseType === 'worldCup' && data.worldCupInfo) {
+          console.log('Setting World Cup data:', data.worldCupInfo.year);
           onWorldCupUpdate({
             year: data.worldCupInfo.year,
             host: data.worldCupInfo.host,
@@ -88,7 +98,7 @@ export default function FootballSearch({
           });
         }
         else {
-          console.log('General query - no specific data');
+          console.log('General query - only showing analysis');
           // For general queries, just show analysis
         }
         
@@ -120,19 +130,19 @@ export default function FootballSearch({
     // Fallback mock data - TEAM example
     const mockTeam = {
       id: 1,
-      name: 'Real Madrid',
-      ranking: '1st in La Liga',
-      coach: 'Carlo Ancelotti',
-      stadium: 'Santiago Bernabéu',
-      league: 'La Liga',
-      founded: 1902,
-      achievements: ['14 Champions League titles', '35 La Liga titles'],
-      keyPlayers: ['Vinicius Junior', 'Jude Bellingham', 'Thibaut Courtois'],
+      name: 'Brazil National Team',
+      ranking: '1st in FIFA Rankings',
+      coach: 'Tite',
+      stadium: 'Various',
+      league: 'International',
+      founded: 1914,
+      achievements: ['5 World Cup titles', '9 Copa América titles'],
+      keyPlayers: ['Neymar', 'Vinícius Júnior', 'Alisson'],
     };
     
     onTeamSelect(mockTeam);
-    onVideoFound('https://www.youtube.com/embed/XfyZ6EueJx8');
-    onAnalysisUpdate('Football analysis service is temporarily unavailable. Showing sample team data for Real Madrid.');
+    onVideoFound('https://www.youtube.com/embed/eJXWcJeGXlM');
+    onAnalysisUpdate('Brazil is the most successful national team in FIFA World Cup history, having won five titles.');
   };
 
   const quickSearches = [
@@ -143,7 +153,7 @@ export default function FootballSearch({
     'Mbappé', 
     'Real Madrid', 
     'Champions League',
-    'Manchester City',
+    'Germany',
     'Karim Benzema'
   ];
 
@@ -178,10 +188,7 @@ export default function FootballSearch({
               color: 'white',
               fontSize: '1rem',
               outline: 'none',
-              transition: 'border-color 0.2s',
             }}
-            onFocus={(e) => e.target.style.borderColor = 'rgba(74, 222, 128, 0.5)'}
-            onBlur={(e) => e.target.style.borderColor = 'rgba(255, 255, 255, 0.2)'}
           />
         </div>
         <button
@@ -194,15 +201,6 @@ export default function FootballSearch({
             borderRadius: '0.75rem',
             fontWeight: 600,
             cursor: 'pointer',
-            transition: 'transform 0.2s, opacity 0.2s',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'translateY(-2px)';
-            e.currentTarget.style.opacity = '0.9';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.opacity = '1';
           }}
         >
           Search
@@ -226,17 +224,6 @@ export default function FootballSearch({
               color: 'white',
               fontSize: '0.875rem',
               cursor: 'pointer',
-              transition: 'all 0.2s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'rgba(74, 222, 128, 0.2)';
-              e.currentTarget.style.borderColor = 'rgba(74, 222, 128, 0.5)';
-              e.currentTarget.style.transform = 'translateY(-2px)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
-              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
-              e.currentTarget.style.transform = 'translateY(0)';
             }}
           >
             {term}
