@@ -14,7 +14,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Simple test request
     const completion = await groq.chat.completions.create({
       messages: [{ role: 'user', content: 'Say "Hello World"' }],
-      model: 'lama-3.3-70b-versatile',
+      model: 'llama-3.3-70b-versatile',
       temperature: 0.1,
       max_tokens: 10,
     });
