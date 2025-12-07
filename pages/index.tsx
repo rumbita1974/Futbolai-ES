@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import FootballSearch from '../components/FootballSearch';
 import FootballAI from '../components/FootballAI';
 
@@ -11,6 +11,68 @@ export default function Home() {
   const [teams, setTeams] = useState<any[]>([]);
   const [worldCupInfo, setWorldCupInfo] = useState<any>(null);
   const [lastUpdated, setLastUpdated] = useState<string>('');
+  
+  // Use refs to prevent stale closures
+  const isLoadingRef = useRef(isLoading);
+  const componentMounted = useRef(true);
+
+  // Update ref when state changes
+  useEffect(() => {
+    isLoadingRef.current = isLoading;
+  }, [isLoading]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      componentMounted.current = false;
+    };
+  }, []);
+
+  // Update the search handler callbacks - use useCallback to prevent unnecessary re-renders
+  const handlePlayerSelect = useCallback((player: any) => {
+    if (componentMounted.current) {
+      setSelectedPlayer(player);
+      setLastUpdated(new Date().toLocaleString());
+    }
+  }, []);
+
+  const handleTeamSelect = useCallback((team: any) => {
+    if (componentMounted.current) {
+      setSelectedTeam(team);
+      setLastUpdated(new Date().toLocaleString());
+    }
+  }, []);
+
+  const handleVideoFound = useCallback((url: string) => {
+    if (componentMounted.current) {
+      setVideoUrl(url);
+    }
+  }, []);
+
+  const handleLoadingChange = useCallback((loading: boolean) => {
+    if (componentMounted.current) {
+      setIsLoading(loading);
+    }
+  }, []);
+
+  const handleAnalysisUpdate = useCallback((newAnalysis: string) => {
+    if (componentMounted.current) {
+      setAnalysis(newAnalysis);
+    }
+  }, []);
+
+  const handleTeamsUpdate = useCallback((newTeams: any[]) => {
+    if (componentMounted.current) {
+      setTeams(newTeams);
+    }
+  }, []);
+
+  const handleWorldCupUpdate = useCallback((worldCupInfo: any) => {
+    if (componentMounted.current) {
+      setWorldCupInfo(worldCupInfo);
+      setLastUpdated(new Date().toLocaleString());
+    }
+  }, []);
 
   const styles = {
     container: {
@@ -154,6 +216,7 @@ export default function Home() {
       boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(34, 211, 238, 0.3)',
       border: '1px solid rgba(34, 211, 238, 0.5)',
       minHeight: '400px',
+      position: 'relative' as const,
     },
     videoSection: {
       background: 'rgba(10, 30, 10, 0.85)',
@@ -325,22 +388,6 @@ export default function Home() {
     },
   };
 
-  // Update the search handler callbacks
-  const handlePlayerSelect = (player: any) => {
-    setSelectedPlayer(player);
-    setLastUpdated(new Date().toLocaleString());
-  };
-
-  const handleTeamSelect = (team: any) => {
-    setSelectedTeam(team);
-    setLastUpdated(new Date().toLocaleString());
-  };
-
-  const handleWorldCupUpdate = (worldCupInfo: any) => {
-    setWorldCupInfo(worldCupInfo);
-    setLastUpdated(new Date().toLocaleString());
-  };
-
   return (
     <div style={styles.container}>
       {/* Simplified pitch background for mobile */}
@@ -413,10 +460,10 @@ export default function Home() {
             <FootballSearch
               onPlayerSelect={handlePlayerSelect}
               onTeamSelect={handleTeamSelect}
-              onVideoFound={setVideoUrl}
-              onLoadingChange={setIsLoading}
-              onAnalysisUpdate={setAnalysis}
-              onTeamsUpdate={setTeams}
+              onVideoFound={handleVideoFound}
+              onLoadingChange={handleLoadingChange}
+              onAnalysisUpdate={handleAnalysisUpdate}
+              onTeamsUpdate={handleTeamsUpdate}
               onWorldCupUpdate={handleWorldCupUpdate}
             />
           </div>

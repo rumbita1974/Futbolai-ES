@@ -1,6 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import axios from 'axios';
 import { Groq } from 'groq-sdk';
+import NodeCache from 'node-cache';
+
+// Add caching to prevent duplicate processing
+const cache = new NodeCache({ stdTTL: 300 }); // 5 minute cache
 
 // Initialize Groq client
 function getGroqClient() {
@@ -66,8 +70,11 @@ function safeParseJSON(content: string) {
     
     return JSON.parse(cleaned);
   } catch (error) {
-    console.error('JSON parse error');
-    return { analysis: "Analysis available", videoSearchTerm: "football" };
+    console.error('JSON parse error:', error);
+    return { 
+      analysis: "Analysis available", 
+      videoSearchTerm: query 
+    };
   }
 }
 
@@ -115,17 +122,26 @@ videoSearchTerm: "World Cup football highlights"`;
     
   } catch (error) {
     console.error('Groq error:', error);
-    return { analysis: "Data temporarily unavailable" };
+    return { 
+      analysis: "Data temporarily unavailable. Please try again.",
+      videoSearchTerm: query 
+    };
   }
 }
 
-// YouTube search
+// YouTube search with better error handling
 async function searchYouTube(searchTerm: string) {
+  const cacheKey = `youtube_${searchTerm}`;
+  const cached = cache.get(cacheKey);
+  if (cached) return cached as string;
+
   try {
     const apiKey = process.env.YOUTUBE_API_KEY;
     
     if (!apiKey) {
-      return getPublicYouTubeFallback(searchTerm);
+      const fallback = getPublicYouTubeFallback(searchTerm);
+      cache.set(cacheKey, fallback);
+      return fallback;
     }
 
     const response = await axios.get('https://www.googleapis.com/youtube/v3/search', {
@@ -138,17 +154,25 @@ async function searchYouTube(searchTerm: string) {
         videoEmbeddable: 'true',
         order: 'viewCount',
       },
-      timeout: 3000,
+      timeout: 5000, // Increased timeout
     });
 
     if (response.data.items?.length > 0) {
       const videoId = response.data.items[0].id.videoId;
-      return `https://www.youtube.com/embed/${videoId}`;
+      const url = `https://www.youtube.com/embed/${videoId}`;
+      cache.set(cacheKey, url);
+      return url;
     }
     
-    return getPublicYouTubeFallback(searchTerm);
+    const fallback = getPublicYouTubeFallback(searchTerm);
+    cache.set(cacheKey, fallback);
+    return fallback;
+    
   } catch (error) {
-    return getPublicYouTubeFallback(searchTerm);
+    console.error('YouTube API error:', error);
+    const fallback = getPublicYouTubeFallback(searchTerm);
+    cache.set(cacheKey, fallback);
+    return fallback;
   }
 }
 
@@ -163,6 +187,9 @@ function getPublicYouTubeFallback(searchTerm: string) {
     'spain': 'eJXWcJeGXlM',
     'brazil': 'eJXWcJeGXlM',
     'bayern': 'HfQmI1Q5LQc',
+    'argentina': 'mokNgn4i51A',
+    'colombia': 'eJXWcJeGXlM',
+    'carvajal': 'Taq8krKk7_4',
   };
 
   for (const [key, videoId] of Object.entries(videos)) {
@@ -195,6 +222,14 @@ export default async function handler(
   if (action === 'search' && query && typeof query === 'string') {
     console.log(`\n=== SEARCH: "${query}" ===`);
     
+    // Check cache first
+    const cacheKey = `search_${query.toLowerCase()}`;
+    const cachedResponse = cache.get(cacheKey);
+    if (cachedResponse) {
+      console.log('✅ Returning cached response');
+      return res.status(200).json(cachedResponse);
+    }
+    
     try {
       // DETECT TYPE FIRST (most reliable part)
       const detectedType = detectQueryType(query);
@@ -205,30 +240,18 @@ export default async function handler(
       console.log('✅ Got AI analysis');
       
       // Build response based on detected type
-      let responseData: any = null;
+      let responseData: any = {
+        name: query,
+        ...aiAnalysis
+      };
       
-      if (detectedType === 'player') {
-        responseData = {
-          name: query,
-          ...aiAnalysis
-        };
-      } else if (detectedType === 'club') {
-        responseData = {
-          name: query,
-          type: 'club',
-          ...aiAnalysis
-        };
+      // Ensure consistent structure
+      if (detectedType === 'club') {
+        responseData.type = 'club';
       } else if (detectedType === 'national') {
-        responseData = {
-          name: query,
-          type: 'national',
-          ...aiAnalysis
-        };
+        responseData.type = 'national';
       } else if (detectedType === 'worldCup') {
-        responseData = {
-          year: 2026,
-          ...aiAnalysis
-        };
+        responseData.worldCupInfo = { year: 2026, ...aiAnalysis };
       }
       
       // Get video
@@ -240,7 +263,7 @@ export default async function handler(
         success: true,
         query: query,
         timestamp: new Date().toISOString(),
-        type: detectedType, // Use DETECTED type, not AI type
+        type: detectedType,
         data: responseData,
         playerInfo: detectedType === 'player' ? responseData : null,
         teamInfo: (detectedType === 'club' || detectedType === 'national') ? responseData : null,
@@ -251,13 +274,16 @@ export default async function handler(
         source: 'Groq AI'
       };
 
+      // Cache the response
+      cache.set(cacheKey, response);
+      
       console.log('🚀 Sending response with type:', detectedType);
       return res.status(200).json(response);
       
     } catch (error) {
       console.error('API error:', error);
       
-      return res.status(200).json({
+      const errorResponse = {
         success: false,
         query: query,
         type: 'error',
@@ -265,7 +291,9 @@ export default async function handler(
         timestamp: new Date().toISOString(),
         youtubeUrl: getPublicYouTubeFallback(query),
         analysis: `Please try again.`,
-      });
+      };
+      
+      return res.status(200).json(errorResponse);
     }
   }
 
