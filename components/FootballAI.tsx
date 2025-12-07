@@ -1,12 +1,3 @@
-useEffect(() => {
-  // This will help reset the component when new data comes in
-  console.log('🔄 FootballAI component updated with new data:', {
-    player: !!player,
-    team: !!team,
-    worldCupInfo: !!worldCupInfo
-  });
-}, [player, team, worldCupInfo]);
-
 import { useEffect } from 'react';
 
 interface FootballAIProps {
@@ -53,6 +44,16 @@ export default function FootballAI({
   useEffect(() => {
     addSpinnerStyles();
   }, []);
+
+  // Log when component receives new data
+  useEffect(() => {
+    console.log('🔄 FootballAI component updated with new data:', {
+      player: !!player,
+      team: !!team,
+      worldCupInfo: !!worldCupInfo,
+      isLoading
+    });
+  }, [player, team, worldCupInfo, isLoading]);
 
   // Helper function to render structured achievements
   const renderStructuredAchievements = (entity: any) => {
@@ -774,7 +775,7 @@ export default function FootballAI({
     );
   }
 
-  // Default state
+  // Default state - no data yet
   return (
     <div style={{
       display: 'flex',
