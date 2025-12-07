@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import FootballAI from '../components/futbolai';
+import FootballAI from '../components/FootballAI';
 
 // FootballSearch component inline (since it doesn't exist as separate file)
 const FootballSearch = ({
