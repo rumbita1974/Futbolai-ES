@@ -57,17 +57,29 @@ export default function FootballSearch({
       console.log('🔍 [API] Response received, success:', data.success);
       
       if (data.success) {
-        console.log('✅ [API] Success! Type:', data.type);
+        console.log('✅ [API] Success! Type from API:', data.type);
         console.log('📊 Data received:', {
           playerInfo: !!data.playerInfo,
           teamInfo: !!data.teamInfo,
           worldCupInfo: !!data.worldCupInfo,
-          trophies: data.teamInfo?.trophies ? 'Yes' : 'No',
-          achievementsSummary: data.playerInfo?.achievementsSummary || data.teamInfo?.achievementsSummary ? 'Yes' : 'No'
+          teamType: data.teamInfo?.type
         });
         
-        const responseType = data.type || 'general';
-        console.log('🎯 Processing as type:', responseType);
+        // Use the type from API response, but also check the data
+        let responseType = data.type || 'general';
+        
+        // Double-check the type based on actual data
+        if (!responseType || responseType === 'general') {
+          if (data.playerInfo) {
+            responseType = 'player';
+          } else if (data.teamInfo) {
+            responseType = data.teamInfo.type === 'national' ? 'national' : 'club';
+          } else if (data.worldCupInfo) {
+            responseType = 'worldCup';
+          }
+        }
+        
+        console.log('🎯 Final processing type:', responseType);
         
         // Clear all data again before setting new data (just to be sure)
         clearAllPreviousData();
@@ -372,7 +384,8 @@ export default function FootballSearch({
       const fakeEvent = { 
         preventDefault: () => {},
         currentTarget: { checkValidity: () => true }
-      } as React.FormEvent;
+      } as unknown as React.FormEvent<Element>;
+      
       handleSearch(fakeEvent);
     }, 50);
   };
