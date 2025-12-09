@@ -2,6 +2,80 @@ import { useState, useCallback } from 'react';
 import FootballSearch from '../components/FootballSearch';
 import FootballAI from '../components/FootballAI';
 
+// Footer styles
+const styles = {
+  footer: {
+    marginTop: '3rem',
+    padding: '1.5rem',
+    background: 'rgba(10, 30, 10, 0.7)',
+    backdropFilter: 'blur(10px)',
+    borderRadius: '1rem',
+    border: '1px solid rgba(74, 222, 128, 0.3)',
+    boxShadow: '0 5px 20px rgba(0, 0, 0, 0.3)',
+  },
+  footerContainer: {
+    maxWidth: '1200px',
+    margin: '0 auto',
+  },
+  footerContent: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+    gap: '1.5rem',
+    textAlign: 'center' as const,
+  },
+  attribution: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+    gap: '0.75rem',
+  },
+  developer: {
+    color: '#e2e8f0',
+    fontSize: '0.9375rem',
+    margin: 0,
+  },
+  developerName: {
+    color: '#4ade80',
+    fontWeight: 600,
+  },
+  separator: {
+    width: '30px',
+    height: '1px',
+    background: 'rgba(74, 222, 128, 0.5)',
+    margin: '0.5rem 0',
+  },
+  copyright: {
+    color: '#94a3b8',
+    fontSize: '0.8125rem',
+    margin: 0,
+    opacity: 0.9,
+  },
+  disclaimerContainer: {
+    background: 'rgba(0, 0, 0, 0.3)',
+    padding: '1rem',
+    borderRadius: '0.75rem',
+    border: '1px solid rgba(251, 191, 36, 0.2)',
+    maxWidth: '600px',
+  },
+  disclaimerTitle: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    marginBottom: '0.75rem',
+    color: '#fbbf24',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+  },
+  disclaimerText: {
+    color: '#cbd5e1',
+    fontSize: '0.8125rem',
+    lineHeight: 1.5,
+    margin: 0,
+    opacity: 0.9,
+  },
+};
+
 export default function Home() {
   const [selectedPlayer, setSelectedPlayer] = useState<any>(null);
   const [selectedTeam, setSelectedTeam] = useState<any>(null);
@@ -184,7 +258,7 @@ export default function Home() {
             )}
           </div>
 
-          {/* Video Section - FIXED VERSION */}
+          {/* Video Section */}
           <div style={{
             background: 'rgba(10, 30, 10, 0.85)',
             backdropFilter: 'blur(10px)',
@@ -192,7 +266,6 @@ export default function Home() {
             padding: '1.5rem',
             boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(251, 191, 36, 0.3)',
             border: '1px solid rgba(251, 191, 36, 0.5)',
-            marginTop: '1.5rem',
           }}>
             <div style={{
               fontSize: '1.5rem',
@@ -288,6 +361,8 @@ export default function Home() {
                       border: 'none',
                     }}
                     loading="lazy"
+                    referrerPolicy="no-referrer"
+                    sandbox="allow-scripts allow-same-origin allow-presentation"
                   ></iframe>
                 </div>
                 <div style={{
@@ -323,6 +398,37 @@ export default function Home() {
                 </p>
               </div>
             )}
+          </div>
+
+          {/* ADDED: Footer Section (Simplified) */}
+          <div style={styles.footer}>
+            <div style={styles.footerContainer}>
+              <div style={styles.footerContent}>
+                {/* Attribution */}
+                <div style={styles.attribution}>
+                  <p style={styles.developer}>
+                    Developed by <span style={styles.developerName}>A. Guillen</span>
+                  </p>
+                  <div style={styles.separator}></div>
+                  <p style={styles.copyright}>
+                    © {new Date().getFullYear()} FutbolAI Explorer
+                  </p>
+                </div>
+                
+                {/* Simplified Disclaimer */}
+                <div style={styles.disclaimerContainer}>
+                  <div style={styles.disclaimerTitle}>
+                    <span>⚽</span>
+                    <span>Content Copyright Notice</span>
+                  </div>
+                  <p style={styles.disclaimerText}>
+                    Football highlights and videos are property of their respective owners.
+                    All trademarks and registered trademarks are the property of their respective owners.
+                    This application uses AI-generated content for analysis purposes.
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
         
