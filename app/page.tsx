@@ -168,16 +168,31 @@ export default function Home() {
                   </div>
                 )}
                 
-                {searchResults.stats && Array.isArray(searchResults.stats) && searchResults.stats.length > 0 && (
-                  <div>
-                    <h4 className="font-semibold text-green-300">Statistics:</h4>
-                    <ul className="list-disc list-inside text-gray-300 mt-1 ml-2">
-                      {searchResults.stats.map((stat: string, index: number) => (
-                        <li key={index}>{stat}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+{searchResults.stats && (
+  <div>
+    <h4 className="font-semibold text-green-300">Statistics:</h4>
+    <ul className="list-disc list-inside text-gray-300 mt-1 ml-2">
+      {Array.isArray(searchResults.stats) ? (
+        // If stats is an array
+        searchResults.stats.map((stat: any, index: number) => (
+          <li key={index}>
+            {typeof stat === 'string' ? stat : JSON.stringify(stat)}
+          </li>
+        ))
+      ) : typeof searchResults.stats === 'object' ? (
+        // If stats is an object
+        Object.entries(searchResults.stats).map(([key, value], index) => (
+          <li key={index}>
+            <strong>{key}:</strong> {String(value)}
+          </li>
+        ))
+      ) : (
+        // Fallback
+        <li>{String(searchResults.stats)}</li>
+      )}
+    </ul>
+  </div>
+)}
                 
                 {searchResults.achievements && Array.isArray(searchResults.achievements) && searchResults.achievements.length > 0 && (
                   <div>
