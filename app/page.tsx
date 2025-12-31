@@ -6,19 +6,36 @@ import { Search, Trophy, Users, Globe, Brain, Film, MapPin } from 'lucide-react'
 export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<any>(null);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchQuery.trim()) return;
     
     setIsSearching(true);
-    // Original search logic would go here
-    console.log('Searching for:', searchQuery);
+    setSearchResults(null);
     
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      const response = await fetch('/api/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: searchQuery })
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        setSearchResults(result.data);
+        console.log('Search results:', result.data);
+      } else {
+        alert(`Search failed: ${result.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Search error:', error);
+      alert('Search failed. Please try again.');
+    } finally {
       setIsSearching(false);
-    }, 1000);
+    }
   };
 
   const featureExamples = [
@@ -108,7 +125,7 @@ export default function Home() {
               <button
                 type="submit"
                 disabled={isSearching}
-                className="absolute right-2 top-2 px-6 py-2 bg-gradient-to-r from-blue-600 to-green-500 hover:from-blue-700 hover:to-green-600 text-white font-semibold rounded-lg transition-all disabled:opacity-50"
+                className="absolute right-2 top-2 px-6 py-2 bg-gradient-to-r from-blue-600 to-green-500 hover:from-blue-700 hover:to-green-600 text-white font-semibold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSearching ? 'Searching...' : 'Search'}
               </button>
@@ -129,12 +146,63 @@ export default function Home() {
                     handleSearch(new Event('submit') as any);
                   }}
                   className="px-4 py-2 bg-gray-900/50 hover:bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-300 hover:text-white transition-colors"
+                  disabled={isSearching}
                 >
                   {example}
                 </button>
               ))}
             </div>
           </div>
+
+          {/* Search Results Display */}
+          {searchResults && (
+            <div className="mb-6 mt-6 p-4 bg-gradient-to-r from-blue-900/20 to-green-900/20 border border-blue-700/30 rounded-xl">
+              <h3 className="text-lg font-bold text-white mb-3">Search Results:</h3>
+              <div className="space-y-3">
+                {searchResults.title && (
+                  <div>
+                    <h4 className="font-semibold text-blue-300">{searchResults.title}</h4>
+                    {searchResults.summary && (
+                      <p className="text-gray-300 mt-1">{searchResults.summary}</p>
+                    )}
+                  </div>
+                )}
+                
+                {searchResults.stats && Array.isArray(searchResults.stats) && searchResults.stats.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold text-green-300">Statistics:</h4>
+                    <ul className="list-disc list-inside text-gray-300 mt-1 ml-2">
+                      {searchResults.stats.map((stat: string, index: number) => (
+                        <li key={index}>{stat}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                
+                {searchResults.achievements && Array.isArray(searchResults.achievements) && searchResults.achievements.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold text-yellow-300">Achievements:</h4>
+                    <ul className="list-disc list-inside text-gray-300 mt-1 ml-2">
+                      {searchResults.achievements.map((achievement: string, index: number) => (
+                        <li key={index}>{achievement}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                
+                {searchResults.currentStatus && (
+                  <div>
+                    <h4 className="font-semibold text-purple-300">Current Status (2024):</h4>
+                    <p className="text-gray-300 mt-1">{searchResults.currentStatus}</p>
+                  </div>
+                )}
+                
+                <div className="text-sm text-gray-400 mt-2">
+                  Source: {searchResults.source || 'GROQ AI + Wikipedia'}
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="bg-blue-900/20 border border-blue-700/30 rounded-xl p-4">
             <p className="text-blue-300 text-sm flex items-center">
