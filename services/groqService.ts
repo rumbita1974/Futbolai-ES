@@ -5,35 +5,38 @@ const groq = new Groq({
   dangerouslyAllowBrowser: true,
 });
 
+export interface Player {
+  name: string;
+  currentTeam: string;
+  position: string;
+  age?: number;
+  nationality: string;
+  careerGoals?: number;
+  careerAssists?: number;
+  internationalAppearances?: number;
+  internationalGoals?: number;
+  majorAchievements: string[];
+  careerSummary: string;
+}
+
+export interface Team {
+  name: string;
+  type: 'club' | 'national';
+  country: string;
+  stadium?: string;
+  currentCoach: string;
+  foundedYear?: number;
+  majorAchievements: {
+    worldCup: string[];
+    continental: string[];
+    domestic: string[];
+  };
+}
+
 export interface GROQSearchResponse {
-  players?: Array<{
-    name: string;
-    team: string;
-    position: string;
-    age?: number;
-    stats?: Record<string, any>;
-    wikipediaSummary?: string;
-  }>;
-  teams?: Array<{
-    name: string;
-    country: string;
-    coach: string;
-    fifaRanking?: number;
-    group?: string;
-  }>;
-  videoHighlights?: Array<{
-    title: string;
-    url: string;
-    duration: string;
-    thumbnail?: string;
-  }>;
-  teamAnalysis?: {
-    teamName: string;
-    strengths: string[];
-    weaknesses: string[];
-    keyPlayers: string[];
-    formation: string;
-  } | null;
+  players: Player[];
+  teams: Team[];
+  youtubeQuery: string;
   error?: string;
   message?: string;
 }
@@ -47,11 +50,10 @@ export const searchWithGROQ = async (query: string): Promise<GROQSearchResponse>
   if (!apiKey || apiKey.trim() === '') {
     console.error('GROQ API key is missing. Check your .env.local file');
     return {
-      error: 'GROQ API key not configured. Please add NEXT_PUBLIC_GROQ_API_KEY to your .env.local file.',
       players: [],
       teams: [],
-      videoHighlights: [],
-      teamAnalysis: null,
+      youtubeQuery: '',
+      error: 'GROQ API key not configured. Please add NEXT_PUBLIC_GROQ_API_KEY to your .env.local file.'
     };
   }
 
@@ -62,42 +64,92 @@ export const searchWithGROQ = async (query: string): Promise<GROQSearchResponse>
       messages: [
         {
           role: 'system',
-          content: `You are FutbolAI - an expert football analyst assistant. Provide accurate, concise football information.
+          content: `You are FutbolAI - a professional football data analyst. You provide comprehensive, accurate football statistics.
+          ALWAYS respond with VALID JSON using this exact structure:
 
-          IMPORTANT: Respond with VALID JSON only. Use this exact structure:
           {
-            "players": [{"name": "string", "team": "string", "position": "string", "wikipediaSummary": "string"}],
-            "teams": [{"name": "string", "country": "string", "coach": "string", "fifaRanking": number, "group": "string"}],
-            "videoHighlights": [],
-            "teamAnalysis": null,
-            "message": "string explaining what was found"
+            "players": [{
+              "name": "string",
+              "currentTeam": "string",
+              "position": "string",
+              "age": number,
+              "nationality": "string",
+              "careerGoals": number,
+              "careerAssists": number,
+              "internationalAppearances": number,
+              "internationalGoals": number,
+              "majorAchievements": ["string"],
+              "careerSummary": "string (brief 2-3 sentence summary)"
+            }],
+            "teams": [{
+              "name": "string",
+              "type": "club" or "national",
+              "country": "string",
+              "stadium": "string",
+              "currentCoach": "string",
+              "foundedYear": number,
+              "majorAchievements": {
+                "worldCup": ["string"],
+                "continental": ["string"],
+                "domestic": ["string"]
+              }
+            }],
+            "youtubeQuery": "string (relevant YouTube search query for highlights)"
           }
 
-          RULES:
-          1. For 2026 World Cup teams, include their actual group (A-L) from the official draw
-          2. Keep wikipediaSummary brief (1-2 sentences max)
-          3. If you don't have accurate information, return empty arrays
-          4. Always include a helpful message field
-          5. NEVER include markdown, explanations, or text outside the JSON
+          CRITICAL RULES:
+          1. If searching for a player: fill the "players" array (max 1 item), leave "teams" empty
+          2. If searching for a team: fill the "teams" array (max 1 item), leave "players" empty
+          3. Include REAL statistics - estimate if exact numbers unknown
+          4. For teams: Break down achievements by World Cup, Continental (Champions League, Copa America, etc.), Domestic (league titles)
+          5. ALWAYS provide a relevant "youtubeQuery" (e.g., "Lionel Messi 2024 highlights" or "Real Madrid best goals 2024")
+          6. If you don't know specific data, use reasonable estimates or empty arrays
+          7. NEVER include markdown or text outside the JSON structure
 
-          Examples:
-          - Query: "Lionel Messi"
-            Response: {"players": [{"name": "Lionel Messi", "team": "Inter Miami", "position": "Forward", "wikipediaSummary": "Argentine professional footballer..."}], "teams": [], "videoHighlights": [], "teamAnalysis": null, "message": "Found information about Lionel Messi"}
+          Example response for "Lionel Messi":
+          {
+            "players": [{
+              "name": "Lionel Messi",
+              "currentTeam": "Inter Miami",
+              "position": "Forward",
+              "age": 36,
+              "nationality": "Argentine",
+              "careerGoals": 835,
+              "careerAssists": 375,
+              "internationalAppearances": 180,
+              "internationalGoals": 106,
+              "majorAchievements": ["2022 FIFA World Cup Winner", "8x Ballon d'Or", "4x Champions League Winner", "10x La Liga Winner"],
+              "careerSummary": "Argentine professional footballer considered one of the greatest players of all time. Known for his dribbling, playmaking, and goal-scoring abilities. Currently plays for Inter Miami in MLS after legendary career at Barcelona."
+            }],
+            "teams": [],
+            "youtubeQuery": "Lionel Messi best goals 2024 Inter Miami"
+          }
 
-          - Query: "Argentina"
-            Response: {"players": [], "teams": [{"name": "Argentina", "country": "Argentina", "coach": "Lionel Scaloni", "fifaRanking": 1, "group": "J"}], "videoHighlights": [], "teamAnalysis": null, "message": "Found information about Argentina national team"}
-
-          - Query: "random unknown term"
-            Response: {"players": [], "teams": [], "videoHighlights": [], "teamAnalysis": null, "message": "No football information found for 'random unknown term'"}
-
-          Remember: ONLY JSON response, no other text.`
+          Example response for "Real Madrid":
+          {
+            "players": [],
+            "teams": [{
+              "name": "Real Madrid",
+              "type": "club",
+              "country": "Spain",
+              "stadium": "Santiago Bernabéu",
+              "currentCoach": "Carlo Ancelotti",
+              "foundedYear": 1902,
+              "majorAchievements": {
+                "worldCup": ["FIFA Club World Cup (2014, 2016, 2017, 2018, 2022)"],
+                "continental": ["UEFA Champions League (14 titles)", "UEFA Super Cup (5 titles)"],
+                "domestic": ["La Liga (35 titles)", "Copa del Rey (20 titles)", "Supercopa de España (13 titles)"]
+              }
+            }],
+            "youtubeQuery": "Real Madrid best goals 2024 Champions League"
+          }`
         },
         {
           role: 'user',
-          content: `Football query: "${query}". Provide accurate information in the specified JSON format.`
+          content: `Football search query: "${query}". Provide comprehensive data in the specified JSON format.`
         }
       ],
-      model: 'llama-3.3-70b-versatile', // CHANGED TO YOUR PREFERRED MODEL
+      model: 'llama-3.3-70b-versatile',
       temperature: 0.3,
       max_tokens: 1500,
       response_format: { type: 'json_object' }
@@ -108,11 +160,10 @@ export const searchWithGROQ = async (query: string): Promise<GROQSearchResponse>
     
     if (!response || response.trim() === '') {
       return {
-        error: 'Received empty response from AI service',
         players: [],
         teams: [],
-        videoHighlights: [],
-        teamAnalysis: null,
+        youtubeQuery: '',
+        error: 'Received empty response from AI service',
         message: 'No data found for your query.'
       };
     }
@@ -122,14 +173,15 @@ export const searchWithGROQ = async (query: string): Promise<GROQSearchResponse>
       console.log('[GROQ] Parsed response:', parsed);
       
       // Validate and ensure proper structure
-      return {
-        players: Array.isArray(parsed.players) ? parsed.players.slice(0, 10) : [],
-        teams: Array.isArray(parsed.teams) ? parsed.teams.slice(0, 10) : [],
-        videoHighlights: Array.isArray(parsed.videoHighlights) ? parsed.videoHighlights.slice(0, 5) : [],
-        teamAnalysis: parsed.teamAnalysis || null,
+      const result: GROQSearchResponse = {
+        players: Array.isArray(parsed.players) ? parsed.players.slice(0, 1) : [],
+        teams: Array.isArray(parsed.teams) ? parsed.teams.slice(0, 1) : [],
+        youtubeQuery: parsed.youtubeQuery || `${query} football highlights`,
         message: parsed.message || `Found information for "${query}"`,
         error: parsed.error || null
       };
+      
+      return result;
       
     } catch (parseError) {
       console.error('[GROQ] Failed to parse JSON response:', parseError, 'Response:', response);
@@ -142,8 +194,7 @@ export const searchWithGROQ = async (query: string): Promise<GROQSearchResponse>
           return {
             players: Array.isArray(extracted.players) ? extracted.players : [],
             teams: Array.isArray(extracted.teams) ? extracted.teams : [],
-            videoHighlights: Array.isArray(extracted.videoHighlights) ? extracted.videoHighlights : [],
-            teamAnalysis: extracted.teamAnalysis || null,
+            youtubeQuery: extracted.youtubeQuery || `${query} football highlights`,
             message: extracted.message || `Found information for "${query}"`,
             error: null
           };
@@ -153,11 +204,10 @@ export const searchWithGROQ = async (query: string): Promise<GROQSearchResponse>
       }
       
       return {
-        error: 'Failed to parse AI response. The service returned invalid JSON.',
         players: [],
         teams: [],
-        videoHighlights: [],
-        teamAnalysis: null,
+        youtubeQuery: `${query} football highlights`,
+        error: 'Failed to parse AI response. The service returned invalid JSON.',
         message: 'Technical error processing the response.'
       };
     }
@@ -168,40 +218,36 @@ export const searchWithGROQ = async (query: string): Promise<GROQSearchResponse>
     // Handle specific error cases
     if (error?.status === 401) {
       return {
-        error: 'Invalid API key. Please check your GROQ_API_KEY in .env.local',
         players: [],
         teams: [],
-        videoHighlights: [],
-        teamAnalysis: null
+        youtubeQuery: '',
+        error: 'Invalid API key. Please check your GROQ_API_KEY in .env.local'
       };
     }
     
     if (error?.status === 429) {
       return {
-        error: 'Rate limit exceeded. Please wait a moment and try again.',
         players: [],
         teams: [],
-        videoHighlights: [],
-        teamAnalysis: null
+        youtubeQuery: '',
+        error: 'Rate limit exceeded. Please wait a moment and try again.'
       };
     }
     
     if (error?.message?.includes('network') || error?.message?.includes('fetch')) {
       return {
-        error: 'Network error. Please check your internet connection.',
         players: [],
         teams: [],
-        videoHighlights: [],
-        teamAnalysis: null
+        youtubeQuery: '',
+        error: 'Network error. Please check your internet connection.'
       };
     }
     
     return {
-      error: `Search failed: ${error.message || 'Unknown error'}`,
       players: [],
       teams: [],
-      videoHighlights: [],
-      teamAnalysis: null
+      youtubeQuery: '',
+      error: `Search failed: ${error.message || 'Unknown error'}`
     };
   }
 };
