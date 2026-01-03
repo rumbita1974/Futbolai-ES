@@ -1,28 +1,38 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Remove or comment out output: 'export' for Cloudflare Pages
-  // output: 'export',
+  output: 'export',  // CRITICAL: Enables static export
   
+  // Disable image optimization for static export
   images: {
     unoptimized: true,
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: '**',
-      },
-    ],
   },
   
+  // Ignore ESLint during build
   eslint: {
     ignoreDuringBuilds: true,
   },
   
+  // Ignore TypeScript errors during build
   typescript: {
     ignoreBuildErrors: true,
   },
   
-  // Disable strict mode if causing issues
+  // Disable React strict mode if causing issues
   reactStrictMode: false,
+  
+  // Optional: Add trailing slash for better compatibility
+  trailingSlash: false,
+  
+  // Optional: Configure redirects (static export compatible)
+  async redirects() {
+    return [
+      {
+        source: '/',
+        destination: '/',
+        permanent: true,
+      },
+    ];
+  },
 }
 
 module.exports = nextConfig
