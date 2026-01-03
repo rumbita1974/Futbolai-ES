@@ -34,3 +34,4 @@ npm install
 # Set up environment variables
 cp .env.example .env.local"# Futbolai-WC" 
 "# Cloudflare deployment fix - valid package.json" 
+"# Force new commit for Cloudflare - $(date)" 
