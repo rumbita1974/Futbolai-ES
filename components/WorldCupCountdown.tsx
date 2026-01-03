@@ -1,73 +1,77 @@
-'use client';
-
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 export default function WorldCupCountdown() {
   const [timeLeft, setTimeLeft] = useState({
     days: 0,
     hours: 0,
     minutes: 0,
-    seconds: 0
+    seconds: 0,
   });
 
-  const worldCupStartDate = new Date('2026-06-11T00:00:00Z');
-
   useEffect(() => {
-    const calculateTimeLeft = () => {
-      const now = new Date();
-      const difference = worldCupStartDate.getTime() - now.getTime();
-      
+    // Official tournament start: June 11, 2026
+    const tournamentStart = new Date('2026-06-11T17:00:00Z').getTime(); // 5 PM UTC
+
+    const updateCountdown = () => {
+      const now = new Date().getTime();
+      const difference = tournamentStart - now;
+
       if (difference > 0) {
         setTimeLeft({
           days: Math.floor(difference / (1000 * 60 * 60 * 24)),
-          hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
-          minutes: Math.floor((difference / 1000 / 60) % 60),
-          seconds: Math.floor((difference / 1000) % 60)
+          hours: Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
+          minutes: Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60)),
+          seconds: Math.floor((difference % (1000 * 60)) / 1000),
         });
+      } else {
+        // Tournament has started
+        setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
       }
     };
 
-    calculateTimeLeft();
-    const timer = setInterval(calculateTimeLeft, 1000);
+    updateCountdown();
+    const intervalId = setInterval(updateCountdown, 1000);
 
-    return () => clearInterval(timer);
+    return () => clearInterval(intervalId);
   }, []);
 
   return (
-    <div className="bg-gradient-to-r from-blue-900/20 to-green-900/20 border border-gray-700 rounded-2xl p-6 mb-8">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-          <span className="text-lg font-semibold text-green-400">COUNTDOWN TO WORLD CUP 2026</span>
-        </div>
-        <span className="text-sm text-gray-400">June 11, 2026</span>
+    <div className="w-full bg-gradient-to-r from-blue-900 to-green-800 rounded-2xl p-6 shadow-2xl">
+      <div className="text-center mb-6">
+        <h2 className="text-3xl font-bold text-white mb-2">Countdown to World Cup 2026</h2>
+        <p className="text-blue-200">Tournament starts: June 11, 2026</p>
+        <p className="text-blue-100 text-sm mt-1">Mexico vs South Africa • Estadio Azteca</p>
       </div>
-      
-      <div className="grid grid-cols-4 gap-3">
-        <div className="bg-gradient-to-b from-blue-600 to-blue-700 rounded-xl p-4 text-center">
-          <div className="text-2xl md:text-3xl font-bold text-white">{timeLeft.days.toString().padStart(2, '0')}</div>
-          <div className="text-xs md:text-sm font-medium text-gray-200 mt-1">DAYS</div>
+
+      <div className="grid grid-cols-4 gap-4 mb-6">
+        <div className="bg-white/20 backdrop-blur-sm rounded-xl p-4 text-center">
+          <div className="text-4xl font-bold text-white">{String(timeLeft.days).padStart(2, '0')}</div>
+          <div className="text-blue-100 font-medium mt-1">DAYS</div>
         </div>
-        <div className="bg-gradient-to-b from-green-600 to-green-700 rounded-xl p-4 text-center">
-          <div className="text-2xl md:text-3xl font-bold text-white">{timeLeft.hours.toString().padStart(2, '0')}</div>
-          <div className="text-xs md:text-sm font-medium text-gray-200 mt-1">HOURS</div>
+        <div className="bg-white/20 backdrop-blur-sm rounded-xl p-4 text-center">
+          <div className="text-4xl font-bold text-white">{String(timeLeft.hours).padStart(2, '0')}</div>
+          <div className="text-blue-100 font-medium mt-1">HOURS</div>
         </div>
-        <div className="bg-gradient-to-b from-yellow-600 to-yellow-700 rounded-xl p-4 text-center">
-          <div className="text-2xl md:text-3xl font-bold text-white">{timeLeft.minutes.toString().padStart(2, '0')}</div>
-          <div className="text-xs md:text-sm font-medium text-gray-200 mt-1">MINUTES</div>
+        <div className="bg-white/20 backdrop-blur-sm rounded-xl p-4 text-center">
+          <div className="text-4xl font-bold text-white">{String(timeLeft.minutes).padStart(2, '0')}</div>
+          <div className="text-blue-100 font-medium mt-1">MINUTES</div>
         </div>
-        <div className="bg-gradient-to-b from-red-600 to-red-700 rounded-xl p-4 text-center">
-          <div className="text-2xl md:text-3xl font-bold text-white">{timeLeft.seconds.toString().padStart(2, '0')}</div>
-          <div className="text-xs md:text-sm font-medium text-gray-200 mt-1">SECONDS</div>
+        <div className="bg-white/20 backdrop-blur-sm rounded-xl p-4 text-center">
+          <div className="text-4xl font-bold text-white">{String(timeLeft.seconds).padStart(2, '0')}</div>
+          <div className="text-blue-100 font-medium mt-1">SECONDS</div>
         </div>
       </div>
-      
-      <div className="mt-4 text-center">
-        <div className="text-sm text-gray-400">
-          {timeLeft.days > 365 ? 'Over a year to go!' : 
-           timeLeft.days > 30 ? 'Getting closer!' : 
-           timeLeft.days > 7 ? 'Almost here!' : 
-           'Starts this week!'}
+
+      <div className="border-t border-white/20 pt-4">
+        <div className="flex justify-between items-center">
+          <div className="text-white">
+            <div className="font-semibold">Opening Match</div>
+            <div className="text-sm text-blue-100">Group A • June 11, 2026</div>
+          </div>
+          <div className="text-right">
+            <div className="text-white font-medium">Mexico vs South Africa</div>
+            <div className="text-sm text-blue-100">Estadio Azteca, Mexico City</div>
+          </div>
         </div>
       </div>
     </div>

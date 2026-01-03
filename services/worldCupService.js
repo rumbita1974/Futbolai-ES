@@ -1,144 +1,101 @@
-import { getFlagUrl } from '@/utils/countryCodes';
+/**
+ * World Cup 2026 Data Service
+ */
 
-// Cache for matches
-let cachedMatches = null;
+const API_BASE = typeof window !== 'undefined' ? '' : 'http://localhost:3000';
 
-export async function getWorldCupMatches() {
-  console.log('🔍 getWorldCupMatches called');
-  
-  if (cachedMatches) {
-    console.log('📦 Returning cached matches:', cachedMatches.length);
-    return cachedMatches;
-  }
-  
+export const fetchWorldCupData = async () => {
   try {
-    console.log('📥 Fetching schedule.json from /data/schedule.json');
-    
-    // Load from the JSON file that we already created
-    const response = await fetch('/data/schedule.json', {
-      cache: 'no-store', // Always get fresh data
-      headers: {
-        'Content-Type': 'application/json',
-      }
+    const response = await fetch(`${API_BASE}/api/worldcup`, {
+      cache: 'no-store'
     });
     
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      throw new Error(`API error: ${response.status}`);
     }
     
-    const matches = await response.json();
-    console.log(`✅ Loaded ${matches.length} matches from schedule.json`);
+    const data = await response.json();
     
-    // Add flag URLs to matches
-    const enhancedMatches = matches.map(match => addFlagsToMatch(match));
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to load World Cup data');
+    }
     
-    cachedMatches = enhancedMatches;
-    return enhancedMatches;
-    
+    return data;
   } catch (error) {
-    console.error('❌ Error loading World Cup matches:', error);
+    console.error('Error fetching World Cup data:', error);
     
-    // Fallback to a few sample matches
-    console.log('⚠️ Using fallback sample data');
-    return getSampleMatches();
+    // Return fallback data if API fails
+    return {
+      success: false,
+      error: error.message,
+      groups: [],
+      tournamentStart: '2026-06-11',
+      totalMatches: 0
+    };
   }
-}
+};
 
-function addFlagsToMatch(match) {
-  // Check if team names are actual countries (not "Winner match X" or teams with slashes)
-  const isRealTeam1 = !match.team1.toLowerCase().includes('winner') && 
-                     !match.team1.toLowerCase().includes('runner') &&
-                     !match.team1.toLowerCase().includes('third place') &&
-                     !match.team1.includes('/');
-  
-  const isRealTeam2 = !match.team2.toLowerCase().includes('winner') && 
-                     !match.team2.toLowerCase().includes('runner') &&
-                     !match.team2.toLowerCase().includes('third place') &&
-                     !match.team2.includes('/');
-  
-  return {
-    ...match,
-    team1Flag: isRealTeam1 ? getFlagUrl(match.team1) : '/team-placeholder.png',
-    team2Flag: isRealTeam2 ? getFlagUrl(match.team2) : '/team-placeholder.png',
-    hasRealTeams: isRealTeam1 && isRealTeam2
-  };
-}
-
-// Sample data for fallback (just in case)
-function getSampleMatches() {
-  const sampleMatches = [
-    {
-      id: 1,
-      date: '2026-06-11',
-      displayDate: 'Thursday, June 11, 2026',
-      team1: 'Mexico',
-      team2: 'South Africa',
-      venue: 'Mexico City Stadium',
-      time: 'TBD',
-      group: 'Group A',
-      round: 'Group Stage',
-      status: 'scheduled',
-      score: { team1: null, team2: null },
-      stage: 'group'
-    },
-    {
-      id: 4,
-      date: '2026-06-12',
-      displayDate: 'Friday, June 12, 2026',
-      team1: 'USA',
-      team2: 'Paraguay',
-      venue: 'Los Angeles Stadium',
-      time: 'TBD',
-      group: 'Group D',
-      round: 'Group Stage',
-      status: 'scheduled',
-      score: { team1: null, team2: null },
-      stage: 'group'
-    },
-    {
-      id: 7,
-      date: '2026-06-13',
-      displayDate: 'Saturday, June 13, 2026',
-      team1: 'Brazil',
-      team2: 'Morocco',
-      venue: 'New York New Jersey Stadium',
-      time: 'TBD',
-      group: 'Group C',
-      round: 'Group Stage',
-      status: 'scheduled',
-      score: { team1: null, team2: null },
-      stage: 'group'
+export const getGroupById = async (groupId) => {
+  try {
+    const data = await fetchWorldCupData();
+    
+    if (!data.success) {
+      throw new Error(data.error);
     }
-  ];
-  
-  return sampleMatches.map(match => addFlagsToMatch(match));
-}
-
-// Simple helper functions
-export function groupMatchesByDate(matches) {
-  const grouped = {};
-  matches.forEach(match => {
-    if (!grouped[match.date]) grouped[match.date] = [];
-    grouped[match.date].push(match);
-  });
-  return grouped;
-}
-
-export function groupMatchesByGroup(matches) {
-  const grouped = {};
-  matches.forEach(match => {
-    if (match.group) {
-      if (!grouped[match.group]) grouped[match.group] = [];
-      grouped[match.group].push(match);
+    
+    const group = data.groups.find(g => g.id === groupId.toUpperCase());
+    
+    if (!group) {
+      throw new Error(`Group ${groupId} not found`);
     }
-  });
-  return grouped;
-}
+    
+    return group;
+  } catch (error) {
+    console.error(`Error getting group ${groupId}:`, error);
+    throw error;
+  }
+};
 
-export function getGroupStage(matches) {
-  return matches.filter(match => match.stage === 'group');
-}
+export const getAllGroups = async () => {
+  try {
+    const data = await fetchWorldCupData();
+    
+    if (!data.success) {
+      throw new Error(data.error);
+    }
+    
+    return data.groups;
+  } catch (error) {
+    console.error('Error getting all groups:', error);
+    throw error;
+  }
+};
 
-export function getKnockoutStage(matches) {
-  return matches.filter(match => match.stage !== 'group');
-}
+export const getMatchesByDate = async (dateString) => {
+  try {
+    const data = await fetchWorldCupData();
+    
+    if (!data.success) {
+      throw new Error(data.error);
+    }
+    
+    const targetDate = new Date(dateString).toDateString();
+    const allMatches = data.groups.flatMap(group => group.matches);
+    
+    return allMatches.filter(match => {
+      const matchDate = new Date(match.date).toDateString();
+      return matchDate === targetDate;
+    });
+  } catch (error) {
+    console.error(`Error getting matches for ${dateString}:`, error);
+    throw error;
+  }
+};
+
+// Default export for compatibility
+export default {
+  fetchWorldCupData,
+  getGroupById,
+  getAllGroups,
+  getMatchesByDate
+};
