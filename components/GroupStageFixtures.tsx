@@ -93,9 +93,9 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
     return group ? group.matches : [];
   };
 
-  // Function to get team flag emoji
+  // Function to get team flag emoji - FIXED VERSION
   const getTeamFlag = (teamName: string) => {
-    const flags: Record<string, string> = {
+    const flags: { [key: string]: string } = {
       'Mexico': '🇲🇽', 'USA': '🇺🇸', 'Canada': '🇨🇦',
       'Brazil': '🇧🇷', 'Argentina': '🇦🇷', 'Germany': '🇩🇪',
       'France': '🇫🇷', 'Spain': '🇪🇸', 'England': '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
@@ -126,9 +126,11 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
     // Check for exact match first
     if (flags[teamName]) return flags[teamName];
     
-    // Check for partial matches
-    for (const [country, flag] of Object.entries(flags)) {
-      if (teamName.includes(country)) return flag;
+    // Check for partial matches - using traditional for loop
+    const teamKeys = Object.keys(flags);
+    for (let i = 0; i < teamKeys.length; i++) {
+      const country = teamKeys[i];
+      if (teamName.includes(country)) return flags[country];
     }
     
     return '⚽'; // Default football emoji
