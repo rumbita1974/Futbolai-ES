@@ -354,6 +354,40 @@ const CRITICAL_UPDATES_2025: Record<string, Record<string, any>> = {
   }
 };
 
+// ⬅️ ADDED: Player critical updates for 2024-2025 transfers
+const PLAYER_CRITICAL_UPDATES_2025: Record<string, Record<string, any>> = {
+  'Kylian Mbappé': {
+    currentTeam: 'Real Madrid',
+    transferDate: 'July 2024',
+    previousTeam: 'Paris Saint-Germain',
+    source: 'Official transfer announcement July 2024',
+    lastUpdate: '2024-07-01',
+    verified: true,
+    _note: 'High-profile transfer from PSG to Real Madrid'
+  },
+  'Jude Bellingham': {
+    currentTeam: 'Real Madrid',
+    transferDate: 'June 2023',
+    source: 'Official transfer announcement June 2023',
+    lastUpdate: '2023-06-01',
+    verified: true
+  },
+  'Lionel Messi': {
+    currentTeam: 'Inter Miami CF',
+    transferDate: 'July 2023',
+    source: 'Official announcement July 2023',
+    lastUpdate: '2023-07-01',
+    verified: true
+  },
+  'Robert Lewandowski': {
+    currentTeam: 'FC Barcelona',
+    transferDate: 'July 2022',
+    source: 'Official transfer July 2022',
+    lastUpdate: '2022-07-01',
+    verified: true
+  }
+};
+
 /**
  * Get critical update if available
  */
@@ -585,6 +619,84 @@ const extractInfoFromWikipedia = (summary: string, detailedInfo: any): {
 };
 
 /**
+ * ⬅️ ADDED: Enhance player data with Wikipedia and critical updates
+ */
+const enhancePlayerWithWikipedia = async (playerData: any, playerName: string): Promise<any> => {
+  const enhancedPlayer = { ...playerData };
+  const updates: string[] = [];
+  
+  // 1. Check critical player updates first
+  const criticalUpdate = PLAYER_CRITICAL_UPDATES_2025[playerName];
+  if (criticalUpdate) {
+    // Update current team if it's outdated
+    if (criticalUpdate.currentTeam && 
+        criticalUpdate.previousTeam && 
+        enhancedPlayer.currentTeam === criticalUpdate.previousTeam) {
+      
+      const oldTeam = enhancedPlayer.currentTeam;
+      enhancedPlayer.currentTeam = criticalUpdate.currentTeam;
+      enhancedPlayer._source = 'Critical Transfer Update 2024-2025';
+      enhancedPlayer._updateReason = `${criticalUpdate.transferDate} transfer`;
+      updates.push(`Team updated: ${oldTeam} → ${criticalUpdate.currentTeam} (${criticalUpdate.transferDate})`);
+    }
+  }
+  
+  // 2. Fetch from Wikipedia for player verification
+  try {
+    const wikiData = await fetchFromWikipedia(playerName);
+    if (wikiData && wikiData.summary) {
+      // Try to extract current team from Wikipedia summary
+      const teamPatterns = [
+        /plays for ([^.]+)\./i,
+        /currently plays for ([^.]+)\./i,
+        /plays as [^.]* for ([^.]+)\./i,
+        /is a [^.]* who plays for ([^.]+)\./i,
+        /current club is ([^.]+)\./i,
+        /plays professional football for ([^.]+)\./i
+      ];
+      
+      for (const pattern of teamPatterns) {
+        const match = wikiData.summary.match(pattern);
+        if (match && match[1]) {
+          const wikiTeam = cleanText(match[1]);
+          
+          // Check if Wikipedia team is different from current data
+          if (wikiTeam !== enhancedPlayer.currentTeam && 
+              !enhancedPlayer._source?.includes('Critical')) {
+            
+            // Check if Wikipedia team seems more current
+            if (wikiTeam.includes('Real Madrid') && enhancedPlayer.currentTeam.includes('PSG') ||
+                wikiTeam.includes('202') || wikiTeam.length > enhancedPlayer.currentTeam.length) {
+              
+              const oldTeam = enhancedPlayer.currentTeam;
+              enhancedPlayer.currentTeam = wikiTeam;
+              enhancedPlayer._source = 'Wikipedia API (player)';
+              enhancedPlayer._wikiSummary = wikiData.summary.substring(0, 200) + '...';
+              updates.push(`Team updated from Wikipedia: ${oldTeam} → ${wikiTeam}`);
+            }
+          }
+          break;
+        }
+      }
+      
+      enhancedPlayer._wikiFetchedAt = wikiData.fetchedAt;
+    }
+  } catch (error) {
+    console.log(`[Wikipedia] Player enhancement failed for ${playerName}:`, error);
+  }
+  
+  // 3. Add metadata
+  enhancedPlayer._dataCurrency = {
+    lastVerified: new Date().toISOString(),
+    verificationSource: enhancedPlayer._source || 'GROQ AI only',
+    confidence: updates.length > 0 ? 'high' : 'medium',
+    updatesApplied: updates
+  };
+  
+  return enhancedPlayer;
+};
+
+/**
  * Analyze GROQ response for potential outdated information
  */
 export const analyzeDataCurrency = (groqResponse: any, query: string): {
@@ -671,9 +783,28 @@ export const analyzeDataCurrency = (groqResponse: any, query: string): {
     }
   }
 
-  // Check players for age/team currency
+  // ⬅️ MODIFIED: Enhanced player checks with critical updates
   if (groqResponse.players && groqResponse.players.length > 0) {
     const player = groqResponse.players[0];
+    const playerName = player.name;
+    
+    // Check critical player updates
+    const criticalPlayerUpdate = PLAYER_CRITICAL_UPDATES_2025[playerName];
+    if (criticalPlayerUpdate) {
+      if (player.currentTeam === criticalPlayerUpdate.previousTeam) {
+        result.isLikelyOutdated = true;
+        result.outdatedFields.push('playerCurrentTeam');
+        result.needsEnhancement = true;
+        result.suggestions.push(`Player transfer detected: ${playerName} moved to ${criticalPlayerUpdate.currentTeam} in ${criticalPlayerUpdate.transferDate}`);
+        result.confidence = 'high';
+      }
+    }
+    
+    // Check for other outdated indicators
+    if (player.currentTeam?.toLowerCase().includes('psg') && playerName.includes('Mbappé')) {
+      result.suggestions.push(`${playerName}'s club may be outdated. He transferred to Real Madrid in 2024.`);
+      result.needsEnhancement = true;
+    }
     
     // Age verification
     if (player.age && player.age > 35) {
@@ -824,6 +955,24 @@ export const enhanceGROQResponse = async (
   try {
     // Analyze data currency
     const currencyAnalysis = analyzeDataCurrency(groqResponse, originalQuery);
+    
+    // ⬅️ MODIFIED: Enhance players with Wikipedia
+    if (enhancedResponse.players && enhancedResponse.players.length > 0) {
+      for (let i = 0; i < enhancedResponse.players.length; i++) {
+        const playerName = enhancedResponse.players[i].name;
+        const originalTeam = enhancedResponse.players[i].currentTeam;
+        
+        enhancedResponse.players[i] = await enhancePlayerWithWikipedia(
+          enhancedResponse.players[i], 
+          playerName
+        );
+        
+        // Track if update was applied
+        if (enhancedResponse.players[i].currentTeam !== originalTeam) {
+          appliedUpdates.push(`${playerName} team: ${originalTeam} → ${enhancedResponse.players[i].currentTeam}`);
+        }
+      }
+    }
     
     // Enhance teams with Wikipedia
     if (enhancedResponse.teams && enhancedResponse.teams.length > 0) {
