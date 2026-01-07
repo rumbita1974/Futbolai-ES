@@ -1,9 +1,10 @@
 import { MetadataRoute } from 'next';
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = 'https://www.futbolai.org'; // ⬅️ CORRECTED
+  const baseUrl = 'https://www.futbolai.org';
   const currentDate = new Date();
   
+  // CORRECTED to match your actual route structure
   return [
     {
       url: `${baseUrl}/`,
@@ -12,25 +13,25 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 1,
     },
     {
-      url: `${baseUrl}/worldcup`,
+      url: `${baseUrl}/world-cup`,  // CORRECT: with dash
       lastModified: currentDate,
       changeFrequency: 'daily' as const,
       priority: 0.9,
     },
     {
-      url: `${baseUrl}/player-stats`,
+      url: `${baseUrl}/players`,  // CORRECT: plural
       lastModified: currentDate,
       changeFrequency: 'weekly' as const,
       priority: 0.8,
     },
     {
-      url: `${baseUrl}/team-analysis`,
+      url: `${baseUrl}/teams`,  // CORRECT: plural
       lastModified: currentDate,
       changeFrequency: 'weekly' as const,
       priority: 0.8,
     },
     {
-      url: `${baseUrl}/video-highlights`,
+      url: `${baseUrl}/highlights`,  // CORRECT: plural
       lastModified: currentDate,
       changeFrequency: 'daily' as const,
       priority: 0.7,

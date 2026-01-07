@@ -34,7 +34,7 @@ export const metadata: Metadata = {
     address: false,
     telephone: false,
   },
-  metadataBase: new URL('https://www.futbolai.org'), // CORRECTED DOMAIN
+  metadataBase: new URL('https://www.futbolai.org'),
   alternates: {
     canonical: '/',
   },
@@ -52,13 +52,13 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'en_US',
-    url: 'https://www.futbolai.org', // CORRECTED DOMAIN
+    url: 'https://www.futbolai.org',
     title: 'FutbolAI Explorer | AI-Powered Football Intelligence',
     description: 'AI-powered football intelligence with detailed stats, achievements, and video highlights for World Cup 2026',
     siteName: 'FutbolAI Explorer',
     images: [
       {
-        url: 'https://www.futbolai.org/og-image.png', // CORRECTED DOMAIN
+        url: 'https://www.futbolai.org/og-image.png',
         width: 1200,
         height: 630,
         alt: 'FutbolAI Explorer - AI-Powered Football Intelligence Platform',
@@ -69,7 +69,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'FutbolAI Explorer | AI-Powered Football Intelligence',
     description: 'AI-powered football intelligence with detailed stats, achievements, and video highlights for World Cup 2026',
-    images: ['https://www.futbolai.org/og-image.png'], // CORRECTED DOMAIN
+    images: ['https://www.futbolai.org/og-image.png'],
   },
 };
 
@@ -84,7 +84,13 @@ export default function RootLayout({
         <link rel="icon" href="/favicon.ico" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         
-        {/* Structured Data for SEO - ALL DOMAINS CORRECTED */}
+        {/* CRITICAL SEO TAGS */}
+        <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+        <meta name="googlebot" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+        <meta name="bingbot" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+        <link rel="canonical" href="https://www.futbolai.org" />
+        
+        {/* Structured Data for SEO */}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -93,17 +99,17 @@ export default function RootLayout({
               '@type': 'WebSite',
               'name': 'FutbolAI Explorer',
               'description': 'AI-powered football intelligence platform',
-              'url': 'https://www.futbolai.org', // CORRECTED DOMAIN
+              'url': 'https://www.futbolai.org',
               'potentialAction': {
                 '@type': 'SearchAction',
-                'target': 'https://www.futbolai.org/?q={search_term_string}', // CORRECTED DOMAIN
+                'target': 'https://www.futbolai.org/?q={search_term_string}',
                 'query-input': 'required name=search_term_string'
               }
             })
           }}
         />
         
-        {/* Additional Sports schema for better SEO */}
+        {/* Additional Sports schema */}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -111,7 +117,7 @@ export default function RootLayout({
               '@context': 'https://schema.org',
               '@type': 'SportsOrganization',
               'name': 'FutbolAI Football Intelligence',
-              'url': 'https://www.futbolai.org', // CORRECTED DOMAIN
+              'url': 'https://www.futbolai.org',
               'description': 'AI-powered football analysis and statistics for World Cup 2026',
               'sport': 'Association football',
               'knowsAbout': ['Football statistics', 'Player analysis', 'Team tactics', 'World Cup 2026'],
@@ -120,7 +126,7 @@ export default function RootLayout({
         />
       </head>
       <body className={`${inter.className} bg-gradient-to-b from-gray-900 via-gray-800 to-black min-h-screen text-white pb-16 md:pb-0`}>
-        {/* Main Navigation - Using relative paths (correct) */}
+        {/* Main Navigation - CORRECTED URLs */}
         <nav className="sticky top-0 z-50 bg-gray-900/95 backdrop-blur-md border-b border-gray-800">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center h-16">
@@ -139,22 +145,22 @@ export default function RootLayout({
                 </a>
               </div>
 
-              {/* Desktop Navigation - Using relative paths (correct) */}
+              {/* Desktop Navigation - CORRECTED TO MATCH YOUR ACTUAL ROUTES */}
               <div className="hidden md:flex items-center space-x-6">
                 <a href="/" className="text-gray-300 hover:text-white font-medium px-3 py-2 rounded-lg hover:bg-gray-800/50 transition-colors">
                   Home
                 </a>
-                <a href="/worldcup" className="text-gray-300 hover:text-white font-medium px-3 py-2 rounded-lg hover:bg-gray-800/50 transition-colors">
+                <a href="/world-cup" className="text-gray-300 hover:text-white font-medium px-3 py-2 rounded-lg hover:bg-gray-800/50 transition-colors">
                   World Cup 2026
                 </a>
-                <a href="/player-stats" className="text-gray-300 hover:text-white font-medium px-3 py-2 rounded-lg hover:bg-gray-800/50 transition-colors">
-                  Player Stats
+                <a href="/players" className="text-gray-300 hover:text-white font-medium px-3 py-2 rounded-lg hover:bg-gray-800/50 transition-colors">
+                  Players
                 </a>
-                <a href="/team-analysis" className="text-gray-300 hover:text-white font-medium px-3 py-2 rounded-lg hover:bg-gray-800/50 transition-colors">
-                  Team Analysis
+                <a href="/teams" className="text-gray-300 hover:text-white font-medium px-3 py-2 rounded-lg hover:bg-gray-800/50 transition-colors">
+                  Teams
                 </a>
-                <a href="/video-highlights" className="text-gray-300 hover:text-white font-medium px-3 py-2 rounded-lg hover:bg-gray-800/50 transition-colors">
-                  Video Highlights
+                <a href="/highlights" className="text-gray-300 hover:text-white font-medium px-3 py-2 rounded-lg hover:bg-gray-800/50 transition-colors">
+                  Highlights
                 </a>
               </div>
 
@@ -202,7 +208,7 @@ export default function RootLayout({
                 Developed by A. Guillen
               </p>
               
-              {/* SEO Footer Links - Using absolute URLs for sitemap/robots */}
+              {/* SEO Footer Links */}
               <div className="mt-4 flex flex-wrap justify-center gap-4 text-xs text-gray-500">
                 <a href="https://www.futbolai.org/sitemap.xml" className="hover:text-gray-300">Sitemap</a>
                 <span aria-hidden="true">•</span>
