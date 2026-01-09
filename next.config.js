@@ -1,11 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // i18n configuration for multilingual support
-  i18n: {
-    defaultLocale: 'en',
-    locales: ['en', 'es'],
-    localeDetection: true,
-  },
+  // REMOVED i18n configuration - causing conflict with custom LanguageContext
+  // Your custom LanguageContext handles translations, so Next.js i18n is not needed
   
   // Disable image optimization if needed
   images: {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { searchWithGROQ, Player, Team } from '@/services/groqService';
 import EnhancedSearchResults from '@/components/EnhancedSearchResults';
@@ -14,6 +14,13 @@ interface SearchResult {
   message?: string;
 }
 
+// Cache interface
+interface CacheItem {
+  data: SearchResult;
+  timestamp: number;
+  language: string;
+}
+
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult | null>(null);
@@ -25,6 +32,10 @@ export default function HomePage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { t, language } = useTranslation();
+  
+  // Refs to track state without triggering re-renders
+  const hasAutoSearchedRef = useRef(false);
+  const lastSearchTimeRef = useRef<number>(0);
 
   // Debug: Log current language and test translation
   useEffect(() => {
@@ -37,6 +48,42 @@ export default function HomePage() {
     return t(`homepage.${key}`);
   };
 
+  // Local cache implementation
+  const getCachedResult = (query: string): SearchResult | null => {
+    try {
+      const cacheKey = `search_cache_${query.toLowerCase()}_${language}`;
+      const cached = localStorage.getItem(cacheKey);
+      if (!cached) return null;
+      
+      const cacheItem: CacheItem = JSON.parse(cached);
+      const now = Date.now();
+      const cacheAge = now - cacheItem.timestamp;
+      
+      // Cache valid for 1 hour (3600000 ms)
+      if (cacheAge < 3600000 && cacheItem.language === language) {
+        console.log('Using cached result for:', query);
+        return cacheItem.data;
+      }
+    } catch (err) {
+      console.error('Cache read error:', err);
+    }
+    return null;
+  };
+
+  const setCachedResult = (query: string, data: SearchResult) => {
+    try {
+      const cacheKey = `search_cache_${query.toLowerCase()}_${language}`;
+      const cacheItem: CacheItem = {
+        data,
+        timestamp: Date.now(),
+        language
+      };
+      localStorage.setItem(cacheKey, JSON.stringify(cacheItem));
+    } catch (err) {
+      console.error('Cache write error:', err);
+    }
+  };
+
   // Check if coming from a group page
   useEffect(() => {
     const groupParam = searchParams.get('group');
@@ -46,39 +93,87 @@ export default function HomePage() {
       setComingFromGroup(groupParam);
     }
     
-    // Auto-search if search param is present
+    // OPTIMIZED: Auto-search if search param is present
     if (searchParam && !searchQuery) {
-      setSearchQuery(searchParam);
-      // Auto-trigger search after a short delay
-      const timer = setTimeout(() => {
-        handleAutoSearch(searchParam);
-      }, 100);
+      const now = Date.now();
+      const timeSinceLastAutoSearch = now - lastSearchTimeRef.current;
       
-      return () => clearTimeout(timer);
+      // Prevent rapid consecutive auto-searches
+      if (timeSinceLastAutoSearch > 5000 && !hasAutoSearchedRef.current) { // 5 second cooldown
+        setSearchQuery(searchParam);
+        hasAutoSearchedRef.current = true;
+        lastSearchTimeRef.current = now;
+        
+        // Check cache first
+        const cached = getCachedResult(searchParam);
+        if (cached) {
+          console.log('Using cached auto-search result for:', searchParam);
+          setSearchResults(cached);
+          return;
+        }
+        
+        // Auto-trigger search after a short delay
+        const timer = setTimeout(() => {
+          handleSearchWithCache(searchParam, true);
+        }, 500);
+        
+        return () => clearTimeout(timer);
+      }
     }
   }, [searchParams]);
 
-  const handleAutoSearch = async (query: string) => {
+  // OPTIMIZED: Unified search function with caching
+  const handleSearchWithCache = async (query: string, isAutoSearch = false) => {
+    const now = Date.now();
+    const timeSinceLastSearch = now - lastSearchTimeRef.current;
+    
+    // Debounce: Prevent searches within 1 second
+    if (timeSinceLastSearch < 1000 && !isAutoSearch) {
+      console.log('Search debounced, too soon since last search');
+      return;
+    }
+    
+    // Check cache first (except for auto-searches that already checked)
+    if (!isAutoSearch) {
+      const cached = getCachedResult(query);
+      if (cached) {
+        console.log('Using cached result for:', query);
+        setSearchResults(cached);
+        return;
+      }
+    }
+    
     setLoading(true);
     setSearchError(null);
-    setSearchResults(null);
+    if (!isAutoSearch) {
+      setSearchResults(null);
+    }
 
     try {
-      console.log('Auto-searching for:', query);
+      console.log(`${isAutoSearch ? 'Auto-' : ''}Searching for:`, query);
       const result = await searchWithGROQ(query, language);
-      console.log('Auto-search result:', result);
+      console.log(`${isAutoSearch ? 'Auto-' : ''}Search result:`, result);
       
       if (result.error) {
         setSearchError(result.error);
       } else {
         setSearchResults(result);
+        // Cache successful results
+        if (!result.error) {
+          setCachedResult(query, result);
+        }
       }
     } catch (err: any) {
-      console.error('Auto-search error:', err);
-      setSearchError('Failed to perform auto-search.');
+      console.error('Search error:', err);
+      setSearchError(isAutoSearch ? 'Failed to perform auto-search.' : 'Failed to perform search. Please try again.');
     } finally {
       setLoading(false);
+      lastSearchTimeRef.current = Date.now();
     }
+  };
+
+  const handleAutoSearch = async (query: string) => {
+    handleSearchWithCache(query, true);
   };
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -87,27 +182,7 @@ export default function HomePage() {
       setSearchResults(null);
       return;
     }
-
-    setLoading(true);
-    setSearchError(null);
-    setSearchResults(null);
-
-    try {
-      console.log('Searching for:', searchQuery);
-      const result = await searchWithGROQ(searchQuery, language);
-      console.log('Search result:', result);
-      
-      if (result.error) {
-        setSearchError(result.error);
-      } else {
-        setSearchResults(result);
-      }
-    } catch (err: any) {
-      console.error('Search error:', err);
-      setSearchError('Failed to perform search. Please try again.');
-    } finally {
-      setLoading(false);
-    }
+    handleSearchWithCache(searchQuery);
   };
 
   const handleBackToGroup = () => {
@@ -137,12 +212,7 @@ export default function HomePage() {
 
   const handleExampleSearch = (term: string) => {
     setSearchQuery(term);
-    // Create a form submit event
-    const fakeEvent = {
-      preventDefault: () => {},
-      currentTarget: document.createElement('form')
-    } as React.FormEvent;
-    handleSearch(fakeEvent);
+    handleSearchWithCache(term);
   };
 
   // Function to get team flag emoji
@@ -268,7 +338,7 @@ export default function HomePage() {
               >
                 {loading ? (
                   <span className="flex items-center justify-center">
-                    <svg className="animate-spin -ml-1 mr-2 sm:mr-3 h-4 w-4 sm:h-5 sm:w-5 text-white" xmlns="http://www.w3.org2000/svg" fill="none" viewBox="0 0 24 24">
+                    <svg className="animate-spin -ml-1 mr-2 sm:mr-3 h-4 w-4 sm:h-5 sm:w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>

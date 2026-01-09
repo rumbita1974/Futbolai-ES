@@ -96,10 +96,10 @@ export default function RootLayout({
         <meta name="bingbot" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
         <link rel="canonical" href="https://www.futbolai.org" />
         
-        {/* hreflang tags for multilingual SEO */}
-        <link rel="alternate" href="https://www.futbolai.org/en" hreflang="en" />
-        <link rel="alternate" href="https://www.futbolai.org/es" hreflang="es" />
-        <link rel="alternate" href="https://www.futbolai.org" hreflang="x-default" />
+        {/* FIXED: hrefLang tags for multilingual SEO - React uses camelCase */}
+        <link rel="alternate" href="https://www.futbolai.org/en" hrefLang="en" />
+        <link rel="alternate" href="https://www.futbolai.org/es" hrefLang="es" />
+        <link rel="alternate" href="https://www.futbolai.org" hrefLang="x-default" />
         
         {/* Structured Data for SEO */}
         <script
@@ -239,15 +239,11 @@ export default function RootLayout({
                   Available in: <span className="text-blue-400">English</span> • <span className="text-green-400">Español</span>
                 </p>
                 
-                {/* SEO Footer Links */}
+                {/* SEO Footer Links - REMOVED /en and /es links since we don't use URL prefixes */}
                 <div className="mt-4 flex flex-wrap justify-center gap-4 text-xs text-gray-500">
                   <a href="https://www.futbolai.org/sitemap.xml" className="hover:text-gray-300">Sitemap</a>
                   <span aria-hidden="true">•</span>
                   <a href="https://www.futbolai.org/robots.txt" className="hover:text-gray-300">Robots.txt</a>
-                  <span aria-hidden="true">•</span>
-                  <a href="/en" className="hover:text-gray-300">English</a>
-                  <span aria-hidden="true">•</span>
-                  <a href="/es" className="hover:text-gray-300">Español</a>
                 </div>
               </div>
             </div>

@@ -1,38 +1,16 @@
 'use client';
 
 import { useLanguage } from '@/context/LanguageContext';
-import { useRouter, usePathname } from 'next/navigation';
 
 export default function LanguageToggle() {
   const { language, toggleLanguage } = useLanguage();
-  const router = useRouter();
-  const pathname = usePathname();
 
   const handleToggle = () => {
-    const newLang = language === 'en' ? 'es' : 'en';
+    // Just toggle the language in context - DON'T change URL
+    toggleLanguage();
     
-    // Build new URL with correct locale
-    let newPath;
-    
-    if (pathname === '/en' || pathname === '/es') {
-      // Root with locale: /en → /es
-      newPath = `/${newLang}`;
-    } else if (pathname.startsWith('/en/') || pathname.startsWith('/es/')) {
-      // Path with locale: /en/page → /es/page
-      newPath = pathname.replace(/^\/(en|es)/, `/${newLang}`);
-    } else if (pathname === '/') {
-      // Root without locale (should redirect to /en via middleware)
-      newPath = `/${newLang}`;
-    } else {
-      // Any other path without locale
-      newPath = `/${newLang}${pathname}`;
-    }
-    
-    // Update URL via Next.js router
-    router.push(newPath);
-    
-    // Language state will update via LanguageContext's useEffect
-    // which watches pathname changes
+    // Update the document language attribute for accessibility
+    document.documentElement.lang = language === 'en' ? 'es' : 'en';
   };
 
   return (

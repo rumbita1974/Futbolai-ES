@@ -1,12 +1,14 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
+import { useTranslation } from '@/hooks/useTranslation';
 import GroupStageFixtures from '@/components/GroupStageFixtures';
 import WorldCupCountdown from '@/components/WorldCupCountdown';
 
 export default function WorldCupPage() {
   const searchParams = useSearchParams();
   const groupParam = searchParams.get('group');
+  const { t, language } = useTranslation();  // ← ADD THIS LINE!
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-black text-white">
@@ -17,16 +19,18 @@ export default function WorldCupPage() {
         <div className="relative z-10 max-w-7xl mx-auto px-4 py-6 sm:py-8 sm:px-6 lg:px-8">
           <div className="text-center">
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-3 sm:mb-4 bg-gradient-to-r from-blue-400 to-green-400 bg-clip-text text-transparent">
-              2026 FIFA World Cup
+              {t('worldCup.title')}
             </h1>
             <p className="text-gray-300 text-sm sm:text-base md:text-lg max-w-2xl mx-auto">
-              Official group stage schedule with venues and dates across USA, Canada, and Mexico
+              {t('worldCup.subtitle')}
             </p>
-            
+
             {/* Group Navigation Hint */}
             {groupParam && (
               <div className="mt-4 inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-900/40 to-green-900/40 rounded-full border border-blue-700/30">
-                <span className="text-sm text-blue-300">Viewing Group {groupParam}</span>
+                <span className="text-sm text-blue-300">
+                  {t('worldCup.viewingGroup')} {groupParam}
+                </span>
               </div>
             )}
           </div>
@@ -40,18 +44,30 @@ export default function WorldCupPage() {
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mb-8 sm:mb-10">
             <div className="bg-gray-800/40 p-4 sm:p-5 rounded-xl border border-gray-700/50 backdrop-blur-sm">
               <div className="text-2xl sm:text-3xl font-bold text-blue-400">48</div>
-              <div className="text-gray-200 font-medium text-sm sm:text-base">Teams</div>
-              <div className="text-gray-400 text-xs sm:text-sm mt-1">12 groups of 4 teams</div>
+              <div className="text-gray-200 font-medium text-sm sm:text-base">
+                {t('worldCup.teams')}
+              </div>
+              <div className="text-gray-400 text-xs sm:text-sm mt-1">
+                {t('worldCup.teamsDescription')}
+              </div>
             </div>
             <div className="bg-gray-800/40 p-4 sm:p-5 rounded-xl border border-gray-700/50 backdrop-blur-sm">
               <div className="text-2xl sm:text-3xl font-bold text-green-400">72</div>
-              <div className="text-gray-200 font-medium text-sm sm:text-base">Group Matches</div>
-              <div className="text-gray-400 text-xs sm:text-sm mt-1">June 11 - June 27, 2026</div>
+              <div className="text-gray-200 font-medium text-sm sm:text-base">
+                {t('worldCup.groupMatches')}
+              </div>
+              <div className="text-gray-400 text-xs sm:text-sm mt-1">
+                {t('worldCup.groupMatchesDates')}
+              </div>
             </div>
             <div className="bg-gray-800/40 p-4 sm:p-5 rounded-xl border border-gray-700/50 backdrop-blur-sm">
               <div className="text-2xl sm:text-3xl font-bold text-red-400">16</div>
-              <div className="text-gray-200 font-medium text-sm sm:text-base">Host Cities</div>
-              <div className="text-gray-400 text-xs sm:text-sm mt-1">Across Canada, Mexico & USA</div>
+              <div className="text-gray-200 font-medium text-sm sm:text-base">
+                {t('worldCup.hostCities')}
+              </div>
+              <div className="text-gray-400 text-xs sm:text-sm mt-1">
+                {t('worldCup.hostCitiesDescription')}
+              </div>
             </div>
           </div>
         </div>
@@ -65,15 +81,15 @@ export default function WorldCupPage() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
               <div>
                 <h2 className="text-xl sm:text-2xl font-bold text-white mb-1">
-                  Group Stage Fixtures
+                  {t('worldCup.fixturesTitle')}
                 </h2>
                 <p className="text-gray-400 text-sm sm:text-base">
-                  All matches show "Not played yet" status as tournament hasn't started
+                  {t('worldCup.fixturesDescription')}
                 </p>
               </div>
               <div className="flex items-center">
                 <span className="text-xs text-gray-400 bg-gray-800/50 px-3 py-1.5 rounded-full">
-                  Tap team cards to search players
+                  {t('worldCup.tapHint')}
                 </span>
               </div>
             </div>
@@ -88,25 +104,25 @@ export default function WorldCupPage() {
           {/* Tournament Format */}
           <div className="bg-gradient-to-br from-blue-900/20 to-transparent rounded-xl p-4 sm:p-5 border border-blue-800/30">
             <h3 className="text-lg sm:text-xl font-bold text-blue-300 mb-3 flex items-center">
-              <span className="mr-2">🏆</span> Tournament Format
+              <span className="mr-2">⚽</span> {t('worldCup.tournamentFormat')}
             </h3>
             <ul className="space-y-2 sm:space-y-3">
               <li className="flex items-start">
                 <div className="w-2 h-2 bg-green-500 rounded-full mt-2 mr-3 flex-shrink-0" />
                 <span className="text-gray-300 text-sm sm:text-base">
-                  <span className="font-medium">Group Stage:</span> 12 groups of 4 teams each
+                  <span className="font-medium">{t('worldCup.groupStage')}:</span> {t('worldCup.groupStageDescription')}
                 </span>
               </li>
               <li className="flex items-start">
                 <div className="w-2 h-2 bg-yellow-500 rounded-full mt-2 mr-3 flex-shrink-0" />
                 <span className="text-gray-300 text-sm sm:text-base">
-                  <span className="font-medium">Knockout Round:</span> Top 2 from each group advance
+                  <span className="font-medium">{t('worldCup.knockoutRound')}:</span> {t('worldCup.knockoutDescription')}
                 </span>
               </li>
               <li className="flex items-start">
                 <div className="w-2 h-2 bg-red-500 rounded-full mt-2 mr-3 flex-shrink-0" />
                 <span className="text-gray-300 text-sm sm:text-base">
-                  <span className="font-medium">Final:</span> July 19, 2026 at MetLife Stadium
+                  <span className="font-medium">{t('worldCup.final')}:</span> {t('worldCup.finalDescription')}
                 </span>
               </li>
             </ul>
@@ -115,23 +131,23 @@ export default function WorldCupPage() {
           {/* Host Nations */}
           <div className="bg-gradient-to-br from-green-900/20 to-transparent rounded-xl p-4 sm:p-5 border border-green-800/30">
             <h3 className="text-lg sm:text-xl font-bold text-green-300 mb-3 flex items-center">
-              <span className="mr-2">🌍</span> Host Nations
+              <span className="mr-2">🏟️</span> {t('worldCup.hostNations')}
             </h3>
             <div className="grid grid-cols-3 gap-3 sm:gap-4">
               <div className="text-center p-3 bg-gray-800/30 rounded-lg">
                 <div className="text-blue-400 font-bold text-lg sm:text-xl">USA</div>
-                <div className="text-gray-300 text-xs sm:text-sm">11 Cities</div>
-                <div className="text-gray-400 text-xs mt-1">60 Matches</div>
+                <div className="text-gray-300 text-xs sm:text-sm">{t('worldCup.usaCities')}</div>
+                <div className="text-gray-400 text-xs mt-1">{t('worldCup.usaMatches')}</div>
               </div>
               <div className="text-center p-3 bg-gray-800/30 rounded-lg">
                 <div className="text-green-400 font-bold text-lg sm:text-xl">Canada</div>
-                <div className="text-gray-300 text-xs sm:text-sm">2 Cities</div>
-                <div className="text-gray-400 text-xs mt-1">10 Matches</div>
+                <div className="text-gray-300 text-xs sm:text-sm">{t('worldCup.canadaCities')}</div>
+                <div className="text-gray-400 text-xs mt-1">{t('worldCup.canadaMatches')}</div>
               </div>
               <div className="text-center p-3 bg-gray-800/30 rounded-lg">
                 <div className="text-red-400 font-bold text-lg sm:text-xl">Mexico</div>
-                <div className="text-gray-300 text-xs sm:text-sm">3 Cities</div>
-                <div className="text-gray-400 text-xs mt-1">20 Matches</div>
+                <div className="text-gray-300 text-xs sm:text-sm">{t('worldCup.mexicoCities')}</div>
+                <div className="text-gray-400 text-xs mt-1">{t('worldCup.mexicoMatches')}</div>
               </div>
             </div>
           </div>
@@ -140,18 +156,17 @@ export default function WorldCupPage() {
         {/* Note Section - Mobile Responsive */}
         <div className="mt-6 sm:mt-8 p-4 sm:p-5 bg-blue-900/20 rounded-xl border border-blue-800/30">
           <p className="text-blue-300 text-sm sm:text-base">
-            <span className="font-bold">⚽ Note:</span> This schedule reflects the official FIFA draw.
-            Playoff qualifiers (marked as Play-off 1, 2, etc.) will be determined in March 2026.
+            <span className="font-bold">ℹ️ {t('worldCup.note')}:</span> {t('worldCup.noteDescription')}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <span className="px-3 py-1 bg-gray-800/50 rounded-full text-xs text-gray-300">
-              First tri-national World Cup
+              {t('worldCup.tag1')}
             </span>
             <span className="px-3 py-1 bg-gray-800/50 rounded-full text-xs text-gray-300">
-              104 Total Matches
+              {t('worldCup.tag2')}
             </span>
             <span className="px-3 py-1 bg-gray-800/50 rounded-full text-xs text-gray-300">
-              Expanded 48-team format
+              {t('worldCup.tag3')}
             </span>
           </div>
         </div>
