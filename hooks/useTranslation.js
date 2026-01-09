@@ -7,8 +7,8 @@ import { t as translateText } from '@/utils/i18n';
 export function useTranslation() {
   const { language } = useLanguage();
 
-  const t = (key) => {
-    return translateText(key, language);
+  const t = (key, params = {}) => {
+    return translateText(key, language, params);
   };
 
   return {

@@ -1,9 +1,11 @@
 'use client';
 
 import { useLanguage } from '@/context/LanguageContext';
+import { useTranslation } from '@/hooks/useTranslation'; // Add this import
 
 export default function LanguageToggle() {
   const { language, toggleLanguage } = useLanguage();
+  const { t } = useTranslation(); // Add this hook
 
   const handleToggle = () => {
     // Just toggle the language in context - DON'T change URL
@@ -17,11 +19,11 @@ export default function LanguageToggle() {
     <button
       onClick={handleToggle}
       className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
-      aria-label={`Switch to ${language === 'en' ? 'Spanish' : 'English'}`}
-      title={`Switch to ${language === 'en' ? 'Spanish' : 'English'}`}
+      aria-label={`Switch to ${language === 'en' ? t('language.spanish') : t('language.english')}`}
+      title={`Switch to ${language === 'en' ? t('language.spanish') : t('language.english')}`}
     >
       <span className="mr-1.5">{language === 'en' ? '🇺🇸' : '🇪🇸'}</span>
-      <span className="font-medium">{language === 'en' ? 'EN' : 'ES'}</span>
+      <span className="font-medium">{language === 'en' ? t('language.english') : t('language.spanish')}</span>
       <svg 
         className="ml-1.5 w-4 h-4" 
         fill="none" 

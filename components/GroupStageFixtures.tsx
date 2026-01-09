@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useTranslation } from "@/hooks/useTranslation";
 
 interface Match {
   id: number;
@@ -39,6 +40,9 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedGroup, setSelectedGroup] = useState<string>(defaultGroup);
+  
+  // Use the translation hook
+  const { t, language } = useTranslation();
 
   useEffect(() => {
     fetchWorldCupData();
@@ -60,14 +64,14 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
       const result = await response.json();
 
       if (!result.success) {
-        throw new Error(result.error || "Failed to fetch data");
+        throw new Error(result.error || t('worldCup.fetchError'));
       }
 
       console.log("Fetched World Cup data:", result);
       setData(result);
     } catch (err) {
       console.error("Error fetching World Cup data:", err);
-      setError(err instanceof Error ? err.message : "Unknown error");
+      setError(err instanceof Error ? err.message : t('common.unknownError'));
     } finally {
       setLoading(false);
     }
@@ -76,7 +80,7 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
   const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString);
-      return date.toLocaleDateString("en-US", {
+      return date.toLocaleDateString(language === 'es' ? 'es-ES' : 'en-US', {
         weekday: "short",
         month: "short",
         day: "numeric",
@@ -93,7 +97,7 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
     return group ? group.matches : [];
   };
 
-  // Function to get team flag emoji - FIXED VERSION
+  // Function to get team flag emoji
   const getTeamFlag = (teamName: string) => {
     const flags: { [key: string]: string } = {
       'Mexico': '🇲🇽', 'USA': '🇺🇸', 'Canada': '🇨🇦',
@@ -126,14 +130,14 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
     // Check for exact match first
     if (flags[teamName]) return flags[teamName];
     
-    // Check for partial matches - using traditional for loop
+    // Check for partial matches
     const teamKeys = Object.keys(flags);
     for (let i = 0; i < teamKeys.length; i++) {
       const country = teamKeys[i];
       if (teamName.includes(country)) return flags[country];
     }
     
-    return '⚽'; // Default football emoji
+    return '⚽';
   };
 
   if (loading) {
@@ -142,7 +146,7 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
           <p className="mt-4 text-gray-300 text-sm md:text-base">
-            Loading World Cup fixtures...
+            {t('worldCup.loadingFixtures')}
           </p>
         </div>
       </div>
@@ -153,14 +157,14 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
     return (
       <div className="bg-red-900/20 border border-red-700/50 rounded-xl p-4 md:p-6 text-center">
         <h3 className="text-red-300 font-semibold text-lg md:text-xl">
-          Error loading fixtures
+          {t('worldCup.errorLoading')}
         </h3>
         <p className="text-red-400/80 mt-2 text-sm md:text-base">{error}</p>
         <button
           onClick={fetchWorldCupData}
           className="mt-4 px-4 py-2 bg-red-700/80 text-white rounded-lg hover:bg-red-600 transition text-sm md:text-base"
         >
-          Retry
+          {t('common.retry')}
         </button>
       </div>
     );
@@ -170,16 +174,16 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
     return (
       <div className="bg-yellow-900/20 border border-yellow-700/50 rounded-xl p-4 md:p-6 text-center">
         <h3 className="text-yellow-300 font-semibold text-lg md:text-xl">
-          No data available
+          {t('worldCup.noData')}
         </h3>
         <p className="text-yellow-400/80 mt-2 text-sm md:text-base">
-          Failed to load World Cup fixtures data.
+          {t('worldCup.failedToLoad')}
         </p>
         <button
           onClick={fetchWorldCupData}
           className="mt-4 px-4 py-2 bg-yellow-700/80 text-white rounded-lg hover:bg-yellow-600 transition text-sm md:text-base"
         >
-          Try Again
+          {t('common.tryAgain')}
         </button>
       </div>
     );
@@ -189,14 +193,14 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
     <div className="bg-gray-900/40 rounded-2xl p-4 md:p-6 border border-gray-800">
       <div className="mb-6 md:mb-8">
         <h2 className="text-xl md:text-2xl font-bold text-white mb-2">
-          2026 FIFA World Cup Group Stage
+          {t('worldCup.fixturesTitle')}
         </h2>
         <p className="text-gray-400 text-sm md:text-base">
-          Official match schedule with venues and dates
+          {t('worldCup.fixturesDescription')}
         </p>
         <div className="mt-4 p-3 bg-blue-900/20 rounded-lg border border-blue-800/30">
           <p className="text-blue-300 text-sm md:text-base">
-            <span className="font-semibold">Tip:</span> Tap on team cards to search for players and get detailed stats.
+            <span className="font-semibold">{t('common.tip')}:</span> {t('worldCup.tapHint')}
           </p>
         </div>
       </div>
@@ -204,7 +208,7 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
       {/* Group Selector - Mobile Scrollable */}
       <div className="mb-6 md:mb-8">
         <h3 className="text-base md:text-lg font-semibold text-gray-300 mb-3">
-          Select Group
+          {t('worldCup.selectGroup')}
         </h3>
         <div className="flex flex-nowrap gap-2 overflow-x-auto pb-2 -mx-1 px-1">
           {data.groups.map((group) => (
@@ -230,7 +234,7 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
             {data.groups.find((g) => g.id === selectedGroup)?.name}
           </h3>
           <span className="text-xs text-gray-400 bg-gray-800/50 px-2 py-1 rounded">
-            Tap to search players
+            {t('worldCup.tapHintShort')}
           </span>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-4">
@@ -250,13 +254,13 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
                 </span>
                 <div className="mt-2 flex items-center justify-center">
                   <span className="text-xs text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center">
-                    Search players
+                    {t('worldCup.searchPlayers')}
                     <svg className="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                     </svg>
                   </span>
                   <span className="text-xs text-gray-500 group-hover:hidden">
-                    Team
+                    {t('worldCup.team')}
                   </span>
                 </div>
               </a>
@@ -266,7 +270,7 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
         {/* Group Navigation Hint */}
         <div className="text-center mb-4">
           <p className="text-xs text-gray-500">
-            Searching players from this group? Use the "Back to Group {selectedGroup}" button on the results page.
+            {t('worldCup.groupHint', { group: selectedGroup })}
           </p>
         </div>
       </div>
@@ -277,16 +281,16 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
           <thead className="bg-gray-900/60">
             <tr>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                Date
+                {t('worldCup.date')}
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                Match
+                {t('worldCup.match')}
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                Venue
+                {t('worldCup.venue')}
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                Status
+                {t('worldCup.status')}
               </th>
             </tr>
           </thead>
@@ -315,7 +319,7 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
                         </span>
                       </div>
                       <div className="text-xs text-gray-500 mt-1 hidden md:block">
-                        Not played yet
+                        {t('worldCup.notPlayed')}
                       </div>
                     </div>
                     <div className="flex-1">
@@ -339,7 +343,7 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
                 <td className="px-4 py-3 whitespace-nowrap">
                   <span className="inline-flex items-center px-2 md:px-3 py-1 rounded-full text-xs font-medium bg-yellow-900/30 text-yellow-300 border border-yellow-800/50">
                     <span className="w-2 h-2 bg-yellow-500 rounded-full mr-1 md:mr-2"></span>
-                    Scheduled
+                    {t('worldCup.scheduled')}
                   </span>
                 </td>
               </tr>
@@ -354,12 +358,12 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
           <div>
             <p className="text-xs md:text-sm text-gray-400">
               <span className="font-medium text-gray-300">
-                Total matches in Group {selectedGroup}:
+                {t('worldCup.totalMatches', { group: selectedGroup })}
               </span>{" "}
               {getGroupMatches().length}
             </p>
             <p className="text-xs md:text-sm text-gray-400 mt-1">
-              <span className="font-medium text-gray-300">Tournament starts:</span>{" "}
+              <span className="font-medium text-gray-300">{t('worldCup.tournamentStarts')}</span>{" "}
               {formatDate(data.tournamentStart)}
             </p>
           </div>
@@ -368,20 +372,20 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
               onClick={fetchWorldCupData}
               className="px-3 md:px-4 py-2 text-xs md:text-sm bg-gray-800/60 text-gray-300 rounded-lg hover:bg-gray-700/60 transition font-medium"
             >
-              Refresh Data
+              {t('worldCup.refreshData')}
             </button>
             <a
               href="/api/worldcup"
               target="_blank"
               className="px-3 md:px-4 py-2 text-xs md:text-sm bg-gradient-to-r from-blue-600 to-green-500 text-white rounded-lg hover:opacity-90 transition font-medium text-center"
             >
-              View API Data
+              {t('worldCup.viewAPI')}
             </a>
             <a
               href="/"
               className="px-3 md:px-4 py-2 text-xs md:text-sm bg-gradient-to-r from-purple-600 to-pink-500 text-white rounded-lg hover:opacity-90 transition font-medium text-center"
             >
-              Back to Search
+              {t('worldCup.backToSearch')}
             </a>
           </div>
         </div>
