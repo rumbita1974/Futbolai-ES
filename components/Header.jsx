@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import LanguageToggle from './LanguageToggle';
 
 export default function Header() {
   const pathname = usePathname();
@@ -53,15 +54,24 @@ export default function Header() {
               </Link>
             ))}
             
+            {/* Language Toggle */}
+            <div className="ml-2">
+              <LanguageToggle />
+            </div>
+            
             {/* Live Indicator */}
-            <div className="ml-4 flex items-center space-x-2 px-3 py-1.5 bg-gradient-to-r from-red-600 to-pink-500 rounded-full">
+            <div className="ml-2 flex items-center space-x-2 px-3 py-1.5 bg-gradient-to-r from-red-600 to-pink-500 rounded-full">
               <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
               <span className="text-xs font-bold text-white">LIVE</span>
             </div>
           </nav>
 
-          {/* Mobile menu button */}
-          <div className="md:hidden">
+          {/* Mobile menu button and language toggle */}
+          <div className="md:hidden flex items-center space-x-3">
+            {/* Language Toggle for Mobile */}
+            <LanguageToggle />
+            
+            {/* Mobile Menu Button */}
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
               className="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 focus:outline-none"
@@ -98,6 +108,14 @@ export default function Header() {
                   {item.name}
                 </Link>
               ))}
+              
+              {/* Language Notice in Mobile Menu */}
+              <div className="px-3 py-2 border-t border-gray-800 mt-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400 text-sm">Language:</span>
+                  <LanguageToggle />
+                </div>
+              </div>
             </div>
           </div>
         )}

@@ -86,7 +86,7 @@ Do not include any explanations or additional text.`;
   try {
     const completion = await groq.chat.completions.create({
       messages: [{ role: 'user', content: prompt }],
-      model: 'llama-3.3-70b-versatile',
+      model: 'llama-3.1-8b-instant',
       temperature: 0.1,
       max_tokens: 10,
     });
@@ -601,7 +601,7 @@ Focus on CURRENT information about upcoming or recent World Cups.`;
   try {
     const completion = await groq.chat.completions.create({
       messages: [{ role: 'user', content: prompt }],
-      model: 'llama-3.3-70b-versatile',
+      model: 'llama-3.1-8b-instant',
       temperature: 0.1,
       max_tokens: 2000,
     });

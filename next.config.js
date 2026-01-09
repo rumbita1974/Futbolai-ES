@@ -1,5 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // i18n configuration for multilingual support
+  i18n: {
+    defaultLocale: 'en',
+    locales: ['en', 'es'],
+    localeDetection: true,
+  },
+  
   // Disable image optimization if needed
   images: {
     unoptimized: true,
@@ -33,4 +40,4 @@ const nextConfig = {
   // },
 }
 
-module.exports = nextConfig
+module.exports = nextConfig;

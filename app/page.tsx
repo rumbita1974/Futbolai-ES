@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { searchWithGROQ, Player, Team } from '@/services/groqService';
 import EnhancedSearchResults from '@/components/EnhancedSearchResults';
+import { useTranslation } from '@/hooks/useTranslation';
 
 interface SearchResult {
   players: Player[];
@@ -23,6 +24,18 @@ export default function HomePage() {
   
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { t, language } = useTranslation();
+
+  // Debug: Log current language and test translation
+  useEffect(() => {
+    console.log('Current language:', language);
+    console.log('Test translation (homepage.title):', t('homepage.title'));
+  }, [language, t]);
+
+  // Get current language translations using the hook
+  const getTranslation = (key: string): string => {
+    return t(`homepage.${key}`);
+  };
 
   // Check if coming from a group page
   useEffect(() => {
@@ -52,7 +65,7 @@ export default function HomePage() {
 
     try {
       console.log('Auto-searching for:', query);
-      const result = await searchWithGROQ(query);
+      const result = await searchWithGROQ(query, language);
       console.log('Auto-search result:', result);
       
       if (result.error) {
@@ -81,7 +94,7 @@ export default function HomePage() {
 
     try {
       console.log('Searching for:', searchQuery);
-      const result = await searchWithGROQ(searchQuery);
+      const result = await searchWithGROQ(searchQuery, language);
       console.log('Search result:', result);
       
       if (result.error) {
@@ -171,8 +184,10 @@ export default function HomePage() {
                       <span className="text-xl">⚽</span>
                     </div>
                     <div>
-                      <h3 className="font-bold text-gray-800">Viewing players from Group {comingFromGroup}</h3>
-                      <p className="text-gray-600 text-sm">You came from World Cup 2026 Group Stage</p>
+                      <h3 className="font-bold text-gray-800">
+                        {getTranslation('fromGroup')} {comingFromGroup}
+                      </h3>
+                      <p className="text-gray-600 text-sm">{getTranslation('groupBack')}</p>
                     </div>
                   </div>
                 </div>
@@ -183,7 +198,7 @@ export default function HomePage() {
                   <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                   </svg>
-                  Back to Group {comingFromGroup}
+                  {getTranslation('backToGroup')} {comingFromGroup}
                 </button>
               </div>
             </div>
@@ -191,25 +206,25 @@ export default function HomePage() {
 
           <div className="text-center">
             <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-3 sm:mb-4">
-              FutbolAI Explorer
+              {getTranslation('title')}
             </h1>
             <p className="text-lg sm:text-xl text-gray-600 mb-6 sm:mb-8 max-w-3xl mx-auto px-4">
-              AI-powered football intelligence with detailed stats, achievements, and video highlights
+              {getTranslation('subtitle')}
             </p>
             
             {/* Feature Badges */}
             <div className="flex flex-wrap justify-center gap-3 mb-6">
               <span className="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-full text-sm font-medium flex items-center">
-                <span className="mr-1">🤖</span> AI Analysis
+                <span className="mr-1">🤖</span> {getTranslation('aiAnalysis')}
               </span>
               <span className="px-3 py-1.5 bg-green-100 text-green-700 rounded-full text-sm font-medium flex items-center">
-                <span className="mr-1">📊</span> Detailed Stats
+                <span className="mr-1">📊</span> {getTranslation('detailedStats')}
               </span>
               <span className="px-3 py-1.5 bg-purple-100 text-purple-700 rounded-full text-sm font-medium flex items-center">
-                <span className="mr-1">🏆</span> Achievements
+                <span className="mr-1">🏆</span> {getTranslation('achievements')}
               </span>
               <span className="px-3 py-1.5 bg-red-100 text-red-700 rounded-full text-sm font-medium flex items-center">
-                <span className="mr-1">📺</span> Video Highlights
+                <span className="mr-1">📺</span> {getTranslation('videoHighlights')}
               </span>
             </div>
           </div>
@@ -224,13 +239,13 @@ export default function HomePage() {
                 onClick={() => setActiveTab('player')}
                 className={`px-4 sm:px-6 py-2 rounded-md text-sm font-medium transition ${activeTab === 'player' ? 'bg-blue-600 text-white shadow' : 'text-gray-700 hover:bg-gray-100'}`}
               >
-                👤 Player Search
+                👤 {getTranslation('playerSearch')}
               </button>
               <button
                 onClick={() => setActiveTab('team')}
                 className={`px-4 sm:px-6 py-2 rounded-md text-sm font-medium transition ${activeTab === 'team' ? 'bg-blue-600 text-white shadow' : 'text-gray-700 hover:bg-gray-100'}`}
               >
-                🏟️ Team Search
+                🏟️ {getTranslation('teamSearch')}
               </button>
             </div>
           </div>
@@ -241,7 +256,7 @@ export default function HomePage() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={`Search for a ${activeTab === 'player' ? 'player (e.g., Lionel Messi)' : 'team (e.g., Real Madrid)'}...`}
+                placeholder={activeTab === 'player' ? getTranslation('searchPlaceholderPlayer') : getTranslation('searchPlaceholderTeam')}
                 className="flex-1 px-4 sm:px-6 py-3 sm:py-4 text-base sm:text-lg text-gray-900 bg-white border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-500 shadow-sm"
                 disabled={loading}
                 autoFocus
@@ -253,20 +268,20 @@ export default function HomePage() {
               >
                 {loading ? (
                   <span className="flex items-center justify-center">
-                    <svg className="animate-spin -ml-1 mr-2 sm:mr-3 h-4 w-4 sm:h-5 sm:w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <svg className="animate-spin -ml-1 mr-2 sm:mr-3 h-4 w-4 sm:h-5 sm:w-5 text-white" xmlns="http://www.w3.org2000/svg" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
-                    Searching...
+                    {getTranslation('searching')}
                   </span>
-                ) : 'Search'}
+                ) : getTranslation('searchButton')}
               </button>
             </div>
           </form>
 
           {/* Example searches */}
           <div className="mt-6">
-            <p className="text-gray-500 text-sm text-center mb-3">Try these examples:</p>
+            <p className="text-gray-500 text-sm text-center mb-3">{getTranslation('tryExamples')}</p>
             <div className="flex flex-wrap justify-center gap-2">
               {exampleSearches[activeTab].map(({ term, emoji }) => (
                 <button
@@ -292,7 +307,7 @@ export default function HomePage() {
                 </svg>
               </div>
               <div className="ml-3">
-                <h3 className="text-sm sm:text-base font-medium text-red-800">Search Error</h3>
+                <h3 className="text-sm sm:text-base font-medium text-red-800">{getTranslation('searchError')}</h3>
                 <div className="mt-2 text-sm text-red-700">
                   <p>{searchError}</p>
                   <div className="mt-3">
@@ -309,7 +324,7 @@ export default function HomePage() {
                     onClick={() => setSearchError(null)}
                     className="text-sm font-medium text-red-800 hover:text-red-900"
                   >
-                    Dismiss error
+                    {getTranslation('dismissError')}
                   </button>
                 </div>
               </div>
@@ -321,8 +336,8 @@ export default function HomePage() {
         {loading && (
           <div className="max-w-3xl mx-auto text-center py-12 sm:py-16">
             <div className="inline-block animate-spin rounded-full h-12 w-12 sm:h-16 sm:w-16 border-b-2 border-blue-600"></div>
-            <p className="mt-4 text-gray-600 text-lg">Analyzing football data...</p>
-            <p className="text-gray-500 text-sm mt-2">Fetching stats, achievements, and highlights</p>
+            <p className="mt-4 text-gray-600 text-lg">{getTranslation('analyzing')}</p>
+            <p className="text-gray-500 text-sm mt-2">{getTranslation('fetching')}</p>
           </div>
         )}
 
@@ -339,77 +354,79 @@ export default function HomePage() {
         {/* Features Section - Only show when no search results */}
         {!searchResults && !loading && !searchError && (
           <div className="max-w-6xl mx-auto mt-12 sm:mt-16">
-            <h2 className="text-2xl sm:text-3xl font-bold text-center text-gray-800 mb-8 sm:mb-10">Explore Football Intelligence</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold text-center text-gray-800 mb-8 sm:mb-10">
+              {getTranslation('featuresTitle')}
+            </h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
               <a 
                 href="/world-cup" 
                 className="group bg-white rounded-xl shadow-lg p-6 text-center hover:shadow-xl transition hover:-translate-y-1 border border-gray-200"
               >
                 <div className="text-blue-600 text-4xl sm:text-5xl mb-4 group-hover:scale-110 transition">⚽</div>
-                <h3 className="text-xl font-bold text-gray-800 mb-3">World Cup 2026</h3>
-                <p className="text-gray-600 mb-4">Official schedule, groups, and match information for the upcoming tournament</p>
+                <h3 className="text-xl font-bold text-gray-800 mb-3">{getTranslation('worldCupTitle')}</h3>
+                <p className="text-gray-600 mb-4">{getTranslation('worldCupDesc')}</p>
                 <div className="inline-block mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium group-hover:bg-blue-700 transition">
-                  View Schedule →
+                  {getTranslation('viewSchedule')}
                 </div>
               </a>
               
               <div className="group bg-white rounded-xl shadow-lg p-6 text-center hover:shadow-xl transition hover:-translate-y-1 border border-gray-200">
                 <div className="text-green-600 text-4xl sm:text-5xl mb-4 group-hover:scale-110 transition">📊</div>
-                <h3 className="text-xl font-bold text-gray-800 mb-3">Detailed Analytics</h3>
-                <p className="text-gray-600 mb-4">Player stats, team achievements, career summaries, and performance metrics</p>
+                <h3 className="text-xl font-bold text-gray-800 mb-3">{getTranslation('analyticsTitle')}</h3>
+                <p className="text-gray-600 mb-4">{getTranslation('analyticsDesc')}</p>
                 <div className="inline-block mt-2 px-4 py-2 bg-green-600 text-white rounded-lg font-medium">
-                  Search Above ↑
+                  {getTranslation('searchAbove')}
                 </div>
               </div>
               
               <div className="group bg-white rounded-xl shadow-lg p-6 text-center hover:shadow-xl transition hover:-translate-y-1 border border-gray-200">
                 <div className="text-red-600 text-4xl sm:text-5xl mb-4 group-hover:scale-110 transition">🎥</div>
-                <h3 className="text-xl font-bold text-gray-800 mb-3">Video Highlights</h3>
-                <p className="text-gray-600 mb-4">AI-curated YouTube highlights for every player and team search result</p>
+                <h3 className="text-xl font-bold text-gray-800 mb-3">{getTranslation('videosTitle')}</h3>
+                <p className="text-gray-600 mb-4">{getTranslation('videosDesc')}</p>
                 <div className="inline-block mt-2 px-4 py-2 bg-red-600 text-white rounded-lg font-medium">
-                  Try a Search ↑
+                  {getTranslation('trySearch')}
                 </div>
               </div>
             </div>
 
             {/* Quick Stats */}
             <div className="mt-12 sm:mt-16 bg-gradient-to-r from-blue-600 to-green-600 rounded-2xl p-6 sm:p-8 text-white">
-              <h3 className="text-xl sm:text-2xl font-bold mb-6 text-center">Football Data Coverage</h3>
+              <h3 className="text-xl sm:text-2xl font-bold mb-6 text-center">{getTranslation('dataCoverage')}</h3>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div className="text-center">
                   <div className="text-2xl sm:text-3xl font-bold">10,000+</div>
-                  <div className="text-blue-100 text-sm mt-1">Players</div>
+                  <div className="text-blue-100 text-sm mt-1">{getTranslation('players')}</div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl sm:text-3xl font-bold">500+</div>
-                  <div className="text-blue-100 text-sm mt-1">Teams</div>
+                  <div className="text-blue-100 text-sm mt-1">{getTranslation('teams')}</div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl sm:text-3xl font-bold">50+</div>
-                  <div className="text-blue-100 text-sm mt-1">Leagues</div>
+                  <div className="text-blue-100 text-sm mt-1">{getTranslation('leagues')}</div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl sm:text-3xl font-bold">100+</div>
-                  <div className="text-blue-100 text-sm mt-1">Countries</div>
+                  <div className="text-blue-100 text-sm mt-1">{getTranslation('countries')}</div>
                 </div>
               </div>
             </div>
 
             {/* Quick Links */}
             <div className="mt-12 text-center">
-              <h3 className="text-xl font-bold text-gray-800 mb-6">Quick Access</h3>
+              <h3 className="text-xl font-bold text-gray-800 mb-6">{getTranslation('quickAccess')}</h3>
               <div className="flex flex-wrap justify-center gap-3">
                 <a href="/world-cup" className="px-4 sm:px-6 py-3 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 font-medium">
-                  World Cup Schedule
+                  {getTranslation('worldCupSchedule')}
                 </a>
                 <a href="/api/worldcup" target="_blank" className="px-4 sm:px-6 py-3 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 font-medium">
-                  API Data
+                  {getTranslation('apiData')}
                 </a>
                 <button className="px-4 sm:px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium">
-                  Player Database
+                  {getTranslation('playerDatabase')}
                 </button>
                 <button className="px-4 sm:px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium">
-                  Team Analysis
+                  {getTranslation('teamAnalysis')}
                 </button>
               </div>
             </div>
@@ -420,13 +437,13 @@ export default function HomePage() {
         <div className="mt-12 sm:mt-16 pt-8 border-t border-gray-200">
           <div className="text-center text-gray-500 text-sm">
             <p className="mb-2">
-              ⚽ <span className="font-medium">FutbolAI Explorer</span> • AI-powered football intelligence platform
+              ⚽ <span className="font-medium">{getTranslation('footerNote')}</span>
             </p>
             <p className="text-gray-400">
-              Data is powered by GROQ AI with llama-3.3-70b-versatile model. Video highlights from YouTube API.
+              {getTranslation('dataSource')}
             </p>
             <div className="mt-4 text-xs text-gray-400">
-              <p>© {new Date().getFullYear()} FutbolAI Explorer • All football data and videos are property of their respective owners</p>
+              <p>{getTranslation('copyright').replace('{year}', new Date().getFullYear().toString())}</p>
             </div>
           </div>
         </div>

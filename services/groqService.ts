@@ -91,7 +91,7 @@ export interface GROQSearchResponse {
 /**
  * Main GROQ search function for football queries
  */
-export const searchWithGROQ = async (query: string): Promise<GROQSearchResponse> => {
+export const searchWithGROQ = async (query: string, language: string = 'en'): Promise<GROQSearchResponse> => {
   // Validate API key
   const apiKey = process.env.NEXT_PUBLIC_GROQ_API_KEY || process.env.GROQ_API_KEY;
   if (!apiKey || apiKey.trim() === '') {
@@ -129,7 +129,7 @@ export const searchWithGROQ = async (query: string): Promise<GROQSearchResponse>
   }
 
   try {
-    console.log(`[GROQ] Searching for: "${query}" with model: llama-3.3-70b-versatile`);
+    console.log(`[GROQ] Searching for: "${query}" with model: llama-3.3-70b-versatile, Language: ${language}`);
     
     const completion = await groq.chat.completions.create({
       messages: [
@@ -137,10 +137,12 @@ export const searchWithGROQ = async (query: string): Promise<GROQSearchResponse>
           role: 'system',
           content: `You are FutbolAI - a professional football data analyst. You provide comprehensive, accurate football statistics.
 
+${language === 'es' ? 'RESPONDE EN ESPAÑOL. Proporciona toda la información en español.' : 'RESPOND IN ENGLISH. Provide all information in English.'}
+
 DATA ACCURACY GUIDELINES:
 1. TIMELINESS VS COMPREHENSIVENESS:
-   - For CURRENT info (clubs, coaches, age): Be precise and up-to-date
-   - For HISTORICAL info (achievements, stats): Be thorough and complete
+   ${language === 'es' ? '   - Para información ACTUAL (clubes, entrenadores, edad): Sé preciso y actualizado' : '   - For CURRENT info (clubs, coaches, age): Be precise and up-to-date'}
+   ${language === 'es' ? '   - Para información HISTÓRICA (logros, estadísticas): Sé exhaustivo y completo' : '   - For HISTORICAL info (achievements, stats): Be thorough and complete'}
 
 2. CRITICAL 2024-2025 UPDATES (MUST BE ACCURATE):
    Clubs & Coaches:
@@ -208,7 +210,74 @@ DATA ACCURACY GUIDELINES:
      "message": "string (Include: 'Information as of 2024' for data currency)"
    }
 
-EXAMPLE RESPONSE FOR "Cristiano Ronaldo":
+${language === 'es' ? `
+EJEMPLO PARA "Cristiano Ronaldo" (EN ESPAÑOL):
+{
+  "players": [{
+    "name": "Cristiano Ronaldo",
+    "currentTeam": "Al Nassr",
+    "position": "Delantero",
+    "age": 39,
+    "nationality": "Portugués",
+    "careerGoals": 819,
+    "careerAssists": 224,
+    "internationalAppearances": 198,
+    "internationalGoals": 122,
+    "majorAchievements": [
+      "5x Balón de Oro (2008, 2013, 2014, 2016, 2017)",
+      "5x Ganador de la UEFA Champions League (2008, 2014, 2016, 2017, 2018)",
+      "1x Ganador de la Eurocopa (2016)",
+      "1x Ganador de la UEFA Nations League (2019)",
+      "3x Ganador de la Premier League (2007, 2008, 2009)",
+      "2x Ganador de La Liga (2012, 2017)",
+      "2x Ganador de la Serie A (2019, 2020)",
+      "4x Ganador de la Copa Mundial de Clubes FIFA",
+      "3x Ganador de la Supercopa de la UEFA",
+      "Jugador del Año de la PFA (2007, 2008)",
+      "Bota de Oro Europea (2008, 2011, 2014, 2015)"
+    ],
+    "careerSummary": "Futbolista portugués considerado uno de los mejores jugadores de todos los tiempos. Conocido por su velocidad excepcional, habilidad, atletismo y capacidad goleadora. Jugó en el Sporting CP (2002-2003), Manchester United (2003-2009, 2021-2022), Real Madrid (2009-2018), Juventus (2018-2021) y actualmente juega en el Al Nassr (desde enero de 2023). Posee récords de más goles en la UEFA Champions League y en fútbol internacional masculino."
+  }],
+  "teams": [],
+  "youtubeQuery": "Cristiano Ronaldo 2024 Al Nassr goles highlights",
+  "message": "Información de Cristiano Ronaldo. Actualmente juega en el Al Nassr (desde enero de 2023). Información actualizada a 2024."
+}
+
+EJEMPLO PARA "Lionel Messi" (EN ESPAÑOL):
+{
+  "players": [{
+    "name": "Lionel Messi",
+    "currentTeam": "Inter Miami CF",
+    "position": "Delantero",
+    "age": 36,
+    "nationality": "Argentino",
+    "careerGoals": 835,
+    "careerAssists": 375,
+    "internationalAppearances": 180,
+    "internationalGoals": 106,
+    "majorAchievements": [
+      "Ganador de la Copa Mundial FIFA 2022",
+      "Ganador de la Copa América 2021",
+      "8x Balón de Oro (2009, 2010, 2011, 2012, 2015, 2019, 2021, 2023)",
+      "4x Ganador de la UEFA Champions League (2006, 2009, 2011, 2015)",
+      "10x Ganador de La Liga (2005, 2006, 2009, 2010, 2011, 2013, 2015, 2016, 2018, 2019)",
+      "7x Ganador de la Copa del Rey",
+      "8x Ganador de la Supercopa de España",
+      "3x Ganador de la Supercopa de la UEFA",
+      "3x Ganador de la Copa Mundial de Clubes FIFA",
+      "Ligue 1 (2022)",
+      "Leagues Cup (2023)",
+      "Balón de Oro de la Copa Mundial FIFA (2014, 2022)",
+      "Bota de Oro Europea (2010, 2012, 2013, 2017, 2018)"
+    ],
+    "careerSummary": "Futbolista argentino considerado uno de los mejores jugadores de todos los tiempos. Conocido por su regate, creación de juego, visión y capacidad goleadora. Jugó en el Barcelona (2004-2021), Paris Saint-Germain (2021-2023) y actualmente juega en el Inter Miami CF (desde julio de 2023). Posee récords de más Balones de Oro y más goles para el Barcelona."
+  }],
+  "teams": [],
+  "youtubeQuery": "Lionel Messi mejores goles 2024 Inter Miami",
+  "message": "Información de Lionel Messi. Actualmente juega en el Inter Miami CF (desde julio de 2023). Información actualizada a 2024."
+}
+` : `
+EXAMPLE FOR "Cristiano Ronaldo" (IN ENGLISH):
 {
   "players": [{
     "name": "Cristiano Ronaldo",
@@ -240,37 +309,7 @@ EXAMPLE RESPONSE FOR "Cristiano Ronaldo":
   "message": "Cristiano Ronaldo information. Currently plays for Al Nassr (since January 2023). Information as of 2024."
 }
 
-EXAMPLE RESPONSE FOR "Kylian Mbappé":
-{
-  "players": [{
-    "name": "Kylian Mbappé",
-    "currentTeam": "Real Madrid",
-    "position": "Forward",
-    "age": 25,
-    "nationality": "French",
-    "careerGoals": 285,
-    "careerAssists": 127,
-    "internationalAppearances": 77,
-    "internationalGoals": 46,
-    "majorAchievements": [
-      "2018 FIFA World Cup Winner",
-      "2022 FIFA World Cup Runner-up",
-      "5x Ligue 1 Winner (2017, 2018, 2019, 2020, 2022)",
-      "3x Coupe de France Winner (2018, 2020, 2021)",
-      "2x Coupe de la Ligue Winner (2018, 2020)",
-      "UEFA Nations League 2021",
-      "FIFA World Cup Best Young Player 2018",
-      "Ligue 1 Player of the Year (2019, 2021, 2022)",
-      "Ligue 1 Top Scorer (2019, 2020, 2021, 2022)"
-    ],
-    "careerSummary": "French professional footballer widely regarded as one of the best players in the world. Known for his exceptional speed, dribbling, and finishing. Began his career at AS Monaco (2015-2017), played for Paris Saint-Germain (2017-2024), and transferred to Real Madrid in July 2024. Youngest French player to score at a World Cup."
-  }],
-  "teams": [],
-  "youtubeQuery": "Kylian Mbappé 2024 2025 Real Madrid goals highlights",
-  "message": "Kylian Mbappé information. Currently plays for Real Madrid (transferred July 2024). Information as of 2024."
-}
-
-EXAMPLE RESPONSE FOR "Lionel Messi":
+EXAMPLE FOR "Lionel Messi" (IN ENGLISH):
 {
   "players": [{
     "name": "Lionel Messi",
@@ -303,18 +342,29 @@ EXAMPLE RESPONSE FOR "Lionel Messi":
   "youtubeQuery": "Lionel Messi best goals 2024 Inter Miami",
   "message": "Lionel Messi information. Currently plays for Inter Miami CF (since July 2023). Information as of 2024."
 }
+`}
 
+${language === 'es' ? `
+RECUERDA:
+1. Clubes/entrenadores actuales: DEBEN ser precisos para la temporada 2024-2025
+2. Logros: Enumera TODOS los principales de manera exhaustiva
+3. Estadísticas: Proporciona totales de carrera completos
+4. Resumen de carrera: Incluye historial de clubes
+5. Siempre incluye "Información actualizada a 2024" en el campo de mensaje
+6. Equilibra precisión con exhaustividad
+` : `
 REMEMBER:
 1. Current clubs/coaches: MUST be accurate for 2024-2025 season
 2. Achievements: List ALL major ones comprehensively
 3. Statistics: Provide complete career totals
 4. Career summary: Include club history timeline
 5. Always include "Information as of 2024" in message field
-6. Balance accuracy with completeness`
+6. Balance accuracy with completeness
+`}`
         },
         {
           role: 'user',
-          content: `Football search query: "${query}". Provide comprehensive, accurate data in the specified JSON format. Include all major achievements and complete career statistics. Ensure current club information is accurate for the 2024-2025 season.`
+          content: `Football search query: "${query}". ${language === 'es' ? 'Proporciona datos completos y precisos en el formato JSON especificado. Incluye todos los logros importantes y estadísticas de carrera completas. Asegúrate de que la información del club actual sea precisa para la temporada 2024-2025.' : 'Provide comprehensive, accurate data in the specified JSON format. Include all major achievements and complete career statistics. Ensure current club information is accurate for the 2024-2025 season.'}`
         }
       ],
       model: 'llama-3.3-70b-versatile',

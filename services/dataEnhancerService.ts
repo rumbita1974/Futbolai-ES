@@ -418,14 +418,7 @@ export const fetchFromWikipedia = async (query: string): Promise<any> => {
     for (const pattern of searchPatterns) {
       try {
         const response = await fetch(
-          `${WIKIPEDIA_API_BASE}/page/summary/${encodeURIComponent(pattern)}`,
-          {
-            headers: {
-              'Authorization': WIKIPEDIA_API_KEY ? `Bearer ${WIKIPEDIA_API_KEY}` : '',
-              'User-Agent': 'FutbolAI/1.0 (contact@example.com)'
-            }
-          }
-        );
+          `${WIKIPEDIA_API_BASE}/page/summary/${encodeURIComponent(pattern)}`);
         
         if (response.ok) {
           const data = await response.json();
