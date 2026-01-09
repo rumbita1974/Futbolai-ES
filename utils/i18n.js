@@ -71,14 +71,17 @@ const translations = {
       readMore: "Read more",
       viewDetails: "View details",
       close: "Close",
-      select: "Select"
+      select: "Select",
+      tip: "Tip",
+      retry: "Retry",
+      tryAgain: "Try Again",
+      unknownError: "Unknown error"
     },
     language: {
       english: "English",
       spanish: "Spanish",
       switchTo: "Switch to"
     },
-    // ADD WORLD CUP TRANSLATIONS HERE
     worldCup: {
       title: "2026 FIFA World Cup",
       subtitle: "Official group stage schedule with venues and dates across USA, Canada, and Mexico",
@@ -90,8 +93,8 @@ const translations = {
       hostCities: "Host Cities",
       hostCitiesDescription: "Across Canada, Mexico & USA",
       fixturesTitle: "Group Stage Fixtures",
-      fixturesDescription: "All matches show 'Not played yet' status as tournament hasn't started",
-      tapHint: "Tap team cards to search players",
+      fixturesDescription: "Official match schedule with venues and dates",
+      tapHint: "Tap on team cards to search for players and get detailed stats.",
       tournamentFormat: "Tournament Format",
       groupStage: "Group Stage",
       groupStageDescription: "12 groups of 4 teams each",
@@ -110,7 +113,30 @@ const translations = {
       noteDescription: "This schedule reflects the official FIFA draw. Playoff qualifiers (marked as Play-off 1, 2, etc.) will be determined in March 2026.",
       tag1: "First tri-national World Cup",
       tag2: "104 Total Matches",
-      tag3: "Expanded 48-team format"
+      tag3: "Expanded 48-team format",
+      
+      // New translations for GroupStageFixtures component
+      loadingFixtures: "Loading World Cup fixtures...",
+      errorLoading: "Error loading fixtures",
+      noData: "No data available",
+      failedToLoad: "Failed to load World Cup fixtures data.",
+      fetchError: "Failed to fetch World Cup data",
+      selectGroup: "Select Group",
+      tapHintShort: "Tap to search players",
+      searchPlayers: "Search players",
+      team: "Team",
+      groupHint: "Searching players from this group? Use the \"Back to Group {group}\" button on the results page.",
+      date: "Date",
+      match: "Match",
+      venue: "Venue",
+      status: "Status",
+      notPlayed: "Not played yet",
+      scheduled: "Scheduled",
+      totalMatches: "Total matches in Group {group}:",
+      tournamentStarts: "Tournament starts:",
+      refreshData: "Refresh Data",
+      viewAPI: "View API Data",
+      backToSearch: "Back to Search"
     }
   },
   es: {
@@ -181,14 +207,17 @@ const translations = {
       readMore: "Leer más",
       viewDetails: "Ver detalles",
       close: "Cerrar",
-      select: "Seleccionar"
+      select: "Seleccionar",
+      tip: "Consejo",
+      retry: "Reintentar",
+      tryAgain: "Intentar de Nuevo",
+      unknownError: "Error desconocido"
     },
     language: {
       english: "Inglés",
       spanish: "Español",
       switchTo: "Cambiar a"
     },
-    // ADD SPANISH WORLD CUP TRANSLATIONS HERE
     worldCup: {
       title: "Copa Mundial de la FIFA 2026",
       subtitle: "Calendario oficial de la fase de grupos con sedes y fechas en EE.UU., Canadá y México",
@@ -199,9 +228,9 @@ const translations = {
       groupMatchesDates: "11 de junio - 27 de junio, 2026",
       hostCities: "Ciudades Sede",
       hostCitiesDescription: "En Canadá, México y EE.UU.",
-      fixturesTitle: "Partidos de la Fase de Grupos",
-      fixturesDescription: "Todos los partidos muestran estado 'No jugado aún' ya que el torneo no ha comenzado",
-      tapHint: "Toca las tarjetas de equipo para buscar jugadores",
+      fixturesTitle: "Fase de Grupos Copa Mundial 2026",
+      fixturesDescription: "Calendario oficial de partidos con sedes y fechas",
+      tapHint: "Toca en las tarjetas de equipo para buscar jugadores y obtener estadísticas detalladas.",
       tournamentFormat: "Formato del Torneo",
       groupStage: "Fase de Grupos",
       groupStageDescription: "12 grupos de 4 equipos cada uno",
@@ -220,16 +249,36 @@ const translations = {
       noteDescription: "Este calendario refleja el sorteo oficial de la FIFA. Los clasificados de los playoffs (marcados como Play-off 1, 2, etc.) se determinarán en marzo de 2026.",
       tag1: "Primer Mundial trinacional",
       tag2: "104 Partidos en Total",
-      tag3: "Formato ampliado de 48 equipos"
+      tag3: "Formato ampliado de 48 equipos",
+      
+      // New translations for GroupStageFixtures component
+      loadingFixtures: "Cargando partidos del Mundial...",
+      errorLoading: "Error al cargar los partidos",
+      noData: "No hay datos disponibles",
+      failedToLoad: "Error al cargar los datos de los partidos del Mundial.",
+      fetchError: "Error al obtener los datos del Mundial",
+      selectGroup: "Seleccionar Grupo",
+      tapHintShort: "Toca para buscar jugadores",
+      searchPlayers: "Buscar jugadores",
+      team: "Equipo",
+      groupHint: "¿Buscando jugadores de este grupo? Usa el botón \"Volver al Grupo {group}\" en la página de resultados.",
+      date: "Fecha",
+      match: "Partido",
+      venue: "Sede",
+      status: "Estado",
+      notPlayed: "No jugado aún",
+      scheduled: "Programado",
+      totalMatches: "Total de partidos en el Grupo {group}:",
+      tournamentStarts: "Comienza el torneo:",
+      refreshData: "Actualizar Datos",
+      viewAPI: "Ver Datos API",
+      backToSearch: "Volver a Búsqueda"
     }
   }
 };
 
-export function getTranslations(lang = 'en') {
-  return translations[lang] || translations.en;
-}
-
-export function t(key, lang = 'en') {
+// Enhanced t function with interpolation support
+export function t(key, lang = 'en', params = {}) {
   const keys = key.split('.');
   let value = translations[lang] || translations.en;
   
@@ -241,5 +290,17 @@ export function t(key, lang = 'en') {
     }
   }
   
+  // Handle string interpolation for both string values and functions
+  if (typeof value === 'string' && params) {
+    return value.replace(/{(\w+)}/g, (match, param) => {
+      return params[param] !== undefined ? params[param] : match;
+    });
+  }
+  
   return value || key;
+}
+
+// Optional: Helper function to get all translations for a language
+export function getTranslations(lang = 'en') {
+  return translations[lang] || translations.en;
 }
