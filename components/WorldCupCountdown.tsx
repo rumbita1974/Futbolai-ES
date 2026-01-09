@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslation } from "@/hooks/useTranslation";
 
 export default function WorldCupCountdown() {
   const [timeLeft, setTimeLeft] = useState({
@@ -9,6 +10,8 @@ export default function WorldCupCountdown() {
     minutes: 0,
     seconds: 0,
   });
+
+  const { t, language } = useTranslation();
 
   useEffect(() => {
     // Tournament starts June 11, 2026 at 5 PM UTC
@@ -39,17 +42,31 @@ export default function WorldCupCountdown() {
     return () => clearInterval(intervalId);
   }, []);
 
+  // Format date based on language
+  const formatDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString(language === 'es' ? 'es-ES' : 'en-US', {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      });
+    } catch (e) {
+      return dateString;
+    }
+  };
+
   return (
     <div className="w-full bg-gradient-to-r from-blue-900/80 to-green-800/80 rounded-2xl p-4 sm:p-6 shadow-2xl border border-blue-700/30">
       <div className="text-center mb-4 sm:mb-6">
         <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-white mb-2">
-          Countdown to World Cup 2026
+          {t('worldCupCountdown.title')}
         </h2>
         <p className="text-blue-200 text-sm sm:text-base">
-          Tournament starts: June 11, 2026
+          {t('worldCupCountdown.tournamentStarts')}: {formatDate("2026-06-11")}
         </p>
         <p className="text-blue-100 text-xs sm:text-sm mt-1">
-          Mexico vs South Africa • Estadio Azteca
+          {t('worldCupCountdown.openingMatch')}
         </p>
       </div>
 
@@ -60,7 +77,7 @@ export default function WorldCupCountdown() {
             {String(timeLeft.days).padStart(2, "0")}
           </div>
           <div className="text-blue-100 font-medium mt-1 text-xs sm:text-sm">
-            DAYS
+            {t('worldCupCountdown.days')}
           </div>
         </div>
         <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 sm:p-4 text-center">
@@ -68,7 +85,7 @@ export default function WorldCupCountdown() {
             {String(timeLeft.hours).padStart(2, "0")}
           </div>
           <div className="text-blue-100 font-medium mt-1 text-xs sm:text-sm">
-            HOURS
+            {t('worldCupCountdown.hours')}
           </div>
         </div>
         <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 sm:p-4 text-center">
@@ -76,7 +93,7 @@ export default function WorldCupCountdown() {
             {String(timeLeft.minutes).padStart(2, "0")}
           </div>
           <div className="text-blue-100 font-medium mt-1 text-xs sm:text-sm">
-            MINUTES
+            {t('worldCupCountdown.minutes')}
           </div>
         </div>
         <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 sm:p-4 text-center">
@@ -84,7 +101,7 @@ export default function WorldCupCountdown() {
             {String(timeLeft.seconds).padStart(2, "0")}
           </div>
           <div className="text-blue-100 font-medium mt-1 text-xs sm:text-sm">
-            SECONDS
+            {t('worldCupCountdown.seconds')}
           </div>
         </div>
       </div>
@@ -94,18 +111,18 @@ export default function WorldCupCountdown() {
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-0">
           <div className="text-white">
             <div className="font-semibold text-sm sm:text-base">
-              Opening Match
+              {t('worldCupCountdown.openingMatchTitle')}
             </div>
             <div className="text-xs sm:text-sm text-blue-100">
-              Group A • June 11, 2026
+              {t('worldCupCountdown.groupA')} • {formatDate("2026-06-11")}
             </div>
           </div>
           <div className="text-left sm:text-right">
             <div className="text-white font-medium text-sm sm:text-base">
-              Mexico vs South Africa
+              {t('worldCupCountdown.teams')}
             </div>
             <div className="text-xs sm:text-sm text-blue-100">
-              Estadio Azteca, Mexico City
+              {t('worldCupCountdown.venue')}
             </div>
           </div>
         </div>
@@ -113,9 +130,9 @@ export default function WorldCupCountdown() {
         {/* Progress Bar - Mobile */}
         <div className="mt-4">
           <div className="flex justify-between text-xs sm:text-sm text-white/80 mb-1">
-            <span>Time to Kickoff</span>
+            <span>{t('worldCupCountdown.timeToKickoff')}</span>
             <span>
-              {timeLeft.days}d {timeLeft.hours}h {timeLeft.minutes}m
+              {timeLeft.days}{t('worldCupCountdown.daysShort')} {timeLeft.hours}{t('worldCupCountdown.hoursShort')} {timeLeft.minutes}{t('worldCupCountdown.minutesShort')}
             </span>
           </div>
           <div className="w-full bg-gray-700/50 rounded-full h-2">

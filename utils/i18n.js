@@ -137,6 +137,71 @@ const translations = {
       refreshData: "Refresh Data",
       viewAPI: "View API Data",
       backToSearch: "Back to Search"
+    },
+    // New section for WorldCupCountdown component
+    worldCupCountdown: {
+      title: "Countdown to World Cup 2026",
+      tournamentStarts: "Tournament starts",
+      openingMatch: "Mexico vs South Africa • Estadio Azteca",
+      days: "DAYS",
+      hours: "HOURS",
+      minutes: "MINUTES",
+      seconds: "SECONDS",
+      openingMatchTitle: "Opening Match",
+      groupA: "Group A",
+      teams: "Mexico vs South Africa",
+      venue: "Estadio Azteca, Mexico City",
+      timeToKickoff: "Time to Kickoff",
+      daysShort: "d",
+      hoursShort: "h",
+      minutesShort: "m"
+    },
+    // New sections for other pages
+    players: {
+      title: "Player Statistics",
+      subtitle: "Detailed player profiles, stats, and AI analysis",
+      comingSoon: "Player statistics page coming soon.",
+      description: "This will show detailed player profiles, stats, and AI analysis.",
+      searchPlaceholder: "Search players by name, team, or country...",
+      featuredPlayers: "Featured Players",
+      topScorers: "Top Scorers",
+      mostAssists: "Most Assists",
+      bestDefenders: "Best Defenders",
+      viewProfile: "View Profile",
+      stats: "Stats",
+      achievements: "Achievements",
+      videos: "Videos"
+    },
+    teams: {
+      title: "Team Analysis",
+      subtitle: "Comprehensive team statistics, formations, and performance metrics",
+      comingSoon: "Team analysis page coming soon.",
+      description: "This will show comprehensive team statistics, formations, and performance metrics.",
+      searchPlaceholder: "Search teams by name, league, or country...",
+      featuredTeams: "Featured Teams",
+      topTeams: "Top Teams",
+      formations: "Formations",
+      statistics: "Statistics",
+      performance: "Performance Metrics",
+      viewTeam: "View Team",
+      squad: "Squad",
+      matches: "Matches",
+      history: "History"
+    },
+    highlights: {
+      title: "Video Highlights",
+      subtitle: "AI-curated football highlights from top matches and players",
+      comingSoon: "Video highlights page coming soon.",
+      description: "This will show AI-curated football highlights from top matches and players.",
+      searchPlaceholder: "Search highlights by player, team, or match...",
+      featuredHighlights: "Featured Highlights",
+      recentMatches: "Recent Matches",
+      topGoals: "Top Goals",
+      bestSaves: "Best Saves",
+      watchNow: "Watch Now",
+      duration: "Duration",
+      views: "Views",
+      date: "Date"
     }
   },
   es: {
@@ -273,6 +338,71 @@ const translations = {
       refreshData: "Actualizar Datos",
       viewAPI: "Ver Datos API",
       backToSearch: "Volver a Búsqueda"
+    },
+    // New section for WorldCupCountdown component
+    worldCupCountdown: {
+      title: "Cuenta Regresiva para el Mundial 2026",
+      tournamentStarts: "Comienza el torneo",
+      openingMatch: "México vs Sudáfrica • Estadio Azteca",
+      days: "DÍAS",
+      hours: "HORAS",
+      minutes: "MINUTOS",
+      seconds: "SEGUNDOS",
+      openingMatchTitle: "Partido Inaugural",
+      groupA: "Grupo A",
+      teams: "México vs Sudáfrica",
+      venue: "Estadio Azteca, Ciudad de México",
+      timeToKickoff: "Tiempo para el Saque Inicial",
+      daysShort: "d",
+      hoursShort: "h",
+      minutesShort: "m"
+    },
+    // New sections for other pages
+    players: {
+      title: "Estadísticas de Jugadores",
+      subtitle: "Perfiles detallados de jugadores, estadísticas y análisis con IA",
+      comingSoon: "Página de estadísticas de jugadores próximamente.",
+      description: "Esto mostrará perfiles detallados de jugadores, estadísticas y análisis con IA.",
+      searchPlaceholder: "Buscar jugadores por nombre, equipo o país...",
+      featuredPlayers: "Jugadores Destacados",
+      topScorers: "Máximos Goleadores",
+      mostAssists: "Más Asistencias",
+      bestDefenders: "Mejores Defensores",
+      viewProfile: "Ver Perfil",
+      stats: "Estadísticas",
+      achievements: "Logros",
+      videos: "Vídeos"
+    },
+    teams: {
+      title: "Análisis de Equipos",
+      subtitle: "Estadísticas completas de equipos, formaciones y métricas de rendimiento",
+      comingSoon: "Página de análisis de equipos próximamente.",
+      description: "Esto mostrará estadísticas completas de equipos, formaciones y métricas de rendimiento.",
+      searchPlaceholder: "Buscar equipos por nombre, liga o país...",
+      featuredTeams: "Equipos Destacados",
+      topTeams: "Mejores Equipos",
+      formations: "Formaciones",
+      statistics: "Estadísticas",
+      performance: "Métricas de Rendimiento",
+      viewTeam: "Ver Equipo",
+      squad: "Plantilla",
+      matches: "Partidos",
+      history: "Historia"
+    },
+    highlights: {
+      title: "Vídeos Destacados",
+      subtitle: "Destacados de fútbol seleccionados por IA de los mejores partidos y jugadores",
+      comingSoon: "Página de vídeos destacados próximamente.",
+      description: "Esto mostrará destacados de fútbol seleccionados por IA de los mejores partidos y jugadores.",
+      searchPlaceholder: "Buscar destacados por jugador, equipo o partido...",
+      featuredHighlights: "Destacados Principales",
+      recentMatches: "Partidos Recientes",
+      topGoals: "Mejores Goles",
+      bestSaves: "Mejores Paradas",
+      watchNow: "Ver Ahora",
+      duration: "Duración",
+      views: "Vistas",
+      date: "Fecha"
     }
   }
 };
