@@ -230,8 +230,17 @@ export default function RootLayout({
                 <p className="text-gray-500 text-sm mt-2">
                   AI-powered analysis using GROQ + Wikipedia • Current 2024-2026 data
                 </p>
-                <p className="text-gray-500 text-sm mt-2">
+                <p className="text-gray-500 text-sm mt-2 flex items-center justify-center gap-2">
+                  {/* Venezuelan Flag Emoji */}
+                  <span className="text-lg" title="Venezuela">🇻🇪</span>
                   Developed by A. Guillen
+                  {/* Spanish Flag Emoji */}
+                  <span className="text-lg" title="Spain">🇪🇸</span>
+                </p>
+                
+                {/* New Contact Line */}
+                <p className="text-gray-500 text-sm mt-4">
+                  Contact us at admin@futbolai.org
                 </p>
                 
                 {/* Language Notice */}

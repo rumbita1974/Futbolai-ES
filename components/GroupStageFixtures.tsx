@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useLanguage } from "@/context/LanguageContext";
 import { useTranslation } from "@/hooks/useTranslation";
 
 interface Match {
@@ -41,8 +42,9 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
   const [error, setError] = useState<string | null>(null);
   const [selectedGroup, setSelectedGroup] = useState<string>(defaultGroup);
   
-  // Use the translation hook
-  const { t, language } = useTranslation();
+  // Use hooks
+  const { language } = useLanguage();
+  const { t } = useTranslation();
 
   useEffect(() => {
     fetchWorldCupData();
@@ -95,6 +97,20 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
     if (!data) return [];
     const group = data.groups.find((g) => g.id === selectedGroup);
     return group ? group.matches : [];
+  };
+
+  // Function to translate team names
+  const translateTeam = (teamName: string) => {
+    // Try to get translation from teams object
+    const translated = t(`teams.${teamName}`);
+    
+    // If translation exists and is not the key itself, return it
+    if (translated && !translated.includes('teams.')) {
+      return translated;
+    }
+    
+    // Fallback to original team name
+    return teamName;
   };
 
   // Function to get team flag emoji
@@ -250,7 +266,7 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
                   {getTeamFlag(team)}
                 </div>
                 <span className="font-medium text-white text-sm md:text-base block">
-                  {team}
+                  {translateTeam(team)}
                 </span>
                 <div className="mt-2 flex items-center justify-center">
                   <span className="text-xs text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center">
@@ -309,7 +325,7 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
                         href={`/?search=${encodeURIComponent(match.team1)}&group=${selectedGroup}`}
                         className="font-bold text-white text-sm md:text-base hover:text-blue-300 transition"
                       >
-                        {match.team1}
+                        {translateTeam(match.team1)}
                       </a>
                     </div>
                     <div className="flex flex-col items-center min-w-[60px] md:min-w-[80px]">
@@ -327,7 +343,7 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
                         href={`/?search=${encodeURIComponent(match.team2)}&group=${selectedGroup}`}
                         className="font-bold text-white text-sm md:text-base hover:text-blue-300 transition"
                       >
-                        {match.team2}
+                        {translateTeam(match.team2)}
                       </a>
                     </div>
                   </div>

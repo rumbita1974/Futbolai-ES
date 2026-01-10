@@ -82,6 +82,27 @@ const translations = {
       spanish: "Spanish",
       switchTo: "Switch to"
     },
+    // Team name translations for World Cup groups
+    teams: {
+      'Germany': 'Germany',
+      'Spain': 'Spain',
+      'Côte d\'Ivoire': 'Côte d\'Ivoire',
+      'Play-off 1': 'Play-off 1',
+      'Argentina': 'Argentina',
+      'Netherlands': 'Netherlands',
+      'Senegal': 'Senegal',
+      'Peru': 'Peru',
+      'Brazil': 'Brazil',
+      'Portugal': 'Portugal',
+      'Morocco': 'Morocco',
+      'Play-off 2': 'Play-off 2',
+      'France': 'France',
+      'Belgium': 'Belgium',
+      'Colombia': 'Colombia',
+      'Play-off 3': 'Play-off 3',
+      'Mexico': 'Mexico',
+      'South Africa': 'South Africa'
+    },
     worldCup: {
       title: "2026 FIFA World Cup",
       subtitle: "Official group stage schedule with venues and dates across USA, Canada, and Mexico",
@@ -282,6 +303,27 @@ const translations = {
       english: "Inglés",
       spanish: "Español",
       switchTo: "Cambiar a"
+    },
+    // Team name translations for World Cup groups (Spanish)
+    teams: {
+      'Germany': 'Alemania',
+      'Spain': 'España',
+      'Côte d\'Ivoire': 'Costa de Marfil',
+      'Play-off 1': 'Play-off 1',
+      'Argentina': 'Argentina',
+      'Netherlands': 'Países Bajos',
+      'Senegal': 'Senegal',
+      'Peru': 'Perú',
+      'Brazil': 'Brasil',
+      'Portugal': 'Portugal',
+      'Morocco': 'Marruecos',
+      'Play-off 2': 'Play-off 2',
+      'France': 'Francia',
+      'Belgium': 'Bélgica',
+      'Colombia': 'Colombia',
+      'Play-off 3': 'Play-off 3',
+      'Mexico': 'México',
+      'South Africa': 'Sudáfrica'
     },
     worldCup: {
       title: "Copa Mundial de la FIFA 2026",
