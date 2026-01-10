@@ -391,16 +391,17 @@ export default function TeamsPage() {
           </div>
         )}
 
-        {/* Enhanced Team Results */}
-        {searchResults && !loading && (
-          <EnhancedTeamResults
-            teams={searchResults.teams}
-            players={searchResults.players}
-            youtubeQuery={searchResults.youtubeQuery}
-            searchTerm={searchQuery}
-            getTeamFlagUrl={getTeamFlagUrl}
-          />
-        )}
+{/* Enhanced Team Results */}
+{searchResults && !loading && (
+  <EnhancedTeamResults
+    teams={searchResults.teams}
+    players={searchResults.players}
+    youtubeQuery={searchResults.youtubeQuery}
+    searchTerm={searchQuery}
+    getTeamFlagUrl={getTeamFlagUrl}
+    language={language} // Add this line
+  />
+)}
 
         {/* Features Section - Only show when no search results */}
         {!searchResults && !loading && !searchError && (

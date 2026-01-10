@@ -189,7 +189,7 @@ const CRITICAL_UPDATES_2025: Record<string, Record<string, any>> = {
       ]
     }
   },
-  
+
   // National teams
   'Brazil': {
     currentCoach: 'Dorival Júnior',
@@ -222,12 +222,12 @@ const CRITICAL_UPDATES_2025: Record<string, Record<string, any>> = {
     lastUpdate: '2023-09-01',
     verified: true,
     achievements: {
-      worldCup: ['FIFA World Cup (4 titles: 1954, 1974, 1990, 2014)'],
+      worldCap: ['FIFA World Cup (4 titles: 1954, 1974, 1990, 2014)'],
       continental: ['UEFA European Championship (3 titles: 1972, 1980, 1996)'],
       domestic: []
     }
   },
-  
+
   // Still current as of 2025
   'Manchester City': {
     currentCoach: 'Pep Guardiola (as of 2025)',
@@ -354,7 +354,7 @@ const CRITICAL_UPDATES_2025: Record<string, Record<string, any>> = {
   }
 };
 
-// ⬅️ ADDED: Player critical updates for 2024-2025 transfers
+// Player critical updates for 2024-2025 transfers
 const PLAYER_CRITICAL_UPDATES_2025: Record<string, Record<string, any>> = {
   'Kylian Mbappé': {
     currentTeam: 'Real Madrid',
@@ -397,142 +397,68 @@ const getCriticalUpdate = (entityName: string, field: string): any => {
 };
 
 /**
- * Enhanced Wikipedia fetch with better parsing
+ * SIMPLIFIED: Wikipedia fetch - only gets summary, no detailed HTML parsing
  */
 export const fetchFromWikipedia = async (query: string): Promise<any> => {
   try {
     console.log(`[Wikipedia] Fetching data for: ${query}`);
-    
-    // Try different Wikipedia page titles
-    const searchPatterns = [
-      `${query} (football club)`,
-      `${query} (football team)`,
-      `${query} F.C.`,
-      `${query} FC`,
-      `${query}`,
-      `${query} national football team`
-    ];
-    
-    let wikiData = null;
-    
-    for (const pattern of searchPatterns) {
+
+    // Try direct query first (most common)
+    const response = await fetch(
+      `${WIKIPEDIA_API_BASE}/page/summary/${encodeURIComponent(query)}`,
+      {
+        // No custom headers to avoid CORS issues
+        headers: {
+          'Accept': 'application/json',
+        }
+      }
+    );
+
+    if (response.ok) {
+      const data = await response.json();
+      console.log(`[Wikipedia] Found data for: ${query}`);
+      
+      return {
+        summary: data.extract || '',
+        title: data.title || '',
+        url: data.content_urls?.desktop?.page,
+        thumbnail: data.thumbnail?.source,
+        fetchedAt: new Date().toISOString()
+      };
+    }
+
+    // If direct query fails, try with common suffixes
+    const suffixes = [' F.C.', ' FC', ' (football club)', ' national football team'];
+    for (const suffix of suffixes) {
       try {
-        const response = await fetch(
-          `${WIKIPEDIA_API_BASE}/page/summary/${encodeURIComponent(pattern)}`);
+        const suffixResponse = await fetch(
+          `${WIKIPEDIA_API_BASE}/page/summary/${encodeURIComponent(query + suffix)}`
+        );
         
-        if (response.ok) {
-          const data = await response.json();
-          console.log(`[Wikipedia] Found data with pattern: ${pattern}`);
-          wikiData = data;
-          break;
+        if (suffixResponse.ok) {
+          const data = await suffixResponse.json();
+          console.log(`[Wikipedia] Found data with suffix "${suffix}": ${query}`);
+          
+          return {
+            summary: data.extract || '',
+            title: data.title || '',
+            url: data.content_urls?.desktop?.page,
+            thumbnail: data.thumbnail?.source,
+            fetchedAt: new Date().toISOString()
+          };
         }
       } catch (error) {
-        console.log(`[Wikipedia] Pattern "${pattern}" failed:`, error.message);
         continue;
       }
     }
-    
-    if (!wikiData) {
-      console.log(`[Wikipedia] No data found for: ${query}`);
-      return null;
-    }
-    
-    // Extract more detailed information
-    const summary = wikiData.extract || '';
-    const title = wikiData.title || '';
-    
-    // Try to get the full page content for more detailed parsing
-    let detailedInfo = null;
-    try {
-      const contentResponse = await fetch(
-        `${WIKIPEDIA_API_BASE}/page/html/${encodeURIComponent(title)}`,
-        {
-          headers: {
-            'Authorization': WIKIPEDIA_API_KEY ? `Bearer ${WIKIPEDIA_API_KEY}` : '',
-            'User-Agent': 'FutbolAI/1.0'
-          }
-        }
-      );
-      
-      if (contentResponse.ok) {
-        const htmlContent = await contentResponse.text();
-        detailedInfo = extractDetailedInfoFromHTML(htmlContent, title);
-      }
-    } catch (error) {
-      console.log('[Wikipedia] Could not fetch detailed content:', error.message);
-    }
-    
-    return {
-      summary,
-      title,
-      url: wikiData.content_urls?.desktop?.page,
-      thumbnail: wikiData.thumbnail?.source,
-      detailedInfo,
-      fetchedAt: new Date().toISOString()
-    };
-    
+
+    console.log(`[Wikipedia] No data found for: ${query}`);
+    return null;
+
   } catch (error: any) {
     console.error('[Wikipedia] Fetch error:', error);
     return null;
   }
-};
-
-/**
- * Extract detailed information from Wikipedia HTML
- */
-const extractDetailedInfoFromHTML = (html: string, title: string): any => {
-  const info: any = {
-    coach: null,
-    stadium: null,
-    founded: null,
-    location: null,
-    league: null,
-    captain: null
-  };
-  
-  try {
-    // Simple parsing for infobox data (this is a simplified version)
-    // In production, you'd want a more robust HTML parser
-    
-    // Look for coach/manager information
-    const coachMatches = html.match(/Manager.*?<\/td>.*?<td[^>]*>([^<]+)</i) ||
-                        html.match(/Head coach.*?<\/td>.*?<td[^>]*>([^<]+)</i) ||
-                        html.match(/Coach.*?<\/td>.*?<td[^>]*>([^<]+)</i);
-    
-    if (coachMatches && coachMatches[1]) {
-      info.coach = cleanText(coachMatches[1]);
-    }
-    
-    // Look for stadium information
-    const stadiumMatches = html.match(/Ground.*?<\/td>.*?<td[^>]*>([^<]+)</i) ||
-                          html.match(/Stadium.*?<\/td>.*?<td[^>]*>([^<]+)</i) ||
-                          html.match(/Arena.*?<\/td>.*?<td[^>]*>([^<]+)</i);
-    
-    if (stadiumMatches && stadiumMatches[1]) {
-      info.stadium = cleanText(stadiumMatches[1]);
-    }
-    
-    // Look for founded year
-    const foundedMatches = html.match(/Founded.*?<\/td>.*?<td[^>]*>([^<]+)</i) ||
-                          html.match(/Established.*?<\/td>.*?<td[^>]*>([^<]+)</i);
-    
-    if (foundedMatches && foundedMatches[1]) {
-      info.founded = cleanText(foundedMatches[1]);
-    }
-    
-    // Look for league information
-    const leagueMatches = html.match(/League.*?<\/td>.*?<td[^>]*>([^<]+)</i) ||
-                         html.match(/Division.*?<\/td>.*?<td[^>]*>([^<]+)</i);
-    
-    if (leagueMatches && leagueMatches[1]) {
-      info.league = cleanText(leagueMatches[1]);
-    }
-    
-  } catch (error) {
-    console.log('[Wikipedia] HTML parsing error:', error);
-  }
-  
-  return info;
 };
 
 /**
@@ -549,83 +475,95 @@ const cleanText = (text: string): string => {
 /**
  * Parse Wikipedia summary for current information
  */
-const extractInfoFromWikipedia = (summary: string, detailedInfo: any): {
+const extractInfoFromWikipedia = (summary: string): {
   coach: string | null;
   stadium: string | null;
   founded: string | null;
   league: string | null;
 } => {
   const result = {
-    coach: detailedInfo?.coach || null,
-    stadium: detailedInfo?.stadium || null,
-    founded: detailedInfo?.founded || null,
-    league: detailedInfo?.league || null
+    coach: null,
+    stadium: null,
+    founded: null,
+    league: null
   };
-  
-  // Fallback to summary parsing if detailed info not available
-  if (!result.coach) {
-    const coachPatterns = [
-      /manager is ([^.]+)\./i,
-      /coach is ([^.]+)\./i,
-      /head coach is ([^.]+)\./i,
-      /coached by ([^.]+)\./i,
-      /managed by ([^.]+)\./i,
-      /current manager.*?is ([^.]+)\./i,
-      /under manager ([^.]+)\./i
-    ];
-    
-    for (const pattern of coachPatterns) {
-      const match = summary.match(pattern);
-      if (match && match[1]) {
-        result.coach = cleanText(match[1]);
-        break;
-      }
+
+  // Extract coach from summary
+  const coachPatterns = [
+    /manager is ([^.]+)\./i,
+    /coach is ([^.]+)\./i,
+    /head coach is ([^.]+)\./i,
+    /coached by ([^.]+)\./i,
+    /managed by ([^.]+)\./i,
+    /current manager.*?is ([^.]+)\./i,
+    /under manager ([^.]+)\./i
+  ];
+
+  for (const pattern of coachPatterns) {
+    const match = summary.match(pattern);
+    if (match && match[1]) {
+      result.coach = cleanText(match[1]);
+      break;
     }
   }
-  
-  if (!result.stadium) {
-    const stadiumPatterns = [
-      /plays at ([^.]+)\./i,
-      /stadium is ([^.]+)\./i,
-      /ground is ([^.]+)\./i,
-      /based at ([^.]+)\./i,
-      /home venue.*?is ([^.]+)\./i
-    ];
-    
-    for (const pattern of stadiumPatterns) {
-      const match = summary.match(pattern);
-      if (match && match[1]) {
-        result.stadium = cleanText(match[1]);
-        break;
-      }
+
+  // Extract stadium from summary
+  const stadiumPatterns = [
+    /plays at ([^.]+)\./i,
+    /stadium is ([^.]+)\./i,
+    /ground is ([^.]+)\./i,
+    /based at ([^.]+)\./i,
+    /home venue.*?is ([^.]+)\./i
+  ];
+
+  for (const pattern of stadiumPatterns) {
+    const match = summary.match(pattern);
+    if (match && match[1]) {
+      result.stadium = cleanText(match[1]);
+      break;
     }
   }
-  
-  if (!result.founded) {
-    const foundedMatch = summary.match(/founded in (\d{4})/i);
-    if (foundedMatch) {
-      result.founded = foundedMatch[1];
+
+  // Extract founded year
+  const foundedMatch = summary.match(/founded in (\d{4})/i);
+  if (foundedMatch) {
+    result.founded = foundedMatch[1];
+  }
+
+  // Extract league
+  const leaguePatterns = [
+    /plays in ([^.]+)\./i,
+    /competes in ([^.]+)\./i,
+    /league.*?is ([^.]+)\./i,
+    /member of ([^.]+)\./i
+  ];
+
+  for (const pattern of leaguePatterns) {
+    const match = summary.match(pattern);
+    if (match && match[1]) {
+      result.league = cleanText(match[1]);
+      break;
     }
   }
-  
+
   return result;
 };
 
 /**
- * ⬅️ ADDED: Enhance player data with Wikipedia and critical updates
+ * Enhance player data with Wikipedia and critical updates
  */
 const enhancePlayerWithWikipedia = async (playerData: any, playerName: string): Promise<any> => {
   const enhancedPlayer = { ...playerData };
   const updates: string[] = [];
-  
+
   // 1. Check critical player updates first
   const criticalUpdate = PLAYER_CRITICAL_UPDATES_2025[playerName];
   if (criticalUpdate) {
     // Update current team if it's outdated
-    if (criticalUpdate.currentTeam && 
-        criticalUpdate.previousTeam && 
+    if (criticalUpdate.currentTeam &&
+        criticalUpdate.previousTeam &&
         enhancedPlayer.currentTeam === criticalUpdate.previousTeam) {
-      
+
       const oldTeam = enhancedPlayer.currentTeam;
       enhancedPlayer.currentTeam = criticalUpdate.currentTeam;
       enhancedPlayer._source = 'Critical Transfer Update 2024-2025';
@@ -633,51 +571,21 @@ const enhancePlayerWithWikipedia = async (playerData: any, playerName: string): 
       updates.push(`Team updated: ${oldTeam} → ${criticalUpdate.currentTeam} (${criticalUpdate.transferDate})`);
     }
   }
-  
-  // 2. Fetch from Wikipedia for player verification
-  try {
-    const wikiData = await fetchFromWikipedia(playerName);
-    if (wikiData && wikiData.summary) {
-      // Try to extract current team from Wikipedia summary
-      const teamPatterns = [
-        /plays for ([^.]+)\./i,
-        /currently plays for ([^.]+)\./i,
-        /plays as [^.]* for ([^.]+)\./i,
-        /is a [^.]* who plays for ([^.]+)\./i,
-        /current club is ([^.]+)\./i,
-        /plays professional football for ([^.]+)\./i
-      ];
-      
-      for (const pattern of teamPatterns) {
-        const match = wikiData.summary.match(pattern);
-        if (match && match[1]) {
-          const wikiTeam = cleanText(match[1]);
-          
-          // Check if Wikipedia team is different from current data
-          if (wikiTeam !== enhancedPlayer.currentTeam && 
-              !enhancedPlayer._source?.includes('Critical')) {
-            
-            // Check if Wikipedia team seems more current
-            if (wikiTeam.includes('Real Madrid') && enhancedPlayer.currentTeam.includes('PSG') ||
-                wikiTeam.includes('202') || wikiTeam.length > enhancedPlayer.currentTeam.length) {
-              
-              const oldTeam = enhancedPlayer.currentTeam;
-              enhancedPlayer.currentTeam = wikiTeam;
-              enhancedPlayer._source = 'Wikipedia API (player)';
-              enhancedPlayer._wikiSummary = wikiData.summary.substring(0, 200) + '...';
-              updates.push(`Team updated from Wikipedia: ${oldTeam} → ${wikiTeam}`);
-            }
-          }
-          break;
-        }
+
+  // 2. Fetch from Wikipedia for player verification (only if no critical update)
+  if (!enhancedPlayer._source?.includes('Critical')) {
+    try {
+      const wikiData = await fetchFromWikipedia(playerName);
+      if (wikiData && wikiData.summary) {
+        enhancedPlayer._wikiSummary = wikiData.summary.substring(0, 200) + '...';
+        enhancedPlayer._wikiFetchedAt = wikiData.fetchedAt;
+        enhancedPlayer._source = 'Wikipedia API';
       }
-      
-      enhancedPlayer._wikiFetchedAt = wikiData.fetchedAt;
+    } catch (error) {
+      console.log(`[Wikipedia] Player enhancement failed for ${playerName}:`, error);
     }
-  } catch (error) {
-    console.log(`[Wikipedia] Player enhancement failed for ${playerName}:`, error);
   }
-  
+
   // 3. Add metadata
   enhancedPlayer._dataCurrency = {
     lastVerified: new Date().toISOString(),
@@ -685,7 +593,7 @@ const enhancePlayerWithWikipedia = async (playerData: any, playerName: string): 
     confidence: updates.length > 0 ? 'high' : 'medium',
     updatesApplied: updates
   };
-  
+
   return enhancedPlayer;
 };
 
@@ -711,7 +619,7 @@ export const analyzeDataCurrency = (groqResponse: any, query: string): {
   if (groqResponse.teams && groqResponse.teams.length > 0) {
     const team = groqResponse.teams[0];
     const teamName = team.name;
-    
+
     // Check critical updates first
     const criticalUpdate = CRITICAL_UPDATES_2025[teamName];
     if (criticalUpdate) {
@@ -723,15 +631,15 @@ export const analyzeDataCurrency = (groqResponse: any, query: string): {
         result.suggestions.push(`Coach information updated from Wikipedia: ${criticalUpdate.currentCoach}`);
         result.confidence = 'high';
       }
-      
+
       // Check for achievement accuracy
       if (criticalUpdate.achievements) {
         const teamAchievements = JSON.stringify(team.majorAchievements).toLowerCase();
         const criticalAchievements = JSON.stringify(criticalUpdate.achievements).toLowerCase();
-        
+
         // Check for specific achievement inaccuracies
         if (teamName === 'Real Madrid') {
-          if (teamAchievements.includes('14 champions league') || 
+          if (teamAchievements.includes('14 champions league') ||
               teamAchievements.includes('14 uefa champions league')) {
             result.outdatedFields.push('achievements');
             result.suggestions.push('Real Madrid has 15 UEFA Champions League titles (won 2024)');
@@ -739,48 +647,23 @@ export const analyzeDataCurrency = (groqResponse: any, query: string): {
           }
         }
       }
-      
-      // Check stadium
-      if (criticalUpdate.stadium && team.stadium !== criticalUpdate.stadium) {
-        result.outdatedFields.push('stadium');
-        result.suggestions.push(`Stadium information may need updating.`);
-      }
     }
-    
+
     // Check for 2024-specific patterns
-    if (team.currentCoach?.includes('2024') || 
+    if (team.currentCoach?.includes('2024') ||
         team.currentCoach?.toLowerCase().includes('as of 2024') ||
         team.currentCoach?.toLowerCase().includes('former')) {
       result.outdatedFields.push('currentCoach');
       result.suggestions.push(`Coach information references 2024. Checking Wikipedia for ${CURRENT_YEAR} updates.`);
       result.needsEnhancement = true;
     }
-    
-    // Check achievements currency
-    if (team.majorAchievements) {
-      const achievements = [
-        ...(team.majorAchievements.worldCup || []),
-        ...(team.majorAchievements.continental || []),
-        ...(team.majorAchievements.domestic || [])
-      ];
-      
-      const hasRecentAchievement = achievements.some(ach => 
-        ach.includes(`${CURRENT_YEAR - 1}`) || 
-        ach.includes(`${CURRENT_YEAR}`) ||
-        ach.includes(`${CURRENT_YEAR - 1}-${CURRENT_YEAR}`)
-      );
-      
-      if (!hasRecentAchievement && achievements.length > 0) {
-        result.suggestions.push('Achievements may not include recent seasons.');
-      }
-    }
   }
 
-  // ⬅️ MODIFIED: Enhanced player checks with critical updates
+  // Enhanced player checks with critical updates
   if (groqResponse.players && groqResponse.players.length > 0) {
     const player = groqResponse.players[0];
     const playerName = player.name;
-    
+
     // Check critical player updates
     const criticalPlayerUpdate = PLAYER_CRITICAL_UPDATES_2025[playerName];
     if (criticalPlayerUpdate) {
@@ -792,30 +675,23 @@ export const analyzeDataCurrency = (groqResponse: any, query: string): {
         result.confidence = 'high';
       }
     }
-    
+
     // Check for other outdated indicators
     if (player.currentTeam?.toLowerCase().includes('psg') && playerName.includes('Mbappé')) {
       result.suggestions.push(`${playerName}'s club may be outdated. He transferred to Real Madrid in 2024.`);
       result.needsEnhancement = true;
     }
-    
+
     // Age verification
     if (player.age && player.age > 35) {
       result.suggestions.push('Player age and current team should be verified with current sources.');
-    }
-    
-    // Transfer flags
-    if (player.currentTeam?.includes('2024') || 
-        player.currentTeam?.toLowerCase().includes('former') ||
-        player.currentTeam?.toLowerCase().includes('ex-')) {
-      result.suggestions.push('Player team information may need updating.');
     }
   }
 
   // Check message for currency indicators
   if (groqResponse.message) {
     const message = groqResponse.message.toLowerCase();
-    if (message.includes('as of 2024') || 
+    if (message.includes('as of 2024') ||
         message.includes('2024 data') ||
         message.includes('2024 season')) {
       result.suggestions.push('Information references 2024 data. Wikipedia used for current verification.');
@@ -837,7 +713,7 @@ export const analyzeDataCurrency = (groqResponse: any, query: string): {
 const enhanceTeamWithWikipedia = async (teamData: any, teamName: string): Promise<any> => {
   const enhancedTeam = { ...teamData };
   const updates: string[] = [];
-  
+
   // 1. Check critical updates first (highest priority)
   const criticalUpdate = CRITICAL_UPDATES_2025[teamName];
   if (criticalUpdate) {
@@ -849,13 +725,13 @@ const enhanceTeamWithWikipedia = async (teamData: any, teamName: string): Promis
       enhancedTeam._updateReason = criticalUpdate.source;
       updates.push(`Coach updated: ${oldCoach} → ${criticalUpdate.currentCoach}`);
     }
-    
+
     // Update stadium
     if (criticalUpdate.stadium && enhancedTeam.stadium !== criticalUpdate.stadium) {
       enhancedTeam.stadium = criticalUpdate.stadium;
       updates.push(`Stadium: ${criticalUpdate.stadium}`);
     }
-    
+
     // Update achievements if available in critical update
     if (criticalUpdate.achievements && !enhancedTeam._achievementsUpdated) {
       // Check if achievements need updating (especially for Real Madrid)
@@ -868,50 +744,45 @@ const enhanceTeamWithWikipedia = async (teamData: any, teamName: string): Promis
         }
       }
     }
-    
+
     enhancedTeam._lastVerified = criticalUpdate.lastUpdate || '2024-12-01';
     enhancedTeam._verified = criticalUpdate.verified || false;
   }
-  
-  // 2. Fetch from Wikipedia for additional verification
-  try {
-    const wikiData = await fetchFromWikipedia(teamName);
-    if (wikiData) {
-      const wikiInfo = extractInfoFromWikipedia(wikiData.summary, wikiData.detailedInfo);
-      
-      // Update coach from Wikipedia if different
-      if (wikiInfo.coach && 
-          wikiInfo.coach !== enhancedTeam.currentCoach &&
-          !enhancedTeam._source?.includes('Critical')) {
-        
-        // Check if Wikipedia coach seems more current
-        if (!enhancedTeam.currentCoach?.includes(CURRENT_YEAR.toString()) ||
-            wikiInfo.coach.length > enhancedTeam.currentCoach.length) {
+
+  // 2. Fetch from Wikipedia for additional verification (only if no critical update)
+  if (!enhancedTeam._source?.includes('Critical')) {
+    try {
+      const wikiData = await fetchFromWikipedia(teamName);
+      if (wikiData) {
+        const wikiInfo = extractInfoFromWikipedia(wikiData.summary);
+
+        // Update coach from Wikipedia if different and seems more current
+        if (wikiInfo.coach && wikiInfo.coach !== enhancedTeam.currentCoach) {
           const oldCoach = enhancedTeam.currentCoach;
           enhancedTeam.currentCoach = wikiInfo.coach;
           enhancedTeam._source = 'Wikipedia API';
           enhancedTeam._wikiSummary = wikiData.summary.substring(0, 200) + '...';
           updates.push(`Coach updated from Wikipedia: ${oldCoach} → ${wikiInfo.coach}`);
         }
+
+        // Update stadium from Wikipedia
+        if (wikiInfo.stadium && !enhancedTeam.stadium) {
+          enhancedTeam.stadium = wikiInfo.stadium;
+          updates.push(`Stadium: ${wikiInfo.stadium}`);
+        }
+
+        // Update founded year
+        if (wikiInfo.founded && !enhancedTeam.foundedYear) {
+          enhancedTeam.foundedYear = parseInt(wikiInfo.founded);
+        }
+
+        enhancedTeam._wikiFetchedAt = wikiData.fetchedAt;
       }
-      
-      // Update stadium from Wikipedia
-      if (wikiInfo.stadium && !enhancedTeam.stadium) {
-        enhancedTeam.stadium = wikiInfo.stadium;
-        updates.push(`Stadium: ${wikiInfo.stadium}`);
-      }
-      
-      // Update founded year
-      if (wikiInfo.founded && !enhancedTeam.foundedYear) {
-        enhancedTeam.foundedYear = parseInt(wikiInfo.founded);
-      }
-      
-      enhancedTeam._wikiFetchedAt = wikiData.fetchedAt;
+    } catch (error) {
+      console.log(`[Wikipedia] Enhancement failed for ${teamName}:`, error);
     }
-  } catch (error) {
-    console.log(`[Wikipedia] Enhancement failed for ${teamName}:`, error);
   }
-  
+
   // 3. Add metadata
   enhancedTeam._dataCurrency = {
     lastTrained: '2024',
@@ -930,7 +801,7 @@ const enhanceTeamWithWikipedia = async (teamData: any, teamName: string): Promis
       `Verify ${CURRENT_YEAR} season details with league websites`
     ]
   };
-  
+
   return enhancedTeam;
 };
 
@@ -944,45 +815,45 @@ export const enhanceGROQResponse = async (
   // Create a deep copy
   const enhancedResponse = JSON.parse(JSON.stringify(groqResponse));
   const appliedUpdates: string[] = [];
-  
+
   try {
     // Analyze data currency
     const currencyAnalysis = analyzeDataCurrency(groqResponse, originalQuery);
-    
-    // ⬅️ MODIFIED: Enhance players with Wikipedia
+
+    // Enhance players with Wikipedia
     if (enhancedResponse.players && enhancedResponse.players.length > 0) {
       for (let i = 0; i < enhancedResponse.players.length; i++) {
         const playerName = enhancedResponse.players[i].name;
         const originalTeam = enhancedResponse.players[i].currentTeam;
-        
+
         enhancedResponse.players[i] = await enhancePlayerWithWikipedia(
-          enhancedResponse.players[i], 
+          enhancedResponse.players[i],
           playerName
         );
-        
+
         // Track if update was applied
         if (enhancedResponse.players[i].currentTeam !== originalTeam) {
           appliedUpdates.push(`${playerName} team: ${originalTeam} → ${enhancedResponse.players[i].currentTeam}`);
         }
       }
     }
-    
+
     // Enhance teams with Wikipedia
     if (enhancedResponse.teams && enhancedResponse.teams.length > 0) {
       for (let i = 0; i < enhancedResponse.teams.length; i++) {
         const teamName = enhancedResponse.teams[i].name;
         const originalCoach = enhancedResponse.teams[i].currentCoach;
-        
+
         enhancedResponse.teams[i] = await enhanceTeamWithWikipedia(
-          enhancedResponse.teams[i], 
+          enhancedResponse.teams[i],
           teamName
         );
-        
+
         // Track if update was applied
         if (enhancedResponse.teams[i].currentCoach !== originalCoach) {
           appliedUpdates.push(`${teamName} coach: ${originalCoach} → ${enhancedResponse.teams[i].currentCoach}`);
         }
-        
+
         // Check for achievement updates
         if (teamName === 'Real Madrid') {
           const achievements = JSON.stringify(enhancedResponse.teams[i].majorAchievements);
@@ -994,7 +865,7 @@ export const enhanceGROQResponse = async (
         }
       }
     }
-    
+
     // Add comprehensive metadata
     enhancedResponse._metadata = {
       enhancedAt: new Date().toISOString(),
@@ -1006,7 +877,7 @@ export const enhanceGROQResponse = async (
         ...(appliedUpdates.length > 0 ? ['Manual 2025 updates'] : [])
       ],
       apiStatus: {
-        wikipedia: WIKIPEDIA_API_KEY ? 'Authenticated' : 'Public access',
+        wikipedia: 'Public API',
         groq: 'Authenticated'
       },
       currentSeason: `${CURRENT_SEASON}/${CURRENT_SEASON + 1}`,
@@ -1029,11 +900,11 @@ export const enhanceGROQResponse = async (
       },
       achievementCorrections: appliedUpdates.filter(u => u.includes('achievements', 'Achievements'))
     };
-    
+
     // Update message to reflect Wikipedia enhancement
     if (appliedUpdates.length > 0) {
       enhancedResponse.message = `✓ ${enhancedResponse.message || 'Information found'} (Updated with current Wikipedia data)`;
-      
+
       // Add specific note for Real Madrid achievement correction
       if (appliedUpdates.some(u => u.includes('15 UEFA Champions League'))) {
         enhancedResponse.message += ' • 15 UCL titles confirmed';
@@ -1041,12 +912,12 @@ export const enhanceGROQResponse = async (
     } else if (currencyAnalysis.needsEnhancement) {
       enhancedResponse.message = `✓ ${enhancedResponse.message || 'Information found'} (Verified with Wikipedia)`;
     }
-    
+
     return enhancedResponse;
-    
+
   } catch (error) {
     console.error('[Enhancer] Error enhancing GROQ response:', error);
-    
+
     // Return with error metadata
     enhancedResponse._metadata = {
       enhanced: false,
@@ -1058,7 +929,7 @@ export const enhanceGROQResponse = async (
       currentSeason: `${CURRENT_SEASON}/${CURRENT_SEASON + 1}`,
       note: 'For current information, please check Wikipedia or official sources.'
     };
-    
+
     return enhancedResponse;
   }
 };
@@ -1066,9 +937,9 @@ export const enhanceGROQResponse = async (
 /**
  * Get data currency badge for UI
  */
-export const getDataCurrencyBadge = (metadata: any): { 
-  text: string; 
-  color: 'green' | 'yellow' | 'red' | 'blue'; 
+export const getDataCurrencyBadge = (metadata: any): {
+  text: string;
+  color: 'green' | 'yellow' | 'red' | 'blue';
   icon: string;
   details: string;
 } => {
@@ -1080,33 +951,33 @@ export const getDataCurrencyBadge = (metadata: any): {
       details: 'No verification performed'
     };
   }
-  
+
   if (metadata.analysis?.isLikelyOutdated && metadata.appliedUpdates?.length === 0) {
     return {
       text: 'Needs Update',
       color: 'red',
-      icon: '🔴',
+      icon: '🔄',
       details: 'Outdated information detected'
     };
   }
-  
+
   if (metadata.appliedUpdates && metadata.appliedUpdates.length > 0) {
-    const achievementUpdates = metadata.appliedUpdates.filter((u: string) => 
+    const achievementUpdates = metadata.appliedUpdates.filter((u: string) =>
       u.toLowerCase().includes('achievement') || u.includes('UCL')
     ).length;
-    
-    const details = achievementUpdates > 0 
+
+    const details = achievementUpdates > 0
       ? `${metadata.appliedUpdates.length} updates (${achievementUpdates} achievement corrections)`
       : `${metadata.appliedUpdates.length} updates applied from Wikipedia`;
-    
+
     return {
       text: 'Updated ✓',
       color: 'green',
-      icon: '✅',
+      icon: '✓',
       details
     };
   }
-  
+
   if (metadata.enhancedAt) {
     return {
       text: 'Verified',
@@ -1115,11 +986,11 @@ export const getDataCurrencyBadge = (metadata: any): {
       details: 'Verified with Wikipedia'
     };
   }
-  
+
   return {
     text: '2024 Data',
     color: 'blue',
-    icon: 'ℹ️',
+    icon: '🤖',
     details: 'AI data with Wikipedia verification'
   };
 };
@@ -1128,7 +999,7 @@ export const getDataCurrencyBadge = (metadata: any): {
  * Check if Wikipedia API is configured
  */
 export const isWikipediaConfigured = (): boolean => {
-  return !!WIKIPEDIA_API_KEY;
+  return true; // Always true since we're using public API
 };
 
 export default {

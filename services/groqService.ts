@@ -21,6 +21,8 @@ export interface Player {
   _source?: string;
   _lastVerified?: string;
   _wikiSummary?: string;
+  _era?: string;
+  _yearsAtTeam?: string;
 }
 
 export interface Team {
@@ -139,12 +141,23 @@ export const searchWithGROQ = async (query: string, language: string = 'en'): Pr
 
 ${language === 'es' ? 'RESPONDE EN ESPAÑOL. Proporciona toda la información en español.' : 'RESPOND IN ENGLISH. Provide all information in English.'}
 
-DATA ACCURACY GUIDELINES:
-1. TIMELINESS VS COMPREHENSIVENESS:
+CRITICAL REQUIREMENTS FOR TEAMS:
+
+1. PLAYER COUNT REQUIREMENTS:
+   - For NATIONAL TEAMS: Return 12-15 key current players
+   - For CLUB TEAMS: Return 15-20 key current players
+   
+   Include players from ALL positions:
+   • Goalkeepers (1-3 players)
+   • Defenders (3-5 players for national teams, 5-7 for clubs)
+   • Midfielders (4-6 players for national teams, 6-8 for clubs)
+   • Forwards (3-4 players for national teams, 4-5 for clubs)
+
+2. TIMELINESS VS COMPREHENSIVENESS:
    ${language === 'es' ? '   - Para información ACTUAL (clubes, entrenadores, edad): Sé preciso y actualizado' : '   - For CURRENT info (clubs, coaches, age): Be precise and up-to-date'}
    ${language === 'es' ? '   - Para información HISTÓRICA (logros, estadísticas): Sé exhaustivo y completo' : '   - For HISTORICAL info (achievements, stats): Be thorough and complete'}
 
-2. CRITICAL 2024-2025 UPDATES (MUST BE ACCURATE):
+3. CRITICAL 2024-2025 UPDATES (MUST BE ACCURATE):
    Clubs & Coaches:
    - Real Madrid: Coach = Xabi Alonso (since 2024). 15 UCL titles.
    - Bayern Munich: Coach = Vincent Kompany (since 2024)
@@ -165,19 +178,19 @@ DATA ACCURACY GUIDELINES:
    - Robert Lewandowski: FC Barcelona (July 2022 from Bayern Munich)
    - Erling Haaland: Manchester City (July 2022 from Borussia Dortmund)
 
-3. ACHIEVEMENT REPORTING RULES:
+4. ACHIEVEMENT REPORTING RULES:
    - List ALL major career achievements
    - For players: Include Ballon d'Or, league titles, cup wins, international trophies
    - For teams: Include all major domestic, continental, and world titles
    - Group similar achievements: "5x Champions League Winner" not just "Champions League Winner"
    - Include specific years for significant achievements: "European Championship 2016"
 
-4. STATISTICS GUIDELINES:
+5. STATISTICS GUIDELINES:
    - Provide complete career totals: goals, assists, appearances
    - Include both club and international statistics
    - For retired players, mark as "retired" and provide full career summary
 
-5. OUTPUT FORMAT RULES:
+6. OUTPUT FORMAT RULES:
    ALWAYS respond with VALID JSON using this exact structure:
    {
      "players": [{
@@ -211,165 +224,174 @@ DATA ACCURACY GUIDELINES:
    }
 
 ${language === 'es' ? `
-EJEMPLO PARA "Cristiano Ronaldo" (EN ESPAÑOL):
-{
-  "players": [{
-    "name": "Cristiano Ronaldo",
-    "currentTeam": "Al Nassr",
-    "position": "Delantero",
-    "age": 39,
-    "nationality": "Portugués",
-    "careerGoals": 819,
-    "careerAssists": 224,
-    "internationalAppearances": 198,
-    "internationalGoals": 122,
-    "majorAchievements": [
-      "5x Balón de Oro (2008, 2013, 2014, 2016, 2017)",
-      "5x Ganador de la UEFA Champions League (2008, 2014, 2016, 2017, 2018)",
-      "1x Ganador de la Eurocopa (2016)",
-      "1x Ganador de la UEFA Nations League (2019)",
-      "3x Ganador de la Premier League (2007, 2008, 2009)",
-      "2x Ganador de La Liga (2012, 2017)",
-      "2x Ganador de la Serie A (2019, 2020)",
-      "4x Ganador de la Copa Mundial de Clubes FIFA",
-      "3x Ganador de la Supercopa de la UEFA",
-      "Jugador del Año de la PFA (2007, 2008)",
-      "Bota de Oro Europea (2008, 2011, 2014, 2015)"
-    ],
-    "careerSummary": "Futbolista portugués considerado uno de los mejores jugadores de todos los tiempos. Conocido por su velocidad excepcional, habilidad, atletismo y capacidad goleadora. Jugó en el Sporting CP (2002-2003), Manchester United (2003-2009, 2021-2022), Real Madrid (2009-2018), Juventus (2018-2021) y actualmente juega en el Al Nassr (desde enero de 2023). Posee récords de más goles en la UEFA Champions League y en fútbol internacional masculino."
-  }],
-  "teams": [],
-  "youtubeQuery": "Cristiano Ronaldo 2024 Al Nassr goles highlights",
-  "message": "Información de Cristiano Ronaldo. Actualmente juega en el Al Nassr (desde enero de 2023). Información actualizada a 2024."
-}
+EJEMPLO COMPLETO PARA "Argentina nacional" (EN ESPAÑOL - DEBE INCLUIR MÚLTIPLES JUGADORES):
 
-EJEMPLO PARA "Lionel Messi" (EN ESPAÑOL):
+IMPORTANTE: Para una selección nacional, devuelve AL MENOS 12-15 jugadores clave.
+
 {
-  "players": [{
-    "name": "Lionel Messi",
-    "currentTeam": "Inter Miami CF",
-    "position": "Delantero",
-    "age": 36,
-    "nationality": "Argentino",
-    "careerGoals": 835,
-    "careerAssists": 375,
-    "internationalAppearances": 180,
-    "internationalGoals": 106,
-    "majorAchievements": [
-      "Ganador de la Copa Mundial FIFA 2022",
-      "Ganador de la Copa América 2021",
-      "8x Balón de Oro (2009, 2010, 2011, 2012, 2015, 2019, 2021, 2023)",
-      "4x Ganador de la UEFA Champions League (2006, 2009, 2011, 2015)",
-      "10x Ganador de La Liga (2005, 2006, 2009, 2010, 2011, 2013, 2015, 2016, 2018, 2019)",
-      "7x Ganador de la Copa del Rey",
-      "8x Ganador de la Supercopa de España",
-      "3x Ganador de la Supercopa de la UEFA",
-      "3x Ganador de la Copa Mundial de Clubes FIFA",
-      "Ligue 1 (2022)",
-      "Leagues Cup (2023)",
-      "Balón de Oro de la Copa Mundial FIFA (2014, 2022)",
-      "Bota de Oro Europea (2010, 2012, 2013, 2017, 2018)"
-    ],
-    "careerSummary": "Futbolista argentino considerado uno de los mejores jugadores de todos los tiempos. Conocido por su regate, creación de juego, visión y capacidad goleadora. Jugó en el Barcelona (2004-2021), Paris Saint-Germain (2021-2023) y actualmente juega en el Inter Miami CF (desde julio de 2023). Posee récords de más Balones de Oro y más goles para el Barcelona."
+  "players": [
+    {
+      "name": "Lionel Messi",
+      "currentTeam": "Inter Miami CF",
+      "position": "Delantero",
+      "age": 36,
+      "nationality": "Argentino",
+      "careerGoals": 835,
+      "careerAssists": 375,
+      "internationalAppearances": 180,
+      "internationalGoals": 106,
+      "majorAchievements": ["Ganador de la Copa Mundial FIFA 2022", "Ganador de la Copa América 2021", "8x Balón de Oro", "4x UEFA Champions League"],
+      "careerSummary": "Futbolista argentino considerado uno de los mejores jugadores de todos los tiempos. Conocido por su regate, creación de juego, visión y capacidad goleadora. Jugó en el Barcelona (2004-2021), Paris Saint-Germain (2021-2023) y actualmente juega en el Inter Miami CF (desde julio de 2023)."
+    },
+    {
+      "name": "Ángel Di María",
+      "currentTeam": "Benfica",
+      "position": "Centrocampista",
+      "age": 35,
+      "nationality": "Argentino",
+      "careerGoals": 186,
+      "careerAssists": 225,
+      "internationalAppearances": 136,
+      "internationalGoals": 29,
+      "majorAchievements": ["Ganador de la Copa Mundial FIFA 2022", "Ganador de la Copa América 2021", "1x UEFA Champions League (2014)", "1x UEFA European Championship (2021 con Portugal)"],
+      "careerSummary": "Futbolista argentino conocido por su velocidad, habilidad y precisión en el pase. Jugó en Rosario Central, Benfica, Real Madrid, Manchester United, Paris Saint-Germain, Juventus y ahora ha regresado al Benfica."
+    },
+    {
+      "name": "Emiliano Martínez",
+      "currentTeam": "Aston Villa",
+      "position": "Portero",
+      "age": 31,
+      "nationality": "Argentino",
+      "careerGoals": 0,
+      "careerAssists": 0,
+      "internationalAppearances": 35,
+      "internationalGoals": 0,
+      "majorAchievements": ["Ganador de la Copa Mundial FIFA 2022", "Ganador de la Copa América 2021", "Guante de Oro de la Copa Mundial 2022", "1x FA Cup"],
+      "careerSummary": "Portero argentino conocido por sus paradas decisivas y personalidad. Jugó en Independiente, Arsenal, y varios préstamos antes de establecerse en el Aston Villa."
+    },
+    // ... CONTINÚA CON MÁS JUGADORES hasta al menos 12-15
+  ],
+  "teams": [{
+    "name": "Selección Argentina",
+    "type": "nacional",
+    "country": "Argentina",
+    "stadium": "Estadio Antonio Vespucio Liberti",
+    "currentCoach": "Lionel Scaloni",
+    "foundedYear": 1901,
+    "majorAchievements": {
+      "worldCup": [
+        "Ganador de la Copa Mundial FIFA 1978",
+        "Ganador de la Copa Mundial FIFA 1986", 
+        "Ganador de la Copa Mundial FIFA 2022"
+      ],
+      "continental": [
+        "15x Ganador de la Copa América (1921, 1925, 1927, 1929, 1937, 1941, 1945, 1946, 1947, 1955, 1957, 1959, 1991, 1993, 2021)"
+      ],
+      "domestic": []
+    }
   }],
-  "teams": [],
-  "youtubeQuery": "Lionel Messi mejores goles 2024 Inter Miami",
-  "message": "Información de Lionel Messi. Actualmente juega en el Inter Miami CF (desde julio de 2023). Información actualizada a 2024."
+  "youtubeQuery": "Argentina mejores momentos Copa Mundial 2022 resumen completo",
+  "message": "Información de la Selección Argentina y su plantel actual. Información actualizada a 2024."
 }
 ` : `
-EXAMPLE FOR "Cristiano Ronaldo" (IN ENGLISH):
-{
-  "players": [{
-    "name": "Cristiano Ronaldo",
-    "currentTeam": "Al Nassr",
-    "position": "Forward",
-    "age": 39,
-    "nationality": "Portuguese",
-    "careerGoals": 819,
-    "careerAssists": 224,
-    "internationalAppearances": 198,
-    "internationalGoals": 122,
-    "majorAchievements": [
-      "5x Ballon d'Or (2008, 2013, 2014, 2016, 2017)",
-      "5x UEFA Champions League Winner (2008, 2014, 2016, 2017, 2018)",
-      "1x European Championship Winner (2016)",
-      "1x UEFA Nations League Winner (2019)",
-      "3x Premier League Winner (2007, 2008, 2009)",
-      "2x La Liga Winner (2012, 2017)",
-      "2x Serie A Winner (2019, 2020)",
-      "4x FIFA Club World Cup Winner",
-      "3x UEFA Super Cup Winner",
-      "PFA Players' Player of the Year (2007, 2008)",
-      "European Golden Shoe (2008, 2011, 2014, 2015)"
-    ],
-    "careerSummary": "Portuguese professional footballer widely regarded as one of the greatest players of all time. Known for his exceptional speed, skill, athleticism, and goal-scoring ability. Played for Sporting CP (2002-2003), Manchester United (2003-2009, 2021-2022), Real Madrid (2009-2018), Juventus (2018-2021), and currently plays for Al Nassr (since January 2023). Holds records for most goals in UEFA Champions League and men's international football."
-  }],
-  "teams": [],
-  "youtubeQuery": "Cristiano Ronaldo 2024 Al Nassr goals highlights",
-  "message": "Cristiano Ronaldo information. Currently plays for Al Nassr (since January 2023). Information as of 2024."
-}
+COMPLETE EXAMPLE FOR "Argentina national" (IN ENGLISH - MUST INCLUDE MULTIPLE PLAYERS):
 
-EXAMPLE FOR "Lionel Messi" (IN ENGLISH):
+IMPORTANT: For a national team, return AT LEAST 12-15 key players.
+
 {
-  "players": [{
-    "name": "Lionel Messi",
-    "currentTeam": "Inter Miami CF",
-    "position": "Forward",
-    "age": 36,
-    "nationality": "Argentine",
-    "careerGoals": 835,
-    "careerAssists": 375,
-    "internationalAppearances": 180,
-    "internationalGoals": 106,
-    "majorAchievements": [
-      "2022 FIFA World Cup Winner",
-      "2021 Copa América Winner",
-      "8x Ballon d'Or (2009, 2010, 2011, 2012, 2015, 2019, 2021, 2023)",
-      "4x UEFA Champions League Winner (2006, 2009, 2011, 2015)",
-      "10x La Liga Winner (2005, 2006, 2009, 2010, 2011, 2013, 2015, 2016, 2018, 2019)",
-      "7x Copa del Rey Winner",
-      "8x Spanish Super Cup Winner",
-      "3x UEFA Super Cup Winner",
-      "3x FIFA Club World Cup Winner",
-      "Ligue 1 Title (2022)",
-      "Leagues Cup (2023)",
-      "FIFA World Cup Golden Ball (2014, 2022)",
-      "European Golden Shoe (2010, 2012, 2013, 2017, 2018)"
-    ],
-    "careerSummary": "Argentine professional footballer considered one of the greatest players of all time. Known for his dribbling, playmaking, vision, and goal-scoring abilities. Played for Barcelona (2004-2021), Paris Saint-Germain (2021-2023), and currently plays for Inter Miami CF (since July 2023). Holds records for most Ballon d'Or awards and most goals for Barcelona."
+  "players": [
+    {
+      "name": "Lionel Messi",
+      "currentTeam": "Inter Miami CF",
+      "position": "Forward",
+      "age": 36,
+      "nationality": "Argentine",
+      "careerGoals": 835,
+      "careerAssists": 375,
+      "internationalAppearances": 180,
+      "internationalGoals": 106,
+      "majorAchievements": ["2022 FIFA World Cup Winner", "2021 Copa América Winner", "8x Ballon d'Or", "4x UEFA Champions League Winner"],
+      "careerSummary": "Argentine professional footballer considered one of the greatest players of all time. Known for his dribbling, playmaking, vision, and goal-scoring abilities. Played for Barcelona (2004-2021), Paris Saint-Germain (2021-2023), and currently plays for Inter Miami CF (since July 2023)."
+    },
+    {
+      "name": "Ángel Di María",
+      "currentTeam": "Benfica",
+      "position": "Midfielder",
+      "age": 35,
+      "nationality": "Argentine",
+      "careerGoals": 186,
+      "careerAssists": 225,
+      "internationalAppearances": 136,
+      "internationalGoals": 29,
+      "majorAchievements": ["2022 FIFA World Cup Winner", "2021 Copa América Winner", "1x UEFA Champions League (2014)", "1x UEFA European Championship (2021 with Portugal)"],
+      "careerSummary": "Argentine footballer known for his speed, skill, and passing accuracy. Played for Rosario Central, Benfica, Real Madrid, Manchester United, Paris Saint-Germain, Juventus, and has now returned to Benfica."
+    },
+    {
+      "name": "Emiliano Martínez",
+      "currentTeam": "Aston Villa",
+      "position": "Goalkeeper",
+      "age": 31,
+      "nationality": "Argentine",
+      "careerGoals": 0,
+      "careerAssists": 0,
+      "internationalAppearances": 35,
+      "internationalGoals": 0,
+      "majorAchievements": ["2022 FIFA World Cup Winner", "2021 Copa América Winner", "FIFA World Cup Golden Glove 2022", "1x FA Cup"],
+      "careerSummary": "Argentine goalkeeper known for his decisive saves and personality. Played for Independiente, Arsenal, and several loan spells before establishing himself at Aston Villa."
+    },
+    // ... CONTINUE WITH MORE PLAYERS up to at least 12-15
+  ],
+  "teams": [{
+    "name": "Argentina",
+    "type": "national",
+    "country": "Argentina",
+    "stadium": "Estadio Alberto J. Armando",
+    "currentCoach": "Lionel Scaloni",
+    "foundedYear": 1893,
+    "majorAchievements": {
+      "worldCup": [
+        "2022 FIFA World Cup Winner"
+      ],
+      "continental": [
+        "2021 Copa América Winner",
+        "15x Copa América Winner"
+      ],
+      "domestic": []
+    }
   }],
-  "teams": [],
-  "youtubeQuery": "Lionel Messi best goals 2024 Inter Miami",
-  "message": "Lionel Messi information. Currently plays for Inter Miami CF (since July 2023). Information as of 2024."
+  "youtubeQuery": "Argentina best moments 2022 World Cup full highlights",
+  "message": "Argentina national team information and current squad. Information as of 2024."
 }
 `}
 
 ${language === 'es' ? `
-RECUERDA:
-1. Clubes/entrenadores actuales: DEBEN ser precisos para la temporada 2024-2025
-2. Logros: Enumera TODOS los principales de manera exhaustiva
-3. Estadísticas: Proporciona totales de carrera completos
-4. Resumen de carrera: Incluye historial de clubes
+RECUERDA CRÍTICAMENTE:
+1. NÚMERO DE JUGADORES: Para selecciones nacionales → 12-15 jugadores. Para clubes → 15-20 jugadores.
+2. Todas las posiciones: Porteros, defensas, centrocampistas, delanteros.
+3. Clubes/entrenadores actuales: DEBEN ser precisos para la temporada 2024-2025
+4. Logros: Enumera TODOS los principales de manera exhaustiva
 5. Siempre incluye "Información actualizada a 2024" en el campo de mensaje
-6. Equilibra precisión con exhaustividad
 ` : `
-REMEMBER:
-1. Current clubs/coaches: MUST be accurate for 2024-2025 season
-2. Achievements: List ALL major ones comprehensively
-3. Statistics: Provide complete career totals
-4. Career summary: Include club history timeline
+CRITICALLY REMEMBER:
+1. PLAYER COUNT: For national teams → 12-15 players. For clubs → 15-20 players.
+2. All positions: Goalkeepers, defenders, midfielders, forwards.
+3. Current clubs/coaches: MUST be accurate for 2024-2025 season
+4. Achievements: List ALL major ones comprehensively
 5. Always include "Information as of 2024" in message field
-6. Balance accuracy with completeness
 `}`
         },
         {
           role: 'user',
-          content: `Football search query: "${query}". ${language === 'es' ? 'Proporciona datos completos y precisos en el formato JSON especificado. Incluye todos los logros importantes y estadísticas de carrera completas. Asegúrate de que la información del club actual sea precisa para la temporada 2024-2025.' : 'Provide comprehensive, accurate data in the specified JSON format. Include all major achievements and complete career statistics. Ensure current club information is accurate for the 2024-2025 season.'}`
+          content: `Football search query: "${query}". 
+          
+${language === 'es' ? 
+'IMPORTANTE: Si es una selección nacional, devuelve AL MENOS 12-15 jugadores clave. Si es un club, devuelve AL MENOS 15-20 jugadores clave. Incluye porteros, defensas, centrocampistas y delanteros. Proporciona datos completos y precisos en el formato JSON especificado.' : 
+'IMPORTANT: If it is a national team, return AT LEAST 12-15 key players. If it is a club team, return AT LEAST 15-20 key players. Include goalkeepers, defenders, midfielders, and forwards. Provide comprehensive, accurate data in the specified JSON format.'}`
         }
       ],
       model: 'llama-3.3-70b-versatile',
       temperature: 0.3,
-      max_tokens: 2500,
+      max_tokens: 4000,
       response_format: { type: 'json_object' }
     });
 
@@ -414,6 +436,10 @@ REMEMBER:
       const parsed = JSON.parse(response);
       console.log('[GROQ] Parsed response:', parsed);
       
+      // Check player count
+      const playerCount = Array.isArray(parsed.players) ? parsed.players.length : 0;
+      console.log(`[GROQ] Found ${playerCount} players in response`);
+      
       // ENHANCE WITH WIKIPEDIA DATA
       console.log('[GROQ] Enhancing with Wikipedia API...');
       const wikipediaConfigured = isWikipediaConfigured();
@@ -439,9 +465,9 @@ REMEMBER:
         enhancedResult = parsed;
       }
       
-      // Build final response
+      // Build final response - REMOVED THE .slice(0, 1) LIMIT!
       const result: GROQSearchResponse = {
-        players: Array.isArray(enhancedResult.players) ? enhancedResult.players.slice(0, 1) : [],
+        players: Array.isArray(enhancedResult.players) ? enhancedResult.players : [],
         teams: Array.isArray(enhancedResult.teams) ? enhancedResult.teams.slice(0, 1) : [],
         youtubeQuery: enhancedResult.youtubeQuery || `${query} football highlights ${new Date().getFullYear()}`,
         message: enhancedResult.message || `Found information for "${query}"`,
@@ -449,11 +475,12 @@ REMEMBER:
         _metadata: enhancedResult._metadata || {
           enhancedAt: new Date().toISOString(),
           analysis: {
+            playerCount: playerCount,
             isLikelyOutdated: false,
             outdatedFields: [],
-            suggestions: ['Basic data verification'],
+            suggestions: playerCount < 10 ? ['Insufficient players returned'] : ['Basic data verification'],
             needsEnhancement: false,
-            confidence: 'medium'
+            confidence: playerCount >= 10 ? 'high' : 'medium'
           },
           appliedUpdates: [],
           dataSources: ['GROQ AI'],
@@ -465,13 +492,17 @@ REMEMBER:
           dataCurrency: {
             aiCutoff: '2024',
             verifiedWith: wikipediaConfigured ? 'Wikipedia' : 'None',
-            confidence: wikipediaUpdates > 0 ? 'high' : 'medium',
+            confidence: wikipediaUpdates > 0 ? 'high' : (playerCount >= 10 ? 'medium' : 'low'),
             lastVerified: new Date().toISOString()
           },
           disclaimer: wikipediaConfigured 
             ? 'Data verified with Wikipedia for current accuracy.'
             : 'Wikipedia API not configured. Data may be outdated.',
-          recommendations: [
+          recommendations: playerCount < 10 ? [
+            'The AI returned fewer players than expected.',
+            'Try searching for the specific team name.',
+            'Visit official team websites for complete squad lists.'
+          ] : [
             'Check official sources for absolutely current information',
             'Visit club websites for latest squad details'
           ],
@@ -484,9 +515,21 @@ REMEMBER:
         }
       };
       
+      // Add player count note to message
+      let playerCountMessage = '';
+      if (playerCount >= 10) {
+        playerCountMessage = language === 'es' 
+          ? ` • ${playerCount} jugadores incluidos`
+          : ` • ${playerCount} players included`;
+      } else if (playerCount > 0) {
+        playerCountMessage = language === 'es'
+          ? ` • Solo ${playerCount} jugador(es) devuelto(s)`
+          : ` • Only ${playerCount} player(s) returned`;
+      }
+      
       // Add enhancement note to message
       if (wikipediaUpdates > 0 && result.message) {
-        result.message = `✓ ${result.message} (Updated with Wikipedia data)`;
+        result.message = `✓ ${result.message}${playerCountMessage} (Updated with Wikipedia data)`;
         
         // Add specific note for achievement corrections
         if (achievementCorrections.length > 0) {
@@ -495,9 +538,12 @@ REMEMBER:
           }
         }
       } else if (wikipediaConfigured && result.message) {
-        result.message = `✓ ${result.message} (Verified with Wikipedia)`;
+        result.message = `✓ ${result.message}${playerCountMessage} (Verified with Wikipedia)`;
+      } else if (result.message) {
+        result.message = `${result.message}${playerCountMessage}`;
       }
       
+      console.log(`[GROQ] Final response: ${result.players.length} players, ${result.teams.length} teams`);
       console.log('[GROQ] Final response with metadata:', result._metadata);
       return result;
       
@@ -523,13 +569,13 @@ REMEMBER:
           
           return {
             players: Array.isArray(enhancedExtracted.players) ? enhancedExtracted.players : [],
-            teams: Array.isArray(enhancedExtracted.teams) ? enhancedExtracted.teams : [],
+            teams: Array.isArray(enhancedExtracted.teams) ? enhancedExtracted.teams.slice(0, 1) : [],
             youtubeQuery: enhancedExtracted.youtubeQuery || `${query} football highlights`,
             message: enhancedExtracted.message || `Found information for "${query}"`,
             error: null,
             _metadata: enhancedExtracted._metadata || {
               enhancedAt: new Date().toISOString(),
-              analysis: { note: 'Response extracted from text' },
+              analysis: { note: 'Response extracted from text', playerCount: Array.isArray(enhancedExtracted.players) ? enhancedExtracted.players.length : 0 },
               appliedUpdates: [],
               dataSources: ['GROQ AI (extracted)'],
               apiStatus: {
@@ -650,6 +696,149 @@ REMEMBER:
 export const GROQSearch = searchWithGROQ;
 
 /**
+ * Get historical/legendary players for a team
+ */
+export const getHistoricalPlayers = async (teamName: string, teamType: 'club' | 'national', language: string = 'en'): Promise<Player[]> => {
+  try {
+    console.log(`[GROQ] Fetching historical players for: "${teamName}" (${teamType}), Language: ${language}`);
+    
+    // Validate API key
+    const apiKey = process.env.NEXT_PUBLIC_GROQ_API_KEY || process.env.GROQ_API_KEY;
+    if (!apiKey || apiKey.trim() === '') {
+      console.error('[GROQ] API key missing for historical players');
+      return [];
+    }
+
+    const completion = await groq.chat.completions.create({
+      messages: [
+        {
+          role: 'system',
+          content: `You are a football historian. Provide information about legendary/iconic players from football teams.
+
+${language === 'es' ? 'RESPONDE EN ESPAÑOL. Proporciona toda la información en español.' : 'RESPOND IN ENGLISH. Provide all information in English.'}
+
+Return JSON with this exact structure:
+{
+  "legendaryPlayers": [{
+    "name": "string",
+    "era": "string (e.g., "1990s-2000s", "Golden Era", "2010-2020")",
+    "position": "string",
+    "nationality": "string",
+    "yearsAtTeam": "string",
+    "achievementsWithTeam": ["string"],
+    "legacySummary": "string (2-3 sentences about their legacy at this team)"
+  }]
+}
+
+For ${teamType === 'club' ? 'club teams' : 'national teams'}, include players who are considered legends, icons, or had significant impact.
+
+${language === 'es' ? `
+EJEMPLO PARA "Real Madrid" (EN ESPAÑOL):
+{
+  "legendaryPlayers": [
+    {
+      "name": "Alfredo Di Stéfano",
+      "era": "1953-1964",
+      "position": "Delantero",
+      "nationality": "Argentino-Español",
+      "yearsAtTeam": "1953-1964",
+      "achievementsWithTeam": ["5x Copa de Europa", "8x La Liga", "1x Copa Intercontinental"],
+      "legacySummary": "Considerado uno de los mejores jugadores de la historia del Real Madrid. Fue clave en la consecución de las primeras cinco Copas de Europa consecutivas. Conocido como 'La Saeta Rubia' por su velocidad y habilidad goleadora."
+    },
+    {
+      "name": "Raúl González",
+      "era": "1994-2010",
+      "position": "Delantero",
+      "nationality": "Español",
+      "yearsAtTeam": "1994-2010",
+      "achievementsWithTeam": ["3x UEFA Champions League", "6x La Liga", "2x Copa Intercontinental"],
+      "legacySummary": "Símbolo del Real Madrid durante la era de los 'Galácticos'. Capitán y máximo goleador histórico del club hasta ser superado por Cristiano Ronaldo. Conocido por su liderazgo y capacidad goleadora."
+    }
+  ]
+}
+` : `
+EXAMPLE FOR "Real Madrid" (IN ENGLISH):
+{
+  "legendaryPlayers": [
+    {
+      "name": "Alfredo Di Stéfano",
+      "era": "1953-1964",
+      "position": "Forward",
+      "nationality": "Argentine-Spanish",
+      "yearsAtTeam": "1953-1964",
+      "achievementsWithTeam": ["5x European Cup", "8x La Liga", "1x Intercontinental Cup"],
+      "legacySummary": "Considered one of the greatest players in Real Madrid history. Key to winning the first five consecutive European Cups. Known as 'The Blond Arrow' for his speed and goal-scoring ability."
+    },
+    {
+      "name": "Raúl González",
+      "era": "1994-2010",
+      "position": "Forward",
+      "nationality": "Spanish",
+      "yearsAtTeam": "1994-2010",
+      "achievementsWithTeam": ["3x UEFA Champions League", "6x La Liga", "2x Intercontinental Cup"],
+      "legacySummary": "Symbol of Real Madrid during the 'Galácticos' era. Captain and all-time top scorer of the club until surpassed by Cristiano Ronaldo. Known for his leadership and goal-scoring ability."
+    }
+  ]
+}
+`}
+
+Return 8-12 legendary players for ${teamName}.`
+        },
+        {
+          role: 'user',
+          content: `${language === 'es' ? 
+            `Proporciona información sobre jugadores legendarios de ${teamName}. Incluye jugadores históricos que son iconos del equipo.` : 
+            `Provide information about legendary players from ${teamName}. Include historical players who are icons of the team.`}`
+        }
+      ],
+      model: 'llama-3.3-70b-versatile',
+      temperature: 0.4,
+      max_tokens: 2000,
+      response_format: { type: 'json_object' }
+    });
+
+    const response = completion.choices[0]?.message?.content;
+    
+    if (!response) {
+      console.log('[GROQ] No response for historical players');
+      return [];
+    }
+
+    try {
+      const parsed = JSON.parse(response);
+      if (parsed.legendaryPlayers && Array.isArray(parsed.legendaryPlayers)) {
+        console.log(`[GROQ] Found ${parsed.legendaryPlayers.length} historical players for ${teamName}`);
+        
+        // Convert to Player format for compatibility
+        return parsed.legendaryPlayers.map((legend: any) => ({
+          name: legend.name,
+          currentTeam: teamName,
+          position: legend.position,
+          nationality: legend.nationality,
+          age: undefined,
+          careerGoals: undefined,
+          careerAssists: undefined,
+          internationalAppearances: undefined,
+          internationalGoals: undefined,
+          majorAchievements: legend.achievementsWithTeam || [],
+          careerSummary: legend.legacySummary || `${legend.name} is a legendary player for ${teamName}.`,
+          _source: 'Historical Legend',
+          _era: legend.era,
+          _yearsAtTeam: legend.yearsAtTeam
+        }));
+      }
+      return [];
+    } catch (error) {
+      console.error('[GROQ] Failed to parse historical players response:', error);
+      return [];
+    }
+  } catch (error) {
+    console.error('[GROQ] Error fetching historical players:', error);
+    return [];
+  }
+};
+
+/**
  * Helper to check if data needs verification
  */
 export const needsDataVerification = (response: GROQSearchResponse): boolean => {
@@ -662,6 +851,11 @@ export const needsDataVerification = (response: GROQSearchResponse): boolean => 
   if (response._metadata.wikipediaUsage?.updates === 0 && 
       response._metadata.wikipediaUsage?.queries > 0) {
     return false; // Wikipedia checked and no updates needed
+  }
+  
+  // Check player count - if too few players, needs verification
+  if (response.players.length < 5) {
+    return true;
   }
   
   // Check for 2024 references

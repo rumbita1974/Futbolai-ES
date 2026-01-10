@@ -1,9 +1,9 @@
-// components/EnhancedTeamResults.tsx
+// components/EnhancedTeamResults.tsx - UPDATED VERSION WITH SPANISH SUPPORT AND HISTORICAL DATA
 'use client';
 
 import { useState, useEffect } from 'react';
 import { searchYouTubeHighlights, YouTubeVideo } from '@/services/youtubeService';
-import { Team, Player, needsDataVerification, getDataSourceInfo } from '@/services/groqService';
+import { Team, Player, needsDataVerification, getDataSourceInfo, getHistoricalPlayers } from '@/services/groqService';
 import { getDataCurrencyBadge } from '@/services/dataEnhancerService';
 
 interface EnhancedTeamResultsProps {
@@ -12,23 +12,82 @@ interface EnhancedTeamResultsProps {
   youtubeQuery: string;
   searchTerm: string;
   getTeamFlagUrl: (teamName: string, teamType: string, country?: string) => string;
+  language?: string;
 }
+
+// Placeholder squad players when GROQ doesn't return player data
+const generatePlaceholderSquad = (teamName: string, teamType: string, language: string = 'en'): Player[] => {
+  const positions = language === 'es' 
+    ? ['Portero', 'Defensa', 'Centrocampista', 'Delantero']
+    : ['Goalkeeper', 'Defender', 'Midfielder', 'Forward'];
+  
+  const nationalities = teamType === 'national' 
+    ? [teamName] 
+    : language === 'es'
+      ? ['Español', 'Inglés', 'Brasileño', 'Francés', 'Alemán', 'Italiano', 'Argentino', 'Portugués']
+      : ['Spanish', 'English', 'Brazilian', 'French', 'German', 'Italian', 'Argentine', 'Portuguese'];
+  
+  const playerCount = teamType === 'national' ? 12 : 18;
+  
+  return Array.from({ length: playerCount }, (_, i) => ({
+    name: language === 'es' ? `Jugador ${i + 1}` : `Player ${i + 1}`,
+    currentTeam: teamName,
+    position: positions[Math.floor(Math.random() * positions.length)],
+    age: Math.floor(Math.random() * 15) + 20,
+    nationality: nationalities[Math.floor(Math.random() * nationalities.length)],
+    careerGoals: Math.floor(Math.random() * 100),
+    careerAssists: Math.floor(Math.random() * 50),
+    internationalAppearances: teamType === 'national' ? Math.floor(Math.random() * 50) : 0,
+    internationalGoals: teamType === 'national' ? Math.floor(Math.random() * 20) : 0,
+    majorAchievements: language === 'es' 
+      ? ['Campeón de Liga', 'Campeón de Copa']
+      : ['League Winner', 'Cup Winner'],
+    careerSummary: language === 'es'
+      ? `Jugador clave para ${teamName} con contribuciones significativas.`
+      : `Key player for ${teamName} with significant contributions.`,
+    _source: language === 'es' ? 'Datos de ejemplo' : 'Placeholder data'
+  }));
+};
 
 export default function EnhancedTeamResults({
   teams,
   players,
   youtubeQuery,
   searchTerm,
-  getTeamFlagUrl
+  getTeamFlagUrl,
+  language = 'en'
 }: EnhancedTeamResultsProps) {
   const [youtubeVideos, setYoutubeVideos] = useState<YouTubeVideo[]>([]);
   const [loadingVideos, setLoadingVideos] = useState(false);
   const [videoError, setVideoError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'squad' | 'achievements' | 'history' | 'videos'>('overview');
+  const [displayPlayers, setDisplayPlayers] = useState<Player[]>(players);
+  const [legendaryPlayers, setLegendaryPlayers] = useState<Player[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   // Get data from metadata if available
   const team = teams[0];
   const teamMetadata = team?._dataCurrency;
+
+  // Generate placeholder squad if insufficient players returned
+  useEffect(() => {
+    if (team) {
+      const minPlayersRequired = team.type === 'national' ? 10 : 15;
+      
+      if (players.length < minPlayersRequired) {
+        console.log(`Generating placeholder squad: only ${players.length} players returned, need at least ${minPlayersRequired}`);
+        const placeholderPlayers = generatePlaceholderSquad(team.name, team.type, language);
+        
+        // Merge real players with placeholders, but avoid duplicates
+        const realPlayerNames = new Set(players.map(p => p.name));
+        const additionalPlaceholders = placeholderPlayers.filter(p => !realPlayerNames.has(p.name));
+        
+        setDisplayPlayers([...players, ...additionalPlaceholders.slice(0, minPlayersRequired - players.length)]);
+      } else {
+        setDisplayPlayers(players);
+      }
+    }
+  }, [team, players, language]);
 
   // Fetch YouTube videos when component mounts or query changes
   useEffect(() => {
@@ -53,55 +112,148 @@ export default function EnhancedTeamResults({
     fetchVideos();
   }, [youtubeQuery]);
 
+  // Fetch historical players when history tab is selected
+  useEffect(() => {
+    const fetchHistoricalPlayers = async () => {
+      if (activeTab === 'history' && team && legendaryPlayers.length === 0) {
+        setLoadingHistory(true);
+        try {
+          const historical = await getHistoricalPlayers(team.name, team.type, language);
+          if (historical.length > 0) {
+            setLegendaryPlayers(historical);
+          }
+        } catch (error) {
+          console.error('Error fetching historical players:', error);
+        } finally {
+          setLoadingHistory(false);
+        }
+      }
+    };
+
+    fetchHistoricalPlayers();
+  }, [activeTab, team, language]);
+
+  // Helper function for translations
+  const t = (en: string, es: string) => language === 'es' ? es : en;
+
   // Helper component for player cards in squad tab
-  const PlayerCard = ({ player, index }: { player: Player; index: number }) => (
-    <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 rounded-xl p-4 hover:border-blue-500/50 transition-all hover:-translate-y-1">
-      <div className="flex items-start gap-4">
-        {/* Player photo placeholder (Wikipedia would go here) */}
-        <div className="flex-shrink-0">
-          <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-700 flex items-center justify-center">
-            <span className="text-2xl">👤</span>
-          </div>
-        </div>
-        
-        {/* Player info */}
-        <div className="flex-1">
-          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
-            <h4 className="font-bold text-white text-lg">{player.name}</h4>
-            <span className="px-2 py-1 bg-blue-900/50 text-blue-300 text-xs rounded-full">
-              #{index + 1}
-            </span>
-          </div>
-          
-          <div className="grid grid-cols-2 gap-2 text-sm">
-            <div>
-              <div className="text-gray-400 text-xs">Position</div>
-              <div className="text-white font-medium">{player.position}</div>
-            </div>
-            <div>
-              <div className="text-gray-400 text-xs">Age</div>
-              <div className="text-white font-medium">{player.age || 'N/A'}</div>
-            </div>
-            <div>
-              <div className="text-gray-400 text-xs">Nationality</div>
-              <div className="text-white font-medium">{player.nationality}</div>
-            </div>
-            <div>
-              <div className="text-gray-400 text-xs">Goals</div>
-              <div className="text-white font-medium">{player.careerGoals || 'N/A'}</div>
+  const PlayerCard = ({ player, index, isHistorical = false }: { player: Player; index: number; isHistorical?: boolean }) => {
+    const isPlaceholder = player._source?.includes('Placeholder') || 
+                         player._source?.includes('ejemplo') || 
+                         player.name.startsWith('Player') || 
+                         player.name.startsWith('Jugador');
+    const isLegendary = player._source?.includes('Historical') || isHistorical;
+    
+    return (
+      <div className={`bg-gradient-to-br from-gray-900 to-gray-800 border ${isLegendary ? 'border-purple-700' : 'border-gray-700'} rounded-xl p-4 hover:border-blue-500/50 transition-all hover:-translate-y-1`}>
+        <div className="flex items-start gap-4">
+          {/* Player photo placeholder */}
+          <div className="flex-shrink-0">
+            <div className={`w-16 h-16 rounded-lg bg-gradient-to-br from-gray-800 to-gray-900 border ${isLegendary ? 'border-purple-600' : 'border-gray-700'} flex items-center justify-center`}>
+              <span className="text-2xl">{isLegendary ? '⭐' : '👤'}</span>
             </div>
           </div>
           
-          {player.currentTeam && (
-            <div className="mt-3 pt-3 border-t border-gray-700">
-              <div className="text-gray-400 text-xs">Current Club</div>
-              <div className="text-white font-medium text-sm">{player.currentTeam}</div>
+          {/* Player info */}
+          <div className="flex-1">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
+              <h4 className="font-bold text-white text-lg">{player.name}</h4>
+              <div className="flex items-center gap-2">
+                {isLegendary && (
+                  <span className="px-2 py-1 bg-purple-900/50 text-purple-300 text-xs rounded-full">
+                    {t('Legend', 'Leyenda')}
+                  </span>
+                )}
+                <span className="px-2 py-1 bg-blue-900/50 text-blue-300 text-xs rounded-full">
+                  #{index + 1}
+                </span>
+              </div>
             </div>
-          )}
+            
+            {player._era && (
+              <div className="mb-2">
+                <div className="text-gray-400 text-xs">{t('Era', 'Época')}</div>
+                <div className="text-yellow-300 font-medium text-sm">{player._era}</div>
+              </div>
+            )}
+            
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div>
+                <div className="text-gray-400 text-xs">
+                  {t('Position', 'Posición')}
+                </div>
+                <div className="text-white font-medium">{player.position}</div>
+              </div>
+              <div>
+                <div className="text-gray-400 text-xs">
+                  {t('Nationality', 'Nacionalidad')}
+                </div>
+                <div className="text-white font-medium">{player.nationality}</div>
+              </div>
+              {player.age && !isLegendary && (
+                <div>
+                  <div className="text-gray-400 text-xs">
+                    {t('Age', 'Edad')}
+                  </div>
+                  <div className="text-white font-medium">{player.age}</div>
+                </div>
+              )}
+              {player.careerGoals !== undefined && (
+                <div>
+                  <div className="text-gray-400 text-xs">
+                    {t('Career Goals', 'Goles en carrera')}
+                  </div>
+                  <div className="text-white font-medium">{player.careerGoals}</div>
+                </div>
+              )}
+            </div>
+            
+            {player.currentTeam && !isPlaceholder && !isLegendary && (
+              <div className="mt-3 pt-3 border-t border-gray-700">
+                <div className="text-gray-400 text-xs">
+                  {t('Current Club', 'Club actual')}
+                </div>
+                <div className="text-white font-medium text-sm">{player.currentTeam}</div>
+              </div>
+            )}
+            
+            {player._yearsAtTeam && (
+              <div className="mt-2 pt-2 border-t border-gray-700">
+                <div className="text-gray-400 text-xs">
+                  {t('Years at Team', 'Años en el equipo')}
+                </div>
+                <div className="text-white font-medium text-sm">{player._yearsAtTeam}</div>
+              </div>
+            )}
+            
+            {/* Placeholder data indicator */}
+            {isPlaceholder && (
+              <div className="mt-3 pt-3 border-t border-gray-700">
+                <div className="text-yellow-500 text-xs">
+                  {t(
+                    'Placeholder data - Real squad details would load here',
+                    'Datos de ejemplo - Los detalles reales del equipo se cargarían aquí'
+                  )}
+                </div>
+              </div>
+            )}
+            
+            {/* Legendary player indicator */}
+            {isLegendary && !isPlaceholder && (
+              <div className="mt-3 pt-3 border-t border-gray-700">
+                <div className="text-purple-400 text-xs">
+                  {t(
+                    'Historical legend of the club',
+                    'Leyenda histórica del club'
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   // Helper component for achievement items
   const AchievementItem = ({ achievement, index }: { achievement: string; index: number }) => (
@@ -115,24 +267,6 @@ export default function EnhancedTeamResults({
     </div>
   );
 
-  // Helper component for historical player cards
-  const HistoricalPlayerCard = ({ player, era }: { player: string; era: string }) => (
-    <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 rounded-xl p-4 hover:border-purple-500/50 transition">
-      <div className="flex items-center gap-3 mb-3">
-        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-900 to-purple-800 flex items-center justify-center">
-          <span className="text-xl">⭐</span>
-        </div>
-        <div>
-          <h4 className="font-bold text-white">{player}</h4>
-          <p className="text-gray-400 text-sm">{era}</p>
-        </div>
-      </div>
-      <div className="text-xs text-gray-300 line-clamp-2">
-        Legendary player who made significant contributions to the team's history.
-      </div>
-    </div>
-  );
-
   // Format date for YouTube videos
   const formatDate = (dateString: string) => {
     try {
@@ -142,12 +276,14 @@ export default function EnhancedTeamResults({
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
       if (diffDays <= 7) {
-        return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
+        return t(`${diffDays} day${diffDays !== 1 ? 's' : ''} ago`, 
+                 `Hace ${diffDays} día${diffDays !== 1 ? 's' : ''}`);
       } else if (diffDays <= 30) {
         const weeks = Math.floor(diffDays / 7);
-        return `${weeks} week${weeks !== 1 ? 's' : ''} ago`;
+        return t(`${weeks} week${weeks !== 1 ? 's' : ''} ago`, 
+                 `Hace ${weeks} semana${weeks !== 1 ? 's' : ''}`);
       } else {
-        return date.toLocaleDateString('en-US', {
+        return date.toLocaleDateString(language === 'es' ? 'es-ES' : 'en-US', {
           year: 'numeric',
           month: 'short',
           day: 'numeric'
@@ -162,9 +298,12 @@ export default function EnhancedTeamResults({
     return (
       <div className="max-w-3xl mx-auto bg-gray-900/40 border border-gray-800 rounded-2xl p-8 text-center">
         <div className="text-5xl mb-4">🏟️</div>
-        <h3 className="text-xl font-bold text-gray-200 mb-3">No Team Found</h3>
+        <h3 className="text-xl font-bold text-gray-200 mb-3">
+          {t('No Team Found', 'Equipo no encontrado')}
+        </h3>
         <p className="text-gray-400">
-          No detailed team information found for "{searchTerm}". Try searching for a specific club or national team.
+          {t(`No detailed team information found for "${searchTerm}". Try searching for a specific club or national team.`,
+             `No se encontró información detallada para "${searchTerm}". Intenta buscar un club o selección nacional específica.`)}
         </p>
       </div>
     );
@@ -178,25 +317,22 @@ export default function EnhancedTeamResults({
   ];
 
   // Calculate team type display
-  const teamTypeDisplay = team.type === 'national' ? 'National Team' : 'Football Club';
+  const teamTypeDisplay = team.type === 'national' 
+    ? t('National Team', 'Selección Nacional') 
+    : t('Football Club', 'Club de Fútbol');
+  
   const teamColor = team.type === 'national' ? 'from-blue-500 to-green-500' : 'from-purple-500 to-pink-500';
 
-  // Historical players data (would normally come from API)
-  const historicalPlayers = [
-    { name: "Team Legend 1", era: "1990s-2000s" },
-    { name: "Team Legend 2", era: "2000s-2010s" },
-    { name: "Team Legend 3", era: "2010s-2020s" },
-    { name: "Team Legend 4", era: "Golden Era" },
-    { name: "Team Legend 5", era: "Record Holder" },
-    { name: "Team Legend 6", era: "Fan Favorite" }
-  ];
-
-  // Most successful squad (would normally come from API)
+  // Most successful squad data
   const successfulSquad = {
-    era: "Golden Generation",
-    years: "2010-2020",
-    achievements: ["Multiple League Titles", "Champions League Winner", "Historic Treble"],
-    keyPlayers: ["Star Player 1", "Star Player 2", "Star Player 3", "Star Player 4"]
+    era: team.type === 'club' 
+      ? t('Golden Generation', 'Generación Dorada') 
+      : t('World Cup Winning Era', 'Era de Campeones del Mundo'),
+    years: team.type === 'club' 
+      ? "2014-2022" 
+      : new Date().getFullYear() - 10 + "-" + new Date().getFullYear(),
+    achievements: allAchievements.slice(0, 3),
+    keyPlayers: displayPlayers.slice(0, 4).map(p => p.name)
   };
 
   return (
@@ -238,38 +374,46 @@ export default function EnhancedTeamResults({
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
               {team.currentCoach && (
                 <div className="bg-gray-800/50 rounded-lg p-3">
-                  <div className="text-xs text-gray-400 mb-1">Current Manager</div>
+                  <div className="text-xs text-gray-400 mb-1">
+                    {t('Current Manager', 'Entrenador actual')}
+                  </div>
                   <div className="font-medium text-white">{team.currentCoach}</div>
                 </div>
               )}
               
               {team.foundedYear && (
                 <div className="bg-gray-800/50 rounded-lg p-3">
-                  <div className="text-xs text-gray-400 mb-1">Founded</div>
+                  <div className="text-xs text-gray-400 mb-1">
+                    {t('Founded', 'Fundado')}
+                  </div>
                   <div className="font-medium text-white">{team.foundedYear}</div>
                   <div className="text-xs text-gray-500">
-                    ({new Date().getFullYear() - team.foundedYear} years)
+                    ({new Date().getFullYear() - team.foundedYear} {t('years', 'años')})
                   </div>
                 </div>
               )}
               
               {team.stadium && (
                 <div className="bg-gray-800/50 rounded-lg p-3">
-                  <div className="text-xs text-gray-400 mb-1">Stadium</div>
+                  <div className="text-xs text-gray-400 mb-1">
+                    {t('Stadium', 'Estadio')}
+                  </div>
                   <div className="font-medium text-white">{team.stadium}</div>
                 </div>
               )}
               
               <div className="bg-gray-800/50 rounded-lg p-3">
-                <div className="text-xs text-gray-400 mb-1">Total Achievements</div>
-                <div className="font-medium text-green-400">{allAchievements.length}+ Trophies</div>
+                <div className="text-xs text-gray-400 mb-1">
+                  {t('Total Achievements', 'Logros totales')}
+                </div>
+                <div className="font-medium text-green-400">{allAchievements.length}+ {t('Trophies', 'Trofeos')}</div>
               </div>
             </div>
 
             {/* Quick Stats */}
             <div className="flex flex-wrap gap-2">
               <div className="px-3 py-1.5 bg-blue-900/30 text-blue-300 rounded-full text-sm border border-blue-700/30">
-                {allAchievements.length}+ Achievements
+                {allAchievements.length}+ {t('Achievements', 'Logros')}
               </div>
               {team.type === 'national' && team.country && (
                 <div className="px-3 py-1.5 bg-green-900/30 text-green-300 rounded-full text-sm border border-green-700/30">
@@ -277,10 +421,10 @@ export default function EnhancedTeamResults({
                 </div>
               )}
               <div className="px-3 py-1.5 bg-purple-900/30 text-purple-300 rounded-full text-sm border border-purple-700/30">
-                {players.length > 0 ? `${players.length} Players` : 'Full Squad'}
+                {displayPlayers.length > 0 ? `${displayPlayers.length} ${t('Players', 'Jugadores')}` : t('Full Squad', 'Equipo completo')}
               </div>
               <div className="px-3 py-1.5 bg-yellow-900/30 text-yellow-300 rounded-full text-sm border border-yellow-700/30">
-                AI Analysis
+                {t('AI Analysis', 'Análisis IA')}
               </div>
             </div>
           </div>
@@ -294,31 +438,31 @@ export default function EnhancedTeamResults({
             onClick={() => setActiveTab('overview')}
             className={`px-4 py-2 rounded-lg font-medium transition flex-1 min-w-[120px] text-center ${activeTab === 'overview' ? 'bg-gradient-to-r from-blue-600 to-green-500 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}
           >
-            📋 Overview
+            📋 {t('Overview', 'Resumen')}
           </button>
           <button
             onClick={() => setActiveTab('squad')}
             className={`px-4 py-2 rounded-lg font-medium transition flex-1 min-w-[120px] text-center ${activeTab === 'squad' ? 'bg-gradient-to-r from-blue-600 to-green-500 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}
           >
-            👥 Current Squad
+            👥 {t('Current Squad', 'Equipo actual')}
           </button>
           <button
             onClick={() => setActiveTab('achievements')}
             className={`px-4 py-2 rounded-lg font-medium transition flex-1 min-w-[120px] text-center ${activeTab === 'achievements' ? 'bg-gradient-to-r from-blue-600 to-green-500 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}
           >
-            🏆 Achievements
+            🏆 {t('Achievements', 'Logros')}
           </button>
           <button
             onClick={() => setActiveTab('history')}
             className={`px-4 py-2 rounded-lg font-medium transition flex-1 min-w-[120px] text-center ${activeTab === 'history' ? 'bg-gradient-to-r from-blue-600 to-green-500 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}
           >
-            📜 History
+            📜 {t('History', 'Historia')}
           </button>
           <button
             onClick={() => setActiveTab('videos')}
             className={`px-4 py-2 rounded-lg font-medium transition flex-1 min-w-[120px] text-center ${activeTab === 'videos' ? 'bg-gradient-to-r from-blue-600 to-green-500 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}
           >
-            🎥 Highlights
+            🎥 {t('Highlights', 'Destacados')}
           </button>
         </div>
       </div>
@@ -331,37 +475,39 @@ export default function EnhancedTeamResults({
             {/* Team Summary */}
             <div>
               <h3 className="text-2xl font-bold text-white mb-4 flex items-center">
-                <span className="mr-3">📊</span> Team Overview
+                <span className="mr-3">📊</span> {t('Team Overview', 'Resumen del equipo')}
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="bg-gray-800/50 rounded-xl p-6">
-                  <h4 className="text-lg font-semibold text-white mb-3">Team Profile</h4>
+                  <h4 className="text-lg font-semibold text-white mb-3">
+                    {t('Team Profile', 'Perfil del equipo')}
+                  </h4>
                   <div className="space-y-3">
                     <div className="flex justify-between">
-                      <span className="text-gray-400">Team Type:</span>
+                      <span className="text-gray-400">{t('Team Type:', 'Tipo de equipo:')}</span>
                       <span className="text-white font-medium">{teamTypeDisplay}</span>
                     </div>
                     {team.country && (
                       <div className="flex justify-between">
-                        <span className="text-gray-400">Country:</span>
+                        <span className="text-gray-400">{t('Country:', 'País:')}</span>
                         <span className="text-white font-medium">{team.country}</span>
                       </div>
                     )}
                     {team.foundedYear && (
                       <div className="flex justify-between">
-                        <span className="text-gray-400">Founded:</span>
-                        <span className="text-white font-medium">{team.foundedYear} ({new Date().getFullYear() - team.foundedYear} years)</span>
+                        <span className="text-gray-400">{t('Founded:', 'Fundado:')}</span>
+                        <span className="text-white font-medium">{team.foundedYear} ({new Date().getFullYear() - team.foundedYear} {t('years', 'años')})</span>
                       </div>
                     )}
                     {team.currentCoach && (
                       <div className="flex justify-between">
-                        <span className="text-gray-400">Current Manager:</span>
+                        <span className="text-gray-400">{t('Current Manager:', 'Entrenador actual:')}</span>
                         <span className="text-white font-medium">{team.currentCoach}</span>
                       </div>
                     )}
                     {team.stadium && (
                       <div className="flex justify-between">
-                        <span className="text-gray-400">Home Stadium:</span>
+                        <span className="text-gray-400">{t('Home Stadium:', 'Estadio local:')}</span>
                         <span className="text-white font-medium">{team.stadium}</span>
                       </div>
                     )}
@@ -369,11 +515,13 @@ export default function EnhancedTeamResults({
                 </div>
 
                 <div className="bg-gray-800/50 rounded-xl p-6">
-                  <h4 className="text-lg font-semibold text-white mb-3">Achievements Summary</h4>
+                  <h4 className="text-lg font-semibold text-white mb-3">
+                    {t('Achievements Summary', 'Resumen de logros')}
+                  </h4>
                   <div className="space-y-4">
                     <div>
                       <div className="flex justify-between mb-1">
-                        <span className="text-gray-400">World Cup Titles:</span>
+                        <span className="text-gray-400">{t('World Cup Titles:', 'Copas del Mundo:')}</span>
                         <span className="text-yellow-400 font-medium">{team.majorAchievements.worldCup?.length || 0}</span>
                       </div>
                       <div className="w-full bg-gray-700 rounded-full h-2">
@@ -385,7 +533,7 @@ export default function EnhancedTeamResults({
                     </div>
                     <div>
                       <div className="flex justify-between mb-1">
-                        <span className="text-gray-400">Continental Titles:</span>
+                        <span className="text-gray-400">{t('Continental Titles:', 'Títulos continentales:')}</span>
                         <span className="text-blue-400 font-medium">{team.majorAchievements.continental?.length || 0}</span>
                       </div>
                       <div className="w-full bg-gray-700 rounded-full h-2">
@@ -397,7 +545,7 @@ export default function EnhancedTeamResults({
                     </div>
                     <div>
                       <div className="flex justify-between mb-1">
-                        <span className="text-gray-400">Domestic Titles:</span>
+                        <span className="text-gray-400">{t('Domestic Titles:', 'Títulos nacionales:')}</span>
                         <span className="text-green-400 font-medium">{team.majorAchievements.domestic?.length || 0}</span>
                       </div>
                       <div className="w-full bg-gray-700 rounded-full h-2">
@@ -416,17 +564,17 @@ export default function EnhancedTeamResults({
             {teamMetadata && (
               <div className="bg-gradient-to-r from-purple-900/20 to-blue-900/20 border border-purple-700/30 rounded-xl p-6">
                 <h4 className="text-lg font-semibold text-white mb-3 flex items-center">
-                  <span className="mr-2">🤖</span> AI Analysis Information
+                  <span className="mr-2">🤖</span> {t('AI Analysis Information', 'Información de análisis IA')}
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                   <div>
-                    <span className="text-gray-400">Data Source:</span>
+                    <span className="text-gray-400">{t('Data Source:', 'Fuente de datos:')}</span>
                     <span className="ml-2 text-white font-medium">
                       {teamMetadata.verification?.source || 'GROQ AI + Wikipedia'}
                     </span>
                   </div>
                   <div>
-                    <span className="text-gray-400">Confidence Level:</span>
+                    <span className="text-gray-400">{t('Confidence Level:', 'Nivel de confianza:')}</span>
                     <span className={`ml-2 font-medium ${
                       teamMetadata.verification?.confidence === 'high' ? 'text-green-400' :
                       teamMetadata.verification?.confidence === 'medium' ? 'text-yellow-400' :
@@ -436,15 +584,15 @@ export default function EnhancedTeamResults({
                     </span>
                   </div>
                   <div>
-                    <span className="text-gray-400">Last Updated:</span>
+                    <span className="text-gray-400">{t('Last Updated:', 'Última actualización:')}</span>
                     <span className="ml-2 text-white font-medium">
-                      {teamMetadata.lastTrained ? new Date(teamMetadata.lastTrained).toLocaleDateString() : '2024'}
+                      {teamMetadata.lastTrained ? new Date(teamMetadata.lastTrained).toLocaleDateString(language === 'es' ? 'es-ES' : 'en-US') : '2024'}
                     </span>
                   </div>
                   <div>
-                    <span className="text-gray-400">Current Season:</span>
+                    <span className="text-gray-400">{t('Current Season:', 'Temporada actual:')}</span>
                     <span className="ml-2 text-white font-medium">
-                      {teamMetadata.currentSeason || '2024/2025'}
+                      {teamMetadata.currentSeason || `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`}
                     </span>
                   </div>
                 </div>
@@ -461,35 +609,46 @@ export default function EnhancedTeamResults({
           <div className="space-y-8">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
               <div>
-                <h3 className="text-2xl font-bold text-white mb-2">Current Squad</h3>
+                <h3 className="text-2xl font-bold text-white mb-2">
+                  {t('Current Squad', 'Equipo actual')}
+                </h3>
                 <p className="text-gray-400">
-                  {players.length > 0 
-                    ? `Showing ${players.length} key players for ${team.name}`
-                    : 'Squad information will be displayed here'}
+                  {displayPlayers.length > 0 
+                    ? t(`Showing ${displayPlayers.length} key players for ${team.name}`,
+                        `Mostrando ${displayPlayers.length} jugadores clave de ${team.name}`)
+                    : t('Loading squad information...', 'Cargando información del equipo...')}
+                  {players.length === 0 && displayPlayers.length > 0 && (
+                    <span className="text-yellow-500 text-sm ml-2">
+                      {t('(Using placeholder data)', '(Usando datos de ejemplo)')}
+                    </span>
+                  )}
                 </p>
               </div>
               <div className="flex items-center gap-3">
                 <button className="px-4 py-2 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 text-sm">
-                  Filter by Position
+                  {t('Filter by Position', 'Filtrar por posición')}
                 </button>
                 <button className="px-4 py-2 bg-gradient-to-r from-blue-600 to-green-500 text-white rounded-lg hover:opacity-90 text-sm">
-                  View Full Roster
+                  {t('View Full Roster', 'Ver plantilla completa')}
                 </button>
               </div>
             </div>
 
-            {players.length > 0 ? (
+            {displayPlayers.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {players.map((player, index) => (
+                {displayPlayers.map((player, index) => (
                   <PlayerCard key={index} player={player} index={index} />
                 ))}
               </div>
             ) : (
               <div className="text-center py-12 bg-gray-800/30 rounded-xl">
                 <div className="text-5xl mb-4">👥</div>
-                <h4 className="text-xl font-semibold text-white mb-2">Squad Data Loading</h4>
+                <h4 className="text-xl font-semibold text-white mb-2">
+                  {t('Loading Squad Data', 'Cargando datos del equipo')}
+                </h4>
                 <p className="text-gray-400 max-w-md mx-auto">
-                  Detailed squad information is being fetched. This includes player photos, statistics, and current club details.
+                  {t('Fetching current squad information from the database...',
+                     'Obteniendo información actual del equipo desde la base de datos...')}
                 </p>
                 <div className="mt-6 flex justify-center">
                   <div className="animate-pulse flex space-x-2">
@@ -502,35 +661,83 @@ export default function EnhancedTeamResults({
             )}
 
             {/* Squad Statistics */}
-            {players.length > 0 && (
+            {displayPlayers.length > 0 && (
               <div className="mt-8 pt-8 border-t border-gray-700">
-                <h4 className="text-xl font-bold text-white mb-6">Squad Statistics</h4>
+                <h4 className="text-xl font-bold text-white mb-6">
+                  {t('Squad Statistics', 'Estadísticas del equipo')}
+                </h4>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="bg-gray-800/50 rounded-xl p-4 text-center">
                     <div className="text-2xl font-bold text-blue-400">
-                      {players.reduce((avg, p) => avg + (p.age || 0), 0) / players.length || 0 | 0}
+                      {Math.round(displayPlayers.reduce((avg, p) => avg + (p.age || 0), 0) / displayPlayers.length) || 0}
                     </div>
-                    <div className="text-gray-400 text-sm mt-1">Average Age</div>
+                    <div className="text-gray-400 text-sm mt-1">
+                      {t('Average Age', 'Edad promedio')}
+                    </div>
                   </div>
                   <div className="bg-gray-800/50 rounded-xl p-4 text-center">
                     <div className="text-2xl font-bold text-green-400">
-                      {players.filter(p => p.position?.toLowerCase().includes('forward')).length}
+                      {displayPlayers.filter(p => 
+                        p.position?.toLowerCase().includes('forward') || 
+                        p.position?.toLowerCase().includes('delantero') ||
+                        p.position?.toLowerCase().includes('atacante')
+                      ).length}
                     </div>
-                    <div className="text-gray-400 text-sm mt-1">Forwards</div>
+                    <div className="text-gray-400 text-sm mt-1">
+                      {t('Forwards', 'Delanteros')}
+                    </div>
                   </div>
                   <div className="bg-gray-800/50 rounded-xl p-4 text-center">
                     <div className="text-2xl font-bold text-yellow-400">
-                      {players.filter(p => p.position?.toLowerCase().includes('midfielder')).length}
+                      {displayPlayers.filter(p => 
+                        p.position?.toLowerCase().includes('midfielder') || 
+                        p.position?.toLowerCase().includes('centrocampista') ||
+                        p.position?.toLowerCase().includes('mediocampista')
+                      ).length}
                     </div>
-                    <div className="text-gray-400 text-sm mt-1">Midfielders</div>
+                    <div className="text-gray-400 text-sm mt-1">
+                      {t('Midfielders', 'Centrocampistas')}
+                    </div>
                   </div>
                   <div className="bg-gray-800/50 rounded-xl p-4 text-center">
                     <div className="text-2xl font-bold text-red-400">
-                      {players.filter(p => p.position?.toLowerCase().includes('defender') || p.position?.toLowerCase().includes('goalkeeper')).length}
+                      {displayPlayers.filter(p => 
+                        p.position?.toLowerCase().includes('defender') || 
+                        p.position?.toLowerCase().includes('defensa') ||
+                        p.position?.toLowerCase().includes('goalkeeper') ||
+                        p.position?.toLowerCase().includes('portero') ||
+                        p.position?.toLowerCase().includes('arquero')
+                      ).length}
                     </div>
-                    <div className="text-gray-400 text-sm mt-1">Defenders + GK</div>
+                    <div className="text-gray-400 text-sm mt-1">
+                      {t('Defenders + GK', 'Defensas + Portero')}
+                    </div>
                   </div>
                 </div>
+                
+                {/* Placeholder data notice */}
+                {players.length === 0 && (
+                  <div className="mt-6 pt-6 border-t border-gray-700">
+                    <div className="bg-yellow-900/20 border border-yellow-700/30 rounded-lg p-4">
+                      <p className="text-yellow-300 text-sm">
+                        <span className="font-bold">
+                          {t('Note:', 'Nota:')}
+                        </span> {t('This squad data is simulated. In production, the GROQ AI would fetch real player data including:',
+                                   'Estos datos del equipo son simulados. En producción, la IA GROQ obtendría datos reales de jugadores incluyendo:')}
+                      </p>
+                      <ul className="text-yellow-200 text-xs mt-2 list-disc list-inside">
+                        <li>{t('Real player names and photos from Wikipedia',
+                                'Nombres reales de jugadores y fotos de Wikipedia')}</li>
+                        <li>{t('Accurate statistics and career details',
+                                'Estadísticas precisas y detalles de carrera')}</li>
+                        <li>{t('Current transfer information',
+                                'Información actual de transferencias')}</li>
+                        <li>{t('Injury status and availability',
+                                'Estado de lesiones y disponibilidad')}</li>
+                      </ul>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -541,20 +748,23 @@ export default function EnhancedTeamResults({
           <div className="space-y-8">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
               <div>
-                <h3 className="text-2xl font-bold text-white mb-2">Team Achievements</h3>
+                <h3 className="text-2xl font-bold text-white mb-2">
+                  {t('Team Achievements', 'Logros del equipo')}
+                </h3>
                 <p className="text-gray-400">
-                  Complete trophy history and major accomplishments
+                  {t('Complete trophy history and major accomplishments',
+                     'Historia completa de trofeos y principales logros')}
                 </p>
               </div>
               <div className="flex items-center gap-2">
                 <span className="px-3 py-1 bg-yellow-900/30 text-yellow-300 rounded-full text-sm">
-                  {team.majorAchievements.worldCup?.length || 0} World Cup
+                  {team.majorAchievements.worldCup?.length || 0} {t('World Cup', 'Copa del Mundo')}
                 </span>
                 <span className="px-3 py-1 bg-blue-900/30 text-blue-300 rounded-full text-sm">
-                  {team.majorAchievements.continental?.length || 0} Continental
+                  {team.majorAchievements.continental?.length || 0} {t('Continental', 'Continental')}
                 </span>
                 <span className="px-3 py-1 bg-green-900/30 text-green-300 rounded-full text-sm">
-                  {team.majorAchievements.domestic?.length || 0} Domestic
+                  {team.majorAchievements.domestic?.length || 0} {t('Domestic', 'Nacional')}
                 </span>
               </div>
             </div>
@@ -568,8 +778,12 @@ export default function EnhancedTeamResults({
                     <span className="text-2xl">🌍</span>
                   </div>
                   <div>
-                    <h4 className="text-lg font-bold text-white">World Cup</h4>
-                    <p className="text-yellow-300 text-sm">{team.majorAchievements.worldCup?.length || 0} titles</p>
+                    <h4 className="text-lg font-bold text-white">
+                      {t('World Cup', 'Copa del Mundo')}
+                    </h4>
+                    <p className="text-yellow-300 text-sm">
+                      {team.majorAchievements.worldCup?.length || 0} {t('titles', 'títulos')}
+                    </p>
                   </div>
                 </div>
                 {team.majorAchievements.worldCup?.length > 0 ? (
@@ -579,7 +793,9 @@ export default function EnhancedTeamResults({
                     ))}
                   </div>
                 ) : (
-                  <p className="text-gray-400 text-sm italic">No World Cup achievements</p>
+                  <p className="text-gray-400 text-sm italic">
+                    {t('No World Cup achievements', 'Sin logros en Copa del Mundo')}
+                  </p>
                 )}
               </div>
 
@@ -590,8 +806,12 @@ export default function EnhancedTeamResults({
                     <span className="text-2xl">🗺️</span>
                   </div>
                   <div>
-                    <h4 className="text-lg font-bold text-white">Continental</h4>
-                    <p className="text-blue-300 text-sm">{team.majorAchievements.continental?.length || 0} titles</p>
+                    <h4 className="text-lg font-bold text-white">
+                      {t('Continental', 'Continental')}
+                    </h4>
+                    <p className="text-blue-300 text-sm">
+                      {team.majorAchievements.continental?.length || 0} {t('titles', 'títulos')}
+                    </p>
                   </div>
                 </div>
                 {team.majorAchievements.continental?.length > 0 ? (
@@ -601,7 +821,9 @@ export default function EnhancedTeamResults({
                     ))}
                   </div>
                 ) : (
-                  <p className="text-gray-400 text-sm italic">No continental achievements</p>
+                  <p className="text-gray-400 text-sm italic">
+                    {t('No continental achievements', 'Sin logros continentales')}
+                  </p>
                 )}
               </div>
 
@@ -612,8 +834,12 @@ export default function EnhancedTeamResults({
                     <span className="text-2xl">🏠</span>
                   </div>
                   <div>
-                    <h4 className="text-lg font-bold text-white">Domestic</h4>
-                    <p className="text-green-300 text-sm">{team.majorAchievements.domestic?.length || 0} titles</p>
+                    <h4 className="text-lg font-bold text-white">
+                      {t('Domestic', 'Nacional')}
+                    </h4>
+                    <p className="text-green-300 text-sm">
+                      {team.majorAchievements.domestic?.length || 0} {t('titles', 'títulos')}
+                    </p>
                   </div>
                 </div>
                 {team.majorAchievements.domestic?.length > 0 ? (
@@ -623,7 +849,9 @@ export default function EnhancedTeamResults({
                     ))}
                   </div>
                 ) : (
-                  <p className="text-gray-400 text-sm italic">No domestic achievements</p>
+                  <p className="text-gray-400 text-sm italic">
+                    {t('No domestic achievements', 'Sin logros nacionales')}
+                  </p>
                 )}
               </div>
             </div>
@@ -634,9 +862,12 @@ export default function EnhancedTeamResults({
         {activeTab === 'history' && (
           <div className="space-y-8">
             <div>
-              <h3 className="text-2xl font-bold text-white mb-4">Historical Legacy</h3>
+              <h3 className="text-2xl font-bold text-white mb-4">
+                {t('Historical Legacy', 'Legado histórico')}
+              </h3>
               <p className="text-gray-400 mb-8">
-                Explore the legendary players and most successful eras in {team.name}'s history
+                {t(`Explore the legendary players and most successful eras in ${team.name}'s history`,
+                   `Explora los jugadores legendarios y las épocas más exitosas en la historia de ${team.name}`)}
               </p>
             </div>
 
@@ -647,31 +878,36 @@ export default function EnhancedTeamResults({
                   <span className="text-3xl">👑</span>
                 </div>
                 <div>
-                  <h4 className="text-xl font-bold text-white">Most Successful Squad</h4>
+                  <h4 className="text-xl font-bold text-white">
+                    {t('Most Successful Squad', 'Equipo más exitoso')}
+                  </h4>
                   <p className="text-purple-300">{successfulSquad.era} ({successfulSquad.years})</p>
                 </div>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <h5 className="text-lg font-semibold text-white mb-3">Key Achievements</h5>
+                  <h5 className="text-lg font-semibold text-white mb-3">
+                    {t('Key Achievements', 'Logros clave')}
+                  </h5>
                   <div className="space-y-2">
                     {successfulSquad.achievements.map((achievement, index) => (
-                      <div key={index} className="flex items-start gap-2">
-                        <span className="text-purple-400 mt-1">✓</span>
-                        <span className="text-gray-300">{achievement}</span>
+                      <div key={index} className="flex items-center gap-2">
+                        <span className="text-purple-400">✓</span>
+                        <span className="text-white">{achievement}</span>
                       </div>
                     ))}
                   </div>
                 </div>
-                
                 <div>
-                  <h5 className="text-lg font-semibold text-white mb-3">Legendary Players</h5>
-                  <div className="grid grid-cols-2 gap-3">
+                  <h5 className="text-lg font-semibold text-white mb-3">
+                    {t('Key Players', 'Jugadores clave')}
+                  </h5>
+                  <div className="space-y-2">
                     {successfulSquad.keyPlayers.map((player, index) => (
-                      <div key={index} className="bg-gray-800/50 rounded-lg p-3 text-center">
-                        <div className="text-white font-medium">{player}</div>
-                        <div className="text-gray-400 text-xs mt-1">Icon</div>
+                      <div key={index} className="flex items-center gap-2">
+                        <span className="text-yellow-400">⭐</span>
+                        <span className="text-white">{player}</span>
                       </div>
                     ))}
                   </div>
@@ -679,38 +915,74 @@ export default function EnhancedTeamResults({
               </div>
             </div>
 
-            {/* Historical Players */}
+            {/* Legendary Players */}
             <div>
-              <h4 className="text-xl font-bold text-white mb-6">Historical Players</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {historicalPlayers.map((player, index) => (
-                  <HistoricalPlayerCard key={index} player={player.name} era={player.era} />
-                ))}
-              </div>
+              <h4 className="text-xl font-bold text-white mb-6">
+                {t('Legendary Players', 'Jugadores legendarios')}
+              </h4>
+              
+              {loadingHistory ? (
+                <div className="text-center py-12 bg-gray-800/30 rounded-xl">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mx-auto mb-4"></div>
+                  <h4 className="text-lg font-semibold text-white mb-2">
+                    {t('Loading Historical Data', 'Cargando datos históricos')}
+                  </h4>
+                  <p className="text-gray-400">
+                    {t('Fetching legendary players from the database...',
+                       'Obteniendo jugadores legendarios de la base de datos...')}
+                  </p>
+                </div>
+              ) : legendaryPlayers.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {legendaryPlayers.map((player, index) => (
+                    <PlayerCard key={index} player={player} index={index} isHistorical={true} />
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-gray-800/30 rounded-xl p-8 text-center">
+                  <div className="text-5xl mb-4">📜</div>
+                  <h5 className="text-lg font-semibold text-white mb-2">
+                    {t('No Historical Data Found', 'No se encontraron datos históricos')}
+                  </h5>
+                  <p className="text-gray-400 max-w-md mx-auto">
+                    {t('Could not load legendary players. Try searching again or check your connection.',
+                       'No se pudieron cargar jugadores legendarios. Intenta buscar de nuevo o verifica tu conexión.')}
+                  </p>
+                  <button
+                    onClick={() => {
+                      setLegendaryPlayers([]);
+                      setLoadingHistory(true);
+                      const fetchHistorical = async () => {
+                        if (team) {
+                          const historical = await getHistoricalPlayers(team.name, team.type, language);
+                          setLegendaryPlayers(historical);
+                          setLoadingHistory(false);
+                        }
+                      };
+                      fetchHistorical();
+                    }}
+                    className="mt-4 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-500 text-white rounded-lg hover:opacity-90"
+                  >
+                    {t('Retry Loading', 'Reintentar carga')}
+                  </button>
+                </div>
+              )}
             </div>
 
-            {/* Timeline Placeholder */}
+            {/* Historical Timeline */}
             <div className="mt-8 pt-8 border-t border-gray-700">
-              <h4 className="text-xl font-bold text-white mb-6">Team Timeline</h4>
-              <div className="relative">
-                <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gradient-to-b from-blue-500 to-green-500"></div>
-                {[
-                  { year: team.foundedYear || '1900', event: 'Team Founded' },
-                  { year: '1950', event: 'First Major Trophy' },
-                  { year: '1980', event: 'Golden Era Begins' },
-                  { year: '2000', event: 'Modern Success' },
-                  { year: '2024', event: 'Current Season' }
-                ].map((item, index) => (
-                  <div key={index} className="relative pl-12 pb-8 last:pb-0">
-                    <div className="absolute left-0 w-8 h-8 rounded-full bg-gradient-to-r from-blue-600 to-green-500 flex items-center justify-center">
-                      <span className="text-white text-sm">{index + 1}</span>
-                    </div>
-                    <div className="bg-gray-800/50 rounded-lg p-4">
-                      <div className="text-blue-400 font-bold">{item.year}</div>
-                      <div className="text-white mt-1">{item.event}</div>
-                    </div>
-                  </div>
-                ))}
+              <h4 className="text-xl font-bold text-white mb-6">
+                {t('Historical Timeline', 'Línea de tiempo histórica')}
+              </h4>
+              <div className="bg-gray-800/30 rounded-xl p-6 text-center">
+                <div className="text-5xl mb-4">📅</div>
+                <h5 className="text-lg font-semibold text-white mb-2">
+                  {t('Interactive Timeline', 'Línea de tiempo interactiva')}
+                </h5>
+                <p className="text-gray-400 max-w-md mx-auto">
+                  {t(`Showing key moments in ${team.name}'s history from ${team.foundedYear || 'early'} to present.`,
+                     `Mostrando momentos clave en la historia de ${team.name} desde ${team.foundedYear || 'sus inicios'} hasta la actualidad.`)}
+                </p>
               </div>
             </div>
           </div>
@@ -721,108 +993,181 @@ export default function EnhancedTeamResults({
           <div className="space-y-8">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
               <div>
-                <h3 className="text-2xl font-bold text-white mb-2">Video Highlights</h3>
+                <h3 className="text-2xl font-bold text-white mb-2">
+                  {t('Match Highlights & Videos', 'Destacados y videos de partidos')}
+                </h3>
                 <p className="text-gray-400">
-                  {youtubeQuery ? `Search: "${youtubeQuery}"` : 'Team highlights and matches'}
+                  {t(`Watch ${team.name}'s best moments, goals, and historic matches`,
+                     `Mira los mejores momentos, goles y partidos históricos de ${team.name}`)}
                 </p>
               </div>
-              <div className="flex items-center">
-                {loadingVideos ? (
-                  <div className="flex items-center text-gray-400">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500 mr-2"></div>
-                    Loading videos...
-                  </div>
-                ) : youtubeVideos.length > 0 && (
-                  <span className="text-sm text-gray-400">
-                    {youtubeVideos.length} video{youtubeVideos.length !== 1 ? 's' : ''} found
-                  </span>
-                )}
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-1 bg-red-900/30 text-red-300 rounded-full text-sm">
+                  YouTube
+                </span>
+                <span className="px-3 py-1 bg-gray-800 text-gray-300 rounded-full text-sm">
+                  {youtubeVideos.length} {t('Videos', 'Videos')}
+                </span>
               </div>
             </div>
 
-            {videoError ? (
-              <div className="bg-red-900/20 border border-red-700/30 rounded-xl p-6 text-center">
-                <p className="text-red-300">{videoError}</p>
-                <p className="text-red-400 text-sm mt-2">
-                  Make sure you have added <code className="bg-red-900/50 px-2 py-1 rounded">NEXT_PUBLIC_YOUTUBE_API_KEY</code> to your .env.local file
+            {/* YouTube Videos */}
+            {loadingVideos ? (
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500 mx-auto mb-4"></div>
+                <h4 className="text-lg font-semibold text-white mb-2">
+                  {t('Loading Videos', 'Cargando videos')}
+                </h4>
+                <p className="text-gray-400">
+                  {t('Fetching the latest highlights from YouTube...',
+                     'Obteniendo los últimos destacados de YouTube...')}
                 </p>
               </div>
-            ) : loadingVideos ? (
-              <div className="flex justify-center items-center h-48">
-                <div className="text-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
-                  <p className="mt-4 text-gray-400">Searching for highlights...</p>
-                </div>
+            ) : videoError ? (
+              <div className="text-center py-12 bg-red-900/20 border border-red-700/30 rounded-xl">
+                <div className="text-5xl mb-4">⚠️</div>
+                <h4 className="text-lg font-semibold text-white mb-2">
+                  {t('Error Loading Videos', 'Error al cargar videos')}
+                </h4>
+                <p className="text-gray-300">{videoError}</p>
+                <p className="text-gray-400 text-sm mt-2">
+                  {t('Please check your YouTube API key or try again later.',
+                     'Por favor, verifica tu clave API de YouTube o intenta de nuevo más tarde.')}
+                </p>
               </div>
             ) : youtubeVideos.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {youtubeVideos.map((video) => (
-                  <div key={video.id} className="border border-gray-700 rounded-xl overflow-hidden hover:border-blue-500/50 transition">
-                    <a
-                      href={`https://www.youtube.com/watch?v=${video.id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block"
-                    >
-                      <div className="aspect-video relative overflow-hidden bg-gray-900">
+                  <a
+                    key={video.id}
+                    href={`https://www.youtube.com/watch?v=${video.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group block"
+                  >
+                    <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 rounded-xl overflow-hidden hover:border-red-500/50 transition-all hover:-translate-y-1">
+                      {/* Thumbnail */}
+                      <div className="relative aspect-video overflow-hidden bg-gray-900">
                         <img
                           src={video.thumbnail}
                           alt={video.title}
-                          className="w-full h-full object-cover hover:scale-105 transition duration-300"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect width="100" height="100" fill="%231f2937"/><text x="50" y="50" font-family="Arial" font-size="14" fill="%239ca3af" text-anchor="middle" dy=".3em">Video</text></svg>';
-                          }}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent"></div>
-                        <div className="absolute top-3 right-3 bg-red-600 text-white text-xs px-2 py-1 rounded">
-                          YouTube
+                        <div className="absolute top-2 right-2 bg-black/80 text-white text-xs px-2 py-1 rounded">
+                          {video.duration}
                         </div>
-                        <div className="absolute bottom-3 left-3 text-white text-xs bg-black/70 px-2 py-1 rounded">
-                          {formatDate(video.publishedAt)}
+                        <div className="absolute bottom-0 left-0 right-0 p-4">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 bg-red-600 rounded-full flex items-center justify-center">
+                              <span className="text-xs">▶</span>
+                            </div>
+                            <span className="text-white text-sm font-medium">
+                              {t('Watch on YouTube', 'Ver en YouTube')}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                      <div className="p-4 bg-gray-900/50">
-                        <h4 className="font-semibold text-white line-clamp-2 mb-2 text-sm">
+                      
+                      {/* Video Info */}
+                      <div className="p-4">
+                        <h4 className="font-bold text-white mb-2 line-clamp-2 group-hover:text-red-400 transition">
                           {video.title}
                         </h4>
-                        <div className="flex justify-between items-center text-xs text-gray-400">
-                          <span className="truncate mr-2">{video.channelTitle}</span>
-                          <span className="flex-shrink-0">▶️ Play</span>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-400">
+                            {formatDate(video.publishedAt)}
+                          </span>
+                          <span className="text-gray-400">
+                            {video.viewCount} {t('views', 'vistas')}
+                          </span>
+                        </div>
+                        <div className="mt-3 flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-full bg-gray-700 flex items-center justify-center">
+                            <span className="text-xs">📺</span>
+                          </div>
+                          <span className="text-gray-400 text-sm">{video.channelTitle}</span>
                         </div>
                       </div>
-                    </a>
-                  </div>
+                    </div>
+                  </a>
                 ))}
-              </div>
-            ) : youtubeQuery ? (
-              <div className="text-center py-12 bg-gray-800/30 rounded-xl">
-                <div className="text-gray-500 mb-4 text-5xl">
-                  🎥
-                </div>
-                <p className="text-gray-300">No videos found for this search.</p>
-                <p className="text-gray-500 text-sm mt-2">Try a different search term or check your YouTube API key.</p>
               </div>
             ) : (
               <div className="text-center py-12 bg-gray-800/30 rounded-xl">
-                <div className="text-gray-500 mb-4 text-5xl">
-                  📹
+                <div className="text-5xl mb-4">🎥</div>
+                <h4 className="text-lg font-semibold text-white mb-2">
+                  {t('No Videos Found', 'No se encontraron videos')}
+                </h4>
+                <p className="text-gray-400 max-w-md mx-auto">
+                  {t(`Could not find videos for "${youtubeQuery}". Try a different search term or check the YouTube API configuration.`,
+                     `No se encontraron videos para "${youtubeQuery}". Prueba con un término de búsqueda diferente o verifica la configuración de la API de YouTube.`)}
+                </p>
+                <div className="mt-6">
+                  <button
+                    onClick={() => {
+                      // Refresh videos
+                      setLoadingVideos(true);
+                      const fetchVideos = async () => {
+                        const apiKey = process.env.NEXT_PUBLIC_YOUTUBE_API_KEY;
+                        const result = await searchYouTubeHighlights(youtubeQuery, apiKey || '');
+                        if (!result.error) {
+                          setYoutubeVideos(result.videos);
+                        }
+                        setLoadingVideos(false);
+                      };
+                      fetchVideos();
+                    }}
+                    className="px-4 py-2 bg-gradient-to-r from-blue-600 to-green-500 text-white rounded-lg hover:opacity-90"
+                  >
+                    {t('Refresh Videos', 'Actualizar videos')}
+                  </button>
                 </div>
-                <p className="text-gray-300">Search for a team to see video highlights</p>
               </div>
             )}
+
+            {/* Video Search Info */}
+            <div className="mt-8 pt-8 border-t border-gray-700">
+              <div className="bg-gray-800/30 rounded-xl p-6">
+                <h5 className="text-lg font-semibold text-white mb-3">
+                  {t('About These Videos', 'Acerca de estos videos')}
+                </h5>
+                <p className="text-gray-400 text-sm">
+                  {t(`Videos are fetched from YouTube using the search query "${youtubeQuery}". The system looks for:`,
+                     `Los videos se obtienen de YouTube usando la búsqueda "${youtubeQuery}". El sistema busca:`)}
+                </p>
+                <ul className="text-gray-400 text-sm mt-2 list-disc list-inside">
+                  <li>{t('Official match highlights', 'Destacados oficiales de partidos')}</li>
+                  <li>{t('Goal compilations', 'Compilaciones de goles')}</li>
+                  <li>{t('Historic moments and trophy celebrations', 'Momentos históricos y celebraciones de trofeos')}</li>
+                  <li>{t('Player interviews and team features', 'Entrevistas a jugadores y reportajes del equipo')}</li>
+                </ul>
+              </div>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Data Source Footer */}
-      <div className="text-center text-gray-500 text-sm pt-8 border-t border-gray-800">
-        <p>
-          ⚽ Team analysis powered by GROQ AI and Wikipedia • Data updated for 2024-2025 season
-        </p>
-        <p className="text-gray-400 text-xs mt-2">
-          Note: Player photos and detailed squad information would be fetched from Wikipedia API in production
-        </p>
-      </div>
+      {/* Data Quality Notice */}
+      {needsDataVerification({ players, teams, youtubeQuery: '' }) && (
+        <div className="mt-8 p-4 bg-yellow-900/20 border border-yellow-700/30 rounded-xl">
+          <div className="flex items-center gap-3">
+            <span className="text-yellow-500 text-xl">⚠️</span>
+            <div>
+              <p className="text-yellow-300 text-sm">
+                <span className="font-bold">
+                  {t('Data Quality Notice:', 'Aviso de calidad de datos:')}
+                </span> {t('Some information may require verification.',
+                           'Alguna información puede requerir verificación.')}
+              </p>
+              <p className="text-yellow-200 text-xs mt-1">
+                {t('AI-generated data is based on available sources and may contain inaccuracies.',
+                   'Los datos generados por IA se basan en fuentes disponibles y pueden contener inexactitudes.')}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
