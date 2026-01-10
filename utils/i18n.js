@@ -101,7 +101,34 @@ const translations = {
       'Colombia': 'Colombia',
       'Play-off 3': 'Play-off 3',
       'Mexico': 'Mexico',
-      'South Africa': 'South Africa'
+      'South Africa': 'South Africa',
+      
+      // Enhanced Teams page translations
+      title: "Team Analysis",
+      subtitle: "Comprehensive analysis of football teams with squad details, achievements, and historical data",
+      searchPlaceholder: "Search for any national team or football club...",
+      searchButton: "Analyze Team",
+      searching: "Analyzing...",
+      tryExamples: "Try searching for:",
+      searchError: "Search Error",
+      dismissError: "Dismiss",
+      analyzing: "Analyzing team data...",
+      fetching: "Fetching squad details, achievements, and statistics...",
+      featuresTitle: "Comprehensive Team Analysis",
+      currentSquad: "Current Squad",
+      currentSquadTitle: "Current Squad",
+      currentSquadDesc: "Detailed roster with player photos, positions, age, current clubs, and appearances",
+      achievements: "Achievements",
+      achievementsTitle: "Team Achievements",
+      achievementsDesc: "Complete list of domestic, continental, and international trophies",
+      stats: "Statistics",
+      historyTitle: "Historical Legacy",
+      historyDesc: "Historical players, legendary squads, key moments, and team evolution",
+      highlights: "Highlights",
+      teamCategories: "Explore Teams By Category",
+      dataCoverage: "Extensive Team Database",
+      footerNote: "AI-powered team analysis with up-to-date statistics",
+      dataSource: "Data enhanced with Wikipedia and GROQ AI"
     },
     worldCup: {
       title: "2026 FIFA World Cup",
@@ -135,7 +162,7 @@ const translations = {
       tag1: "First tri-national World Cup",
       tag2: "104 Total Matches",
       tag3: "Expanded 48-team format",
-      
+
       // New translations for GroupStageFixtures component
       loadingFixtures: "Loading World Cup fixtures...",
       errorLoading: "Error loading fixtures",
@@ -192,22 +219,6 @@ const translations = {
       stats: "Stats",
       achievements: "Achievements",
       videos: "Videos"
-    },
-    teams: {
-      title: "Team Analysis",
-      subtitle: "Comprehensive team statistics, formations, and performance metrics",
-      comingSoon: "Team analysis page coming soon.",
-      description: "This will show comprehensive team statistics, formations, and performance metrics.",
-      searchPlaceholder: "Search teams by name, league, or country...",
-      featuredTeams: "Featured Teams",
-      topTeams: "Top Teams",
-      formations: "Formations",
-      statistics: "Statistics",
-      performance: "Performance Metrics",
-      viewTeam: "View Team",
-      squad: "Squad",
-      matches: "Matches",
-      history: "History"
     },
     highlights: {
       title: "Video Highlights",
@@ -323,7 +334,34 @@ const translations = {
       'Colombia': 'Colombia',
       'Play-off 3': 'Play-off 3',
       'Mexico': 'México',
-      'South Africa': 'Sudáfrica'
+      'South Africa': 'Sudáfrica',
+      
+      // Enhanced Teams page translations
+      title: "Análisis de Equipos",
+      subtitle: "Análisis completo de equipos de fútbol con detalles de plantilla, logros y datos históricos",
+      searchPlaceholder: "Busca cualquier selección nacional o club de fútbol...",
+      searchButton: "Analizar Equipo",
+      searching: "Analizando...",
+      tryExamples: "Prueba buscando:",
+      searchError: "Error de Búsqueda",
+      dismissError: "Descartar",
+      analyzing: "Analizando datos del equipo...",
+      fetching: "Obteniendo detalles de plantilla, logros y estadísticas...",
+      featuresTitle: "Análisis Completo de Equipos",
+      currentSquad: "Plantilla Actual",
+      currentSquadTitle: "Plantilla Actual",
+      currentSquadDesc: "Lista detallada con fotos de jugadores, posiciones, edad, clubes actuales y apariciones",
+      achievements: "Logros",
+      achievementsTitle: "Logros del Equipo",
+      achievementsDesc: "Lista completa de trofeos nacionales, continentales e internacionales",
+      stats: "Estadísticas",
+      historyTitle: "Legado Histórico",
+      historyDesc: "Jugadores históricos, plantillas legendarias, momentos clave y evolución del equipo",
+      highlights: "Destacados",
+      teamCategories: "Explorar Equipos Por Categoría",
+      dataCoverage: "Extensa Base de Datos de Equipos",
+      footerNote: "Análisis de equipos con IA con estadísticas actualizadas",
+      dataSource: "Datos mejorados con Wikipedia y GROQ AI"
     },
     worldCup: {
       title: "Copa Mundial de la FIFA 2026",
@@ -357,7 +395,7 @@ const translations = {
       tag1: "Primer Mundial trinacional",
       tag2: "104 Partidos en Total",
       tag3: "Formato ampliado de 48 equipos",
-      
+
       // New translations for GroupStageFixtures component
       loadingFixtures: "Cargando partidos del Mundial...",
       errorLoading: "Error al cargar los partidos",
@@ -415,22 +453,6 @@ const translations = {
       achievements: "Logros",
       videos: "Vídeos"
     },
-    teams: {
-      title: "Análisis de Equipos",
-      subtitle: "Estadísticas completas de equipos, formaciones y métricas de rendimiento",
-      comingSoon: "Página de análisis de equipos próximamente.",
-      description: "Esto mostrará estadísticas completas de equipos, formaciones y métricas de rendimiento.",
-      searchPlaceholder: "Buscar equipos por nombre, liga o país...",
-      featuredTeams: "Equipos Destacados",
-      topTeams: "Mejores Equipos",
-      formations: "Formaciones",
-      statistics: "Estadísticas",
-      performance: "Métricas de Rendimiento",
-      viewTeam: "Ver Equipo",
-      squad: "Plantilla",
-      matches: "Partidos",
-      history: "Historia"
-    },
     highlights: {
       title: "Vídeos Destacados",
       subtitle: "Destacados de fútbol seleccionados por IA de los mejores partidos y jugadores",
@@ -453,7 +475,7 @@ const translations = {
 export function t(key, lang = 'en', params = {}) {
   const keys = key.split('.');
   let value = translations[lang] || translations.en;
-  
+
   for (const k of keys) {
     value = value?.[k];
     if (value === undefined) {
@@ -461,14 +483,14 @@ export function t(key, lang = 'en', params = {}) {
       return key;
     }
   }
-  
+
   // Handle string interpolation for both string values and functions
   if (typeof value === 'string' && params) {
     return value.replace(/{(\w+)}/g, (match, param) => {
       return params[param] !== undefined ? params[param] : match;
     });
   }
-  
+
   return value || key;
 }
 
