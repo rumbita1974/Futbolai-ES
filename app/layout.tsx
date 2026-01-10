@@ -221,7 +221,7 @@ export default function RootLayout({
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <div className="text-center">
                 <p className="text-gray-500 text-sm">
-                  © 2024-2026 FutbolAI Explorer. All rights reserved.
+                  © 2026 FutbolAI Explorer. All rights reserved.
                 </p>
                 <p className="text-gray-500 text-sm mt-2">
                   Football highlights and videos are property of their respective owners.
