@@ -93,11 +93,10 @@ export interface GROQSearchResponse {
   };
 }
 
-// Model configuration
+// Model configuration - Use only 8B for everything
 const MODEL_CONFIG = {
-  // Use 70B for team searches (more accurate), 8B for simple player queries
   primary: 'llama-3.1-8b-instant' as const,
-  fallback: 'llama-3.3-70b-versatile' as const,
+  fallback: 'llama-3.1-8b-instant' as const,
   historical: 'llama-3.1-8b-instant' as const,
 };
 
@@ -105,234 +104,239 @@ const MODEL_CONFIG = {
 const wikipediaCache = new Map<string, { data: any; timestamp: number }>();
 const CACHE_TTL = 24 * 60 * 60 * 1000;
 
-// Critical updates database for 2024-2025 season
+// Critical player updates for 2024-2025 season with CORRECT achievements
 const CRITICAL_PLAYER_UPDATES_2024: Record<string, Partial<Player>> = {
-  // Real Madrid 2024-2025 Squad Updates
-  'Nacho Fernández': {
-    currentTeam: 'Al Qadsiah',
-    _updateReason: 'Transferred July 2024',
-    _needsVerification: false
+  // Argentina updates
+  "Lionel Messi": {
+    currentTeam: "Inter Miami",
+    age: 37,
+    majorAchievements: ["FIFA World Cup (2022)", "Copa América (2021)", "UEFA Champions League (4x)", "Ballon d'Or (8x)"],
+    _updateReason: "Transferred to Inter Miami in 2023, World Cup 2022 winner"
   },
-  'Kepa Arrizabalaga': {
-    currentTeam: 'Chelsea',
-    _updateReason: 'Loan ended June 2024',
-    _needsVerification: false
+  
+  // Brazil updates - CORRECTING FALSE WORLD CUP WINS
+  "Alisson Becker": {
+    currentTeam: "Liverpool",
+    age: 31,
+    majorAchievements: ["UEFA Champions League (2019)", "FIFA Club World Cup (2019)", "Copa América (2019)"],
+    _updateReason: "Never won World Cup, won Copa América 2019"
   },
-  'José Luis Gayà': {
-    currentTeam: 'Valencia',
-    _updateReason: 'Never played for Real Madrid',
-    _needsVerification: false
+  "Thiago Silva": {
+    currentTeam: "Chelsea",
+    age: 39,
+    majorAchievements: ["UEFA Champions League (2021)", "Copa América (2019)", "FIFA Confederations Cup (2013)"],
+    _updateReason: "Never won World Cup, won Copa América 2019"
   },
-  'Karim Benzema': {
-    currentTeam: 'Al Ittihad',
-    _updateReason: 'Transferred June 2023',
-    _needsVerification: false
+  "Marquinhos": {
+    currentTeam: "Paris Saint-Germain",
+    age: 30,
+    majorAchievements: ["Copa América (2019)", "Ligue 1 (8x)", "Coupe de France (6x)"],
+    _updateReason: "Never won World Cup, won Copa América 2019"
   },
-  'Kylian Mbappé': {
-    currentTeam: 'Real Madrid',
-    _updateReason: 'Transferred July 2024',
-    _needsVerification: false
+  "Casemiro": {
+    currentTeam: "Manchester United",
+    age: 32,
+    majorAchievements: ["UEFA Champions League (5x)", "FIFA Club World Cup (4x)", "Copa América (2019)"],
+    _updateReason: "Transferred to Man United 2022, never won World Cup"
   },
-  'Arda Güler': {
-    currentTeam: 'Real Madrid',
-    _updateReason: 'Signed 2023, current squad member',
-    _needsVerification: false
+  "Neymar Jr.": {
+    currentTeam: "Al Hilal",
+    age: 32,
+    majorAchievements: ["UEFA Champions League (2015)", "Copa América (2019)", "Olympic Gold Medal (2016)"],
+    _updateReason: "Transferred to Al Hilal 2023, never won World Cup"
   },
-  'Brahim Díaz': {
-    currentTeam: 'Real Madrid',
-    _updateReason: 'Returned from loan 2023',
-    _needsVerification: false
+  "Richarlison": {
+    currentTeam: "Tottenham Hotspur",
+    age: 27,
+    majorAchievements: ["Copa América (2019)", "Olympic Gold Medal (2020)"],
+    _updateReason: "Never won World Cup"
   },
-  'Fran García': {
-    currentTeam: 'Real Madrid',
-    _updateReason: 'Signed 2023',
-    _needsVerification: false
+  "Vinicius Jr.": {
+    currentTeam: "Real Madrid",
+    age: 24,
+    majorAchievements: ["UEFA Champions League (2022, 2024)", "La Liga (2022, 2024)", "Copa del Rey (2023)"],
+    _updateReason: "Never won World Cup"
   },
-  'Luka Modrić': {
-    currentTeam: 'Al Nassr',
-    _updateReason: 'Transferred July 2024',
-    _needsVerification: false
+  
+  // Other key transfers
+  "Karim Benzema": {
+    currentTeam: "Al-Ittihad",
+    age: 36,
+    _updateReason: "Transferred to Al-Ittihad in 2023"
   },
-  'Toni Kroos': {
-    currentTeam: 'Retired',
-    _updateReason: 'Retired July 2024',
-    _needsVerification: false
+  "Cristiano Ronaldo": {
+    currentTeam: "Al Nassr",
+    age: 39,
+    _updateReason: "Transferred to Al Nassr in 2023"
   },
-  'Carlo Ancelotti': {
-    position: 'Manager',
-    currentTeam: 'Brazil',
-    _updateReason: 'Appointed Brazil manager July 2024',
-    _needsVerification: false
+  "Jude Bellingham": {
+    currentTeam: "Real Madrid",
+    age: 21,
+    nationality: "English",
+    position: "Midfielder",
+    _updateReason: "Transferred to Real Madrid in 2023"
   },
-  'Xabi Alonso': {
-    position: 'Manager',
-    currentTeam: 'Real Madrid',
-    _updateReason: 'Appointed June 2024',
-    _needsVerification: false
-  },
-  'Dani Ceballos': {
-    currentTeam: 'Real Betis',
-    _updateReason: 'Transferred July 2024',
-    _needsVerification: false
-  },
-  // Manchester City updates
-  'Kevin De Bruyne': {
-    currentTeam: 'Al Ittihad',
-    _updateReason: 'Transferred July 2024',
-    _needsVerification: false
-  },
-  // Barcelona updates
-  'Robert Lewandowski': {
-    currentTeam: 'Al Nassr',
-    _updateReason: 'Transferred July 2024',
-    _needsVerification: false
-  },
-  // PSG updates
-  'Neymar': {
-    currentTeam: 'Al Hilal',
-    _updateReason: 'Transferred August 2023',
-    _needsVerification: false
-  },
-  'Lionel Messi': {
-    currentTeam: 'Inter Miami CF',
-    _updateReason: 'Transferred July 2023',
-    _needsVerification: false
-  },
-  'Cristiano Ronaldo': {
-    currentTeam: 'Al Nassr',
-    _updateReason: 'Transferred January 2023',
-    _needsVerification: false
-  }
 };
 
+// Critical team updates for 2024-2025 with CORRECT achievement data
 const CRITICAL_TEAM_UPDATES_2024: Record<string, Partial<Team>> = {
-  'Real Madrid': {
-    currentCoach: 'Xabi Alonso',
-    _updateReason: 'Appointed June 2024',
-    _needsVerification: false,
+  "Argentina": {
+    name: "Argentina",
+    type: "national",
+    country: "Argentina",
+    currentCoach: "Lionel Scaloni",
+    foundedYear: 1893,
     majorAchievements: {
-      worldCup: ['FIFA Club World Cup (2014, 2016, 2017, 2018, 2022)'],
-      continental: ['UEFA Champions League (15 titles: 1956, 1957, 1958, 1959, 1960, 1966, 1998, 2000, 2002, 2014, 2016, 2017, 2018, 2022, 2024)'],
-      domestic: ['La Liga (36 titles)', 'Copa del Rey (20 titles)']
+      worldCup: [
+        "FIFA World Cup (1978)",
+        "FIFA World Cup (1986)", 
+        "FIFA World Cup (2022)"
+      ],
+      continental: [
+        "Copa América (1921, 1925, 1927, 1929, 1937, 1941, 1945, 1946, 1947, 1955, 1957, 1959, 1991, 1993, 2021)"
+      ],
+      domestic: [
+        "CONMEBOL–UEFA Cup of Champions (1993, 2022)",
+        "FIFA Confederations Cup (1992)",
+        "Superclásico de las Américas (2011, 2012, 2014, 2017, 2019)"
+      ]
     }
   },
-  'Bayern Munich': {
-    currentCoach: 'Vincent Kompany',
-    _updateReason: 'Appointed May 2024',
-    _needsVerification: false
+  "Brazil": {
+    name: "Brazil",
+    type: "national",
+    country: "Brazil",
+    currentCoach: "Dorival Júnior",
+    foundedYear: 1914,
+    majorAchievements: {
+      worldCup: [
+        "FIFA World Cup (1958)",
+        "FIFA World Cup (1962)",
+        "FIFA World Cup (1970)",
+        "FIFA World Cup (1994)",
+        "FIFA World Cup (2002)"
+      ],
+      continental: [
+        "Copa América (1919, 1922, 1949, 1989, 1997, 1999, 2004, 2007, 2019)"
+      ],
+      domestic: [
+        "FIFA Confederations Cup (1997, 2005, 2009, 2013)",
+        "CONMEBOL–UEFA Cup of Champions (1997, 2005)",
+        "Panamerican Championship (1952, 1956, 1960)"
+      ]
+    }
   },
-  'Liverpool': {
-    currentCoach: 'Arne Slot',
-    _updateReason: 'Appointed May 2024',
-    _needsVerification: false
+  "Italy": {
+    name: "Italy",
+    type: "national",
+    country: "Italy",
+    currentCoach: "Luciano Spalletti",
+    foundedYear: 1898,
+    majorAchievements: {
+      worldCup: [
+        "FIFA World Cup (1934)",
+        "FIFA World Cup (1938)",
+        "FIFA World Cup (1982)",
+        "FIFA World Cup (2006)"
+      ],
+      continental: [
+        "UEFA European Championship (1968)",
+        "UEFA European Championship (2020)"
+      ],
+      domestic: [
+        "UEFA Nations League (2021)"
+      ]
+    }
   },
-  'Barcelona': {
-    currentCoach: 'Hansi Flick',
-    _updateReason: 'Appointed May 2024',
-    _needsVerification: false
+  "Germany": {
+    name: "Germany",
+    type: "national",
+    country: "Germany",
+    currentCoach: "Julian Nagelsmann",
+    foundedYear: 1900,
+    majorAchievements: {
+      worldCup: [
+        "FIFA World Cup (1954)",
+        "FIFA World Cup (1974)",
+        "FIFA World Cup (1990)",
+        "FIFA World Cup (2014)"
+      ],
+      continental: [
+        "UEFA European Championship (1972, 1980, 1996)"
+      ],
+      domestic: [
+        "FIFA Confederations Cup (2017)"
+      ]
+    }
   },
-  'Chelsea': {
-    currentCoach: 'Enzo Maresca',
-    _updateReason: 'Appointed June 2024',
-    _needsVerification: false
+  "France": {
+    name: "France",
+    type: "national",
+    country: "France",
+    currentCoach: "Didier Deschamps",
+    foundedYear: 1904,
+    majorAchievements: {
+      worldCup: [
+        "FIFA World Cup (1998)",
+        "FIFA World Cup (2018)"
+      ],
+      continental: [
+        "UEFA European Championship (1984, 2000)",
+        "UEFA Nations League (2021)"
+      ],
+      domestic: [
+        "FIFA Confederations Cup (2001, 2003)"
+      ]
+    }
   },
-  'AC Milan': {
-    currentCoach: 'Paulo Fonseca',
-    _updateReason: 'Appointed June 2024',
-    _needsVerification: false
+  "Spain": {
+    name: "Spain",
+    type: "national",
+    country: "Spain",
+    currentCoach: "Luis de la Fuente",
+    foundedYear: 1909,
+    majorAchievements: {
+      worldCup: [
+        "FIFA World Cup (2010)"
+      ],
+      continental: [
+        "UEFA European Championship (1964, 2008, 2012)"
+      ],
+      domestic: [
+        "UEFA Nations League (2023)"
+      ]
+    }
   },
-  'Juventus': {
-    currentCoach: 'Thiago Motta',
-    _updateReason: 'Appointed June 2024',
-    _needsVerification: false
+  "Real Madrid": {
+    currentCoach: "Carlo Ancelotti",
+    country: "Spain",
+    type: "club",
+    majorAchievements: {
+      worldCup: [
+        "FIFA Club World Cup (2014)",
+        "FIFA Club World Cup (2016)", 
+        "FIFA Club World Cup (2017)",
+        "FIFA Club World Cup (2018)",
+        "FIFA Club World Cup (2022)"
+      ],
+      continental: [
+        "UEFA Champions League (1956, 1957, 1958, 1959, 1960, 1966, 1998, 2000, 2002, 2014, 2016, 2017, 2018, 2022, 2024)"
+      ],
+      domestic: [
+        "La Liga (36 titles)",
+        "Copa del Rey (20 titles)",
+        "Supercopa de España (13 titles)"
+      ]
+    },
+    stadium: "Santiago Bernabéu",
+    foundedYear: 1902
   },
-  'Brazil': {
-    currentCoach: 'Dorival Júnior',
-    _updateReason: 'Appointed January 2024',
-    _needsVerification: false
-  },
-  'Manchester City': {
-    currentCoach: 'Pep Guardiola',
-    _updateReason: 'Still manager as of 2025',
-    _needsVerification: false
-  },
-  'Arsenal': {
-    currentCoach: 'Mikel Arteta',
-    _updateReason: 'Still manager as of 2025',
-    _needsVerification: false
-  },
-  'Manchester United': {
-    currentCoach: 'Erik ten Hag',
-    _updateReason: 'Still manager as of 2025',
-    _needsVerification: false
-  },
-  'Paris Saint-Germain': {
-    currentCoach: 'Luis Enrique',
-    _updateReason: 'Still manager as of 2025',
-    _needsVerification: false
-  }
 };
 
-// Helper to determine which model to use
+// Always use 8B model for cost efficiency
 const shouldUseFallbackModel = (query: string): boolean => {
-  const queryLower = query.toLowerCase();
-  
-  // Always use 70B model for team searches and complex queries
-  const teamQueries = [
-    'real madrid',
-    'barcelona',
-    'manchester',
-    'bayern',
-    'psg',
-    'chelsea',
-    'liverpool',
-    'arsenal',
-    'juventus',
-    'milan',
-    'inter',
-    'dortmund',
-    'atléti',
-    'atletico',
-    'sevilla',
-    'valencia',
-    'betis',
-    'argentina',
-    'brazil',
-    'france',
-    'germany',
-    'spain',
-    'england',
-    'italy',
-    'portugal',
-    'netherlands',
-    'belgium',
-    'croatia'
-  ];
-  
-  const complexPatterns = [
-    'squad',
-    'team',
-    'players',
-    'roster',
-    'lineup',
-    'formation',
-    'tactics',
-    'compare',
-    'analysis',
-    'statistics',
-    'history',
-    'legend',
-    'greatest',
-    'best',
-    'versus',
-    'vs',
-    'head to head',
-    'transfer',
-    'market'
-  ];
-  
-  return teamQueries.some(team => queryLower.includes(team)) ||
-         complexPatterns.some(pattern => queryLower.includes(pattern));
+  console.log(`[GROQ] Using 8B instant model for: "${query}"`);
+  return false;
 };
 
 // Helper to determine query type
@@ -340,12 +344,12 @@ const determineQueryType = (query: string): 'national' | 'club' | 'player' | 'un
   const queryLower = query.toLowerCase();
   
   const nationalTeams = [
-    'españa', 'spain', 'espana',
-    'argentina', 'brazil', 'brasil', 
-    'france', 'francia', 'germany', 'alemania',
+    'españa', 'spain', 'espana', 'selección española',
+    'argentina', 'brasil', 'brazil', 
+    'france', 'francia', 'germany', 'alemania', 'deutschland',
     'italy', 'italia', 'portugal',
-    'england', 'inglaterra', 'netherlands', 'holanda',
-    'belgium', 'bélgica', 'croatia', 'croacia',
+    'england', 'inglaterra', 'netherlands', 'holanda', 'nederland',
+    'belgium', 'bélgica', 'croatia', 'croacia', 'hrvatska',
     'uruguay', 'chile', 'colombia', 'mexico', 'méxico',
     'usa', 'united states', 'estados unidos',
     'canada', 'canadá', 'japan', 'japón',
@@ -380,36 +384,26 @@ const getPlayerPriority = (player: Player): 'high' | 'medium' | 'low' => {
     return 'high';
   }
   
-  // HIGH PRIORITY: Managers, star players, older players
+  // HIGH PRIORITY: Star players, key transfers, older players
   if (
-    player.position.toLowerCase().includes('manager') ||
-    player.position.toLowerCase().includes('coach') ||
     player.age && player.age > 30 ||
-    player.currentTeam.includes('Real Madrid') ||
-    player.currentTeam.includes('Barcelona') ||
-    player.currentTeam.includes('Chelsea') ||
-    player.currentTeam.includes('PSG') ||
-    player.currentTeam.includes('Manchester') ||
-    player.currentTeam.includes('Al ')
+    name.includes('messi') ||
+    name.includes('ronaldo') ||
+    name.includes('mbappe') ||
+    name.includes('neymar')
   ) {
     return 'high';
   }
   
   // MEDIUM PRIORITY: Well-known players
   if (
-    name.includes('messi') ||
-    name.includes('ronaldo') ||
-    name.includes('mbappe') ||
-    name.includes('neymar') ||
     name.includes('modric') ||
     name.includes('benzema') ||
     name.includes('haaland') ||
     name.includes('de bruyne') ||
     name.includes('kane') ||
     name.includes('salah') ||
-    name.includes('mane') ||
-    name.includes('lewandowski') ||
-    player.majorAchievements.some(ach => ach.toLowerCase().includes('ballon'))
+    name.includes('lewandowski')
   ) {
     return 'medium';
   }
@@ -418,86 +412,203 @@ const getPlayerPriority = (player: Player): 'high' | 'medium' | 'low' => {
 };
 
 const playerNeedsVerification = (player: Player): boolean => {
-  // Always check if player is in critical updates
   if (CRITICAL_PLAYER_UPDATES_2024[player.name]) {
     return true;
   }
   
   const priority = getPlayerPriority(player);
-  
-  // Check for major club players
-  const majorClubs = [
-    'real madrid',
-    'barcelona',
-    'manchester',
-    'bayern',
-    'psg',
-    'chelsea',
-    'liverpool',
-    'arsenal',
-    'juventus',
-    'milan'
-  ];
-  
-  const currentTeamLower = player.currentTeam.toLowerCase();
-  if (majorClubs.some(club => currentTeamLower.includes(club))) {
-    return true;
-  }
-  
   return priority === 'high' || priority === 'medium';
 };
 
 /**
- * Apply critical updates to players
+ * Validate and correct achievement data
+ */
+const validateAndCorrectAchievements = (team: Team): Team => {
+  if (!team.majorAchievements) return team;
+  
+  const corrected = { ...team };
+  const achievements = corrected.majorAchievements;
+  
+  // Brazil validation - only 5 World Cup wins
+  if (team.name.toLowerCase() === 'brazil' && achievements.worldCup) {
+    const validWorldCupWins = [
+      "FIFA World Cup (1958)",
+      "FIFA World Cup (1962)", 
+      "FIFA World Cup (1970)",
+      "FIFA World Cup (1994)",
+      "FIFA World Cup (2002)"
+    ];
+    
+    // Filter out incorrect World Cup wins
+    achievements.worldCup = achievements.worldCup.filter(win => 
+      validWorldCupWins.includes(win) || validWorldCupWins.some(valid => win.includes(valid))
+    );
+    
+    // Add missing valid wins
+    validWorldCupWins.forEach(win => {
+      if (!achievements.worldCup.some(w => w.includes(win.replace('FIFA World Cup (', '').replace(')', '')))) {
+        achievements.worldCup.push(win);
+      }
+    });
+    
+    // Remove duplicates
+    achievements.worldCup = [...new Set(achievements.worldCup)];
+  }
+  
+  // Remove obviously incorrect years (like 2019, 2022 for Brazil World Cup)
+  if (achievements.worldCup) {
+    achievements.worldCup = achievements.worldCup.filter(win => {
+      const yearMatch = win.match(/\((\d{4})\)/);
+      if (!yearMatch) return true;
+      const year = parseInt(yearMatch[1]);
+      
+      // Brazil-specific validation
+      if (team.name.toLowerCase() === 'brazil') {
+        const validBrazilYears = [1958, 1962, 1970, 1994, 2002];
+        if (validBrazilYears.includes(year)) return true;
+        return false; // Remove incorrect years
+      }
+      
+      // Argentina validation
+      if (team.name.toLowerCase() === 'argentina') {
+        const validArgentinaYears = [1978, 1986, 2022];
+        if (validArgentinaYears.includes(year)) return true;
+        return false;
+      }
+      
+      // Italy validation
+      if (team.name.toLowerCase() === 'italy') {
+        const validItalyYears = [1934, 1938, 1982, 2006];
+        if (validItalyYears.includes(year)) return true;
+        return false;
+      }
+      
+      // Germany validation
+      if (team.name.toLowerCase() === 'germany') {
+        const validGermanyYears = [1954, 1974, 1990, 2014];
+        if (validGermanyYears.includes(year)) return true;
+        return false;
+      }
+      
+      // France validation
+      if (team.name.toLowerCase() === 'france') {
+        const validFranceYears = [1998, 2018];
+        if (validFranceYears.includes(year)) return true;
+        return false;
+      }
+      
+      // Spain validation
+      if (team.name.toLowerCase() === 'spain') {
+        const validSpainYears = [2010];
+        if (validSpainYears.includes(year)) return true;
+        return false;
+      }
+      
+      return true; // Keep if no specific validation
+    });
+  }
+  
+  return corrected;
+};
+
+/**
+ * Format achievements for better display
+ */
+const formatAchievementsForDisplay = (team: Team): Team => {
+  const validated = validateAndCorrectAchievements(team);
+  
+  if (!validated.majorAchievements) return validated;
+  
+  const formatted = { ...validated };
+  const achievements = formatted.majorAchievements;
+  
+  // Ensure all achievement arrays exist
+  achievements.worldCup = achievements.worldCup || [];
+  achievements.continental = achievements.continental || [];
+  achievements.domestic = achievements.domestic || [];
+  
+  return formatted;
+};
+
+/**
+ * Apply critical player updates with achievement validation
  */
 const applyCriticalUpdates = (players: Player[]): { players: Player[]; updates: number } => {
-  const updatedPlayers = [...players];
   let updates = 0;
-  
-  updatedPlayers.forEach((player, index) => {
-    const criticalUpdate = CRITICAL_PLAYER_UPDATES_2024[player.name];
-    if (criticalUpdate) {
-      const oldTeam = player.currentTeam;
-      updatedPlayers[index] = {
+  const updatedPlayers = players.map(player => {
+    let updatedPlayer = player;
+    
+    // Apply critical update if exists
+    if (CRITICAL_PLAYER_UPDATES_2024[player.name]) {
+      updates++;
+      console.log(`[CRITICAL UPDATE] Updating ${player.name}`);
+      updatedPlayer = {
         ...player,
-        ...criticalUpdate,
-        _source: 'Critical Update 2024',
+        ...CRITICAL_PLAYER_UPDATES_2024[player.name],
+        _source: player._source ? `${player._source} + Critical Update` : 'Critical Update',
         _lastVerified: new Date().toISOString()
       };
+    }
+    
+    // Validate player achievements
+    const name = updatedPlayer.name.toLowerCase();
+    
+    // Brazil players - remove false World Cup claims
+    if (updatedPlayer.nationality.toLowerCase().includes('brazil')) {
+      const hasFalseWorldCup = updatedPlayer.majorAchievements?.some(ach => 
+        ach.includes('FIFA World Cup (201') || ach.includes('FIFA World Cup (202')
+      );
       
-      if (oldTeam !== criticalUpdate.currentTeam) {
+      if (hasFalseWorldCup) {
+        console.log(`[VALIDATION] Removing false World Cup claims from ${updatedPlayer.name}`);
+        updatedPlayer.majorAchievements = updatedPlayer.majorAchievements.filter(ach => 
+          !(ach.includes('FIFA World Cup (201') || ach.includes('FIFA World Cup (202'))
+        );
+        
+        // Add correct achievements for known Brazilian players
+        if (name.includes('alisson') || name.includes('allison')) {
+          updatedPlayer.majorAchievements.push("Copa América (2019)", "UEFA Champions League (2019)");
+        }
+        if (name.includes('thiago silva')) {
+          updatedPlayer.majorAchievements.push("Copa América (2019)", "UEFA Champions League (2021)");
+        }
+        if (name.includes('neymar')) {
+          updatedPlayer.majorAchievements.push("Copa América (2019)", "UEFA Champions League (2015)");
+        }
+        
         updates++;
-        console.log(`[Critical Update] ${player.name}: ${oldTeam} → ${criticalUpdate.currentTeam}`);
       }
     }
+    
+    return updatedPlayer;
   });
   
   return { players: updatedPlayers, updates };
 };
 
 /**
- * Apply critical updates to teams
+ * Apply critical team updates with achievement validation
  */
 const applyCriticalTeamUpdates = (teams: Team[]): { teams: Team[]; updates: number } => {
-  const updatedTeams = [...teams];
   let updates = 0;
-  
-  updatedTeams.forEach((team, index) => {
-    const criticalUpdate = CRITICAL_TEAM_UPDATES_2024[team.name];
-    if (criticalUpdate) {
-      const oldCoach = team.currentCoach;
-      updatedTeams[index] = {
+  const updatedTeams = teams.map(team => {
+    let updatedTeam = team;
+    
+    // Apply critical update if exists
+    if (CRITICAL_TEAM_UPDATES_2024[team.name]) {
+      updates++;
+      console.log(`[CRITICAL UPDATE] Updating team ${team.name}`);
+      updatedTeam = {
         ...team,
-        ...criticalUpdate,
-        _source: 'Critical Update 2024',
-        _lastVerified: new Date().toISOString()
+        ...CRITICAL_TEAM_UPDATES_2024[team.name],
+        _source: team._source ? `${team._source} + Critical Update` : 'Critical Update',
+        _lastVerified: new Date().toISOString(),
+        _achievementsUpdated: true
       };
-      
-      if (oldCoach !== criticalUpdate.currentCoach) {
-        updates++;
-        console.log(`[Critical Update] ${team.name} coach: ${oldCoach} → ${criticalUpdate.currentCoach}`);
-      }
     }
+    
+    // Format achievements for display
+    return formatAchievementsForDisplay(updatedTeam);
   });
   
   return { teams: updatedTeams, updates };
@@ -515,26 +626,26 @@ const smartEnhancePlayers = async (players: Player[]): Promise<{ players: Player
   let updates = criticalResult.updates;
   let queries = 0;
   
-  // Now do Wikipedia enhancement for remaining high-priority players
-  const maxPlayersToCheck = Math.min(enhancedPlayers.length, 5); // Reduced to 5
+  // Limit to 8 players for Wikipedia checks
+  const maxPlayersToCheck = Math.min(enhancedPlayers.length, 8);
   
-  const prioritizedPlayers = enhancedPlayers.map(player => ({
-    player,
-    index: enhancedPlayers.indexOf(player),
-    priority: getPlayerPriority(player),
-    needsVerification: playerNeedsVerification(player) && !player._needsVerification
-  })).sort((a, b) => {
-    if (a.needsVerification && !b.needsVerification) return -1;
-    if (!a.needsVerification && b.needsVerification) return 1;
-    if (a.priority === 'high' && b.priority !== 'high') return -1;
-    if (a.priority !== 'high' && b.priority === 'high') return 1;
-    return 0;
-  }).slice(0, maxPlayersToCheck);
+  const prioritizedPlayers = enhancedPlayers
+    .map((player, index) => ({
+      player,
+      index,
+      priority: getPlayerPriority(player),
+      needsVerification: playerNeedsVerification(player)
+    }))
+    .sort((a, b) => {
+      if (a.priority === 'high' && b.priority !== 'high') return -1;
+      if (a.priority !== 'high' && b.priority === 'high') return 1;
+      if (a.priority === 'medium' && b.priority === 'low') return -1;
+      return 0;
+    })
+    .slice(0, maxPlayersToCheck);
   
   // Process Wikipedia checks
-  for (const { player, index, needsVerification } of prioritizedPlayers) {
-    if (!needsVerification) continue;
-    
+  for (const { player, index } of prioritizedPlayers) {
     try {
       const cacheKey = `player_wiki_${player.name.toLowerCase()}`;
       const cached = wikipediaCache.get(cacheKey);
@@ -592,44 +703,75 @@ const smartEnhanceTeams = async (teams: Team[]): Promise<{ teams: Team[]; querie
   let updates = criticalResult.updates;
   let queries = 0;
   
-  const team = enhancedTeams[0];
-  
-  try {
-    const cacheKey = `team_wiki_${team.name.toLowerCase()}`;
-    const cached = wikipediaCache.get(cacheKey);
-    const now = Date.now();
+  // Check each team
+  for (let i = 0; i < Math.min(enhancedTeams.length, 2); i++) {
+    const team = enhancedTeams[i];
     
-    let wikiData = null;
-    
-    if (cached && (now - cached.timestamp) < CACHE_TTL) {
-      wikiData = cached.data;
-    } else {
-      queries++;
-      wikiData = await fetchFromWikipedia(team.name);
+    try {
+      const cacheKey = `team_wiki_${team.name.toLowerCase()}`;
+      const cached = wikipediaCache.get(cacheKey);
+      const now = Date.now();
       
-      if (wikiData) {
-        wikipediaCache.set(cacheKey, { data: wikiData, timestamp: now });
+      let wikiData = null;
+      
+      if (cached && (now - cached.timestamp) < CACHE_TTL) {
+        wikiData = cached.data;
+      } else {
+        queries++;
+        wikiData = await fetchFromWikipedia(team.name);
+        
+        if (wikiData) {
+          wikipediaCache.set(cacheKey, { data: wikiData, timestamp: now });
+        }
       }
+      
+      if (wikiData && wikiData.summary) {
+        enhancedTeams[i] = {
+          ...enhancedTeams[i],
+          _wikiSummary: wikiData.summary.substring(0, 200) + '...',
+          _wikiFetchedAt: wikiData.fetchedAt || new Date().toISOString(),
+          _source: enhancedTeams[i]._source || 'Wikipedia Verified'
+        };
+        updates++;
+      }
+    } catch (error) {
+      console.error(`[Wikipedia] Team enhancement failed for ${team.name}:`, error);
     }
-    
-    if (wikiData && wikiData.summary) {
-      enhancedTeams[0] = {
-        ...enhancedTeams[0],
-        _wikiSummary: wikiData.summary.substring(0, 200) + '...',
-        _wikiFetchedAt: wikiData.fetchedAt || new Date().toISOString(),
-        _source: enhancedTeams[0]._source || 'Wikipedia Verified'
-      };
-      updates++;
-    }
-  } catch (error) {
-    console.error(`[Wikipedia] Team enhancement failed for ${team.name}:`, error);
   }
   
   return { teams: enhancedTeams, queries, updates };
 };
 
 /**
- * Main GROQ search function with smart optimization
+ * Helper function to ensure achievements are properly formatted for UI
+ */
+const ensureAchievementFormat = (team: Team): Team => {
+  if (!team.majorAchievements) {
+    return {
+      ...team,
+      majorAchievements: {
+        worldCup: [],
+        continental: [],
+        domestic: []
+      }
+    };
+  }
+  
+  // Ensure all achievement arrays exist
+  const achievements = {
+    worldCup: Array.isArray(team.majorAchievements.worldCup) ? team.majorAchievements.worldCup : [],
+    continental: Array.isArray(team.majorAchievements.continental) ? team.majorAchievements.continental : [],
+    domestic: Array.isArray(team.majorAchievements.domestic) ? team.majorAchievements.domestic : []
+  };
+  
+  return {
+    ...team,
+    majorAchievements: achievements
+  };
+};
+
+/**
+ * Main GROQ search function with improved validation
  */
 export const searchWithGROQ = async (query: string, language: string = 'en'): Promise<GROQSearchResponse> => {
   const apiKey = process.env.NEXT_PUBLIC_GROQ_API_KEY || process.env.GROQ_API_KEY;
@@ -639,16 +781,13 @@ export const searchWithGROQ = async (query: string, language: string = 'en'): Pr
       players: [],
       teams: [],
       youtubeQuery: '',
-      error: 'GROQ API key not configured. Please add NEXT_PUBLIC_GROQ_API_KEY to your .env.local file.',
+      error: 'GROQ API key not configured.',
       _metadata: {
         enhancedAt: new Date().toISOString(),
         analysis: { error: 'Missing API key' },
         appliedUpdates: [],
         dataSources: [],
-        apiStatus: {
-          wikipedia: 'Not checked',
-          groq: 'Missing key'
-        },
+        apiStatus: { wikipedia: 'Not checked', groq: 'Missing key' },
         currentSeason: `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`,
         dataCurrency: {
           aiCutoff: 'N/A',
@@ -656,13 +795,9 @@ export const searchWithGROQ = async (query: string, language: string = 'en'): Pr
           confidence: 'low',
           lastVerified: new Date().toISOString()
         },
-        disclaimer: 'GROQ API key missing. Cannot fetch AI data.',
-        recommendations: ['Check your .env.local file for GROQ_API_KEY'],
-        wikipediaUsage: {
-          queries: 0,
-          updates: 0,
-          timestamp: new Date().toISOString()
-        }
+        disclaimer: 'GROQ API key missing.',
+        recommendations: ['Check your .env.local file'],
+        wikipediaUsage: { queries: 0, updates: 0, timestamp: new Date().toISOString() }
       }
     };
   }
@@ -673,73 +808,41 @@ export const searchWithGROQ = async (query: string, language: string = 'en'): Pr
     
     console.log(`[GROQ] Searching for: "${query}" with model: ${model}, Language: ${language}`);
     
-    // ENHANCED PROMPT: Better understanding of national teams vs clubs
+    // ENHANCED SYSTEM PROMPT with STRICT achievement validation
     const systemPrompt = language === 'es' ? `
-ERES FutbolAI. Datos EXACTOS de fútbol 2024-2025.
+ERES FutbolAI. Proporciona información EXACTA y VERIFICADA de fútbol.
 
-**CRÍTICO: DISTINGUIR ENTRE EQUIPOS NACIONALES Y CLUBS**
+**DATOS HISTÓRICOS CORRECTOS (IMPORTANTE):**
+- Brasil: 5 Copas Mundiales (1958, 1962, 1970, 1994, 2002) - NO 2019, NO 2022
+- Argentina: 3 Copas Mundiales (1978, 1986, 2022)
+- Italia: 4 Copas Mundiales (1934, 1938, 1982, 2006)
+- Alemania: 4 Copas Mundiales (1954, 1974, 1990, 2014)
+- Francia: 2 Copas Mundiales (1998, 2018)
+- España: 1 Copa Mundial (2010)
+- Inglaterra: 1 Copa Mundial (1966)
 
-EQUIPOS NACIONALES (selecciones):
-- "España", "Argentina", "Brasil", "Francia" = Selección nacional
-- Deben devolver JUGADORES de la selección actual (12-15 jugadores)
-- NO devolver clubs españoles cuando se busca "España"
+**JUGADORES BRASILEÑOS ACTUALES:**
+- NO han ganado la Copa Mundial (última de Brasil fue 2002)
+- SÍ han ganado Copa América 2019
+- Alisson: UEFA Champions League 2019, Copa América 2019
+- Neymar: UEFA Champions League 2015, Copa América 2019
+- Thiago Silva: UEFA Champions League 2021, Copa América 2019
 
-CLUBS:
-- "Real Madrid", "Barcelona", "Manchester United" = Clubes
-- Devuelven jugadores del CLUB (15-20 jugadores)
+**INSTRUCCIONES CRÍTICAS:**
+1. SIEMPRE devuelve información del equipo en el array "teams"
+2. Para selecciones nacionales = tipo "national"
+3. Para clubes = tipo "club"
+4. Usa datos ACTUALES de 2024-2025
+5. NO inventes títulos que no existen
+6. Verifica años de Copas Mundiales
+7. Para Brasil: máximo 5 Copas Mundiales
+8. Si no estás seguro, déjalo vacío
 
-**INFORMACIÓN CRÍTICA 2024-2025:**
-• REAL MADRID: Entrenador = Xabi Alonso (desde junio 2024). 15 Champions League.
-• SELECCIÓN ESPAÑOLA: Entrenador = Luis de la Fuente (desde 2022).
-• TRANSFERENCIAS 2024: Kylian Mbappé → Real Madrid, Luka Modrić → Al Nassr, Toni Kroos → Retirado.
-
-**EJEMPLOS CORRECTOS:**
-
-Para "España" (selección nacional):
-{
-  "players": [
-    {"name": "Álvaro Morata", "currentTeam": "Atlético de Madrid", "position": "Delantero", "age": 31, "nationality": "Español", ...},
-    {"name": "Rodri", "currentTeam": "Manchester City", "position": "Centrocampista", "age": 27, "nationality": "Español", ...},
-    ...
-  ],
-  "teams": [{
-    "name": "España",
-    "type": "national",
-    "country": "España",
-    "currentCoach": "Luis de la Fuente",
-    ...
-  }]
-}
-
-Para "Real Madrid" (club):
-{
-  "players": [
-    {"name": "Thibaut Courtois", "currentTeam": "Real Madrid", "position": "Portero", ...},
-    {"name": "Kylian Mbappé", "currentTeam": "Real Madrid", "position": "Delantero", ...},
-    ...
-  ],
-  "teams": [{
-    "name": "Real Madrid",
-    "type": "club",
-    "country": "España",
-    "currentCoach": "Xabi Alonso",
-    ...
-  }]
-}
-
-**REGLAS OBLIGATORIAS:**
-1. Si el usuario busca un país (España, Argentina, Brasil) = EQUIPO NACIONAL
-2. Si el usuario busca un club = CLUB
-3. Devuelve jugadores REALES, actuales (temporada 2024-2025)
-4. Para nacionales: 12-15 jugadores de la selección ACTUAL
-5. Para clubs: 15-20 jugadores del plantel ACTUAL
-6. Datos ACTUALIZADOS 2024-2025
-
-FORMATO EXACTO JSON (SOLO JSON):
+**FORMATO JSON EXACTO:**
 {
   "players": [{
     "name": "string",
-    "currentTeam": "string (CLUB ACTUAL 2024-2025)",
+    "currentTeam": "string (club ACTUAL 2024-2025)",
     "position": "string",
     "age": number,
     "nationality": "string",
@@ -747,87 +850,57 @@ FORMATO EXACTO JSON (SOLO JSON):
     "careerAssists": number,
     "internationalAppearances": number,
     "internationalGoals": number,
-    "majorAchievements": ["string"],
+    "majorAchievements": ["string (SÓLO logros REALES)"],
     "careerSummary": "string"
   }],
   "teams": [{
     "name": "string",
     "type": "club" o "national",
     "country": "string",
-    "stadium": "string",
-    "currentCoach": "string (ENTRENADOR ACTUAL 2024-2025)",
+    "stadium": "string (solo clubs)",
+    "currentCoach": "string",
     "foundedYear": number,
     "majorAchievements": {
-      "worldCup": ["string"],
+      "worldCup": ["string (SÓLO años CORRECTOS)"],
       "continental": ["string"],
       "domestic": ["string"]
     }
   }],
   "youtubeQuery": "string",
-  "message": "string (Incluir 'Información actualizada a 2024')"
+  "message": "string"
 }
+
+**NO INVENTES:** Si Brasil, máximo 5 Copas Mundiales. Jugadores brasileños actuales NO tienen Copa Mundial.
 ` : `
-YOU ARE FutbolAI. EXACT football data 2024-2025.
+YOU ARE FutbolAI. Provide ACCURATE and VERIFIED football information.
 
-**CRITICAL: DISTINGUISH BETWEEN NATIONAL TEAMS AND CLUBS**
+**CORRECT HISTORICAL DATA (CRITICAL):**
+- Brazil: 5 World Cups (1958, 1962, 1970, 1994, 2002) - NOT 2019, NOT 2022
+- Argentina: 3 World Cups (1978, 1986, 2022)
+- Italy: 4 World Cups (1934, 1938, 1982, 2006)
+- Germany: 4 World Cups (1954, 1974, 1990, 2014)
+- France: 2 World Cups (1998, 2018)
+- Spain: 1 World Cup (2010)
+- England: 1 World Cup (1966)
 
-NATIONAL TEAMS (countries):
-- "Spain", "Argentina", "Brazil", "France" = National team
-- Must return PLAYERS from the national squad (12-15 players)
-- Do NOT return Spanish clubs when searching for "Spain"
+**CURRENT BRAZILIAN PLAYERS:**
+- Have NOT won the World Cup (Brazil's last was 2002)
+- HAVE won Copa América 2019
+- Alisson: UEFA Champions League 2019, Copa América 2019
+- Neymar: UEFA Champions League 2015, Copa América 2019
+- Thiago Silva: UEFA Champions League 2021, Copa América 2019
 
-CLUBS:
-- "Real Madrid", "Barcelona", "Manchester United" = Clubs
-- Return players from the CLUB (15-20 players)
+**CRITICAL INSTRUCTIONS:**
+1. ALWAYS return team information in the "teams" array
+2. For national teams = type "national"
+3. For clubs = type "club"
+4. Use CURRENT data from 2024-2025 season
+5. DO NOT invent titles that don't exist
+6. Verify World Cup years
+7. For Brazil: maximum 5 World Cups
+8. If unsure, leave it empty
 
-**CRITICAL 2024-2025 INFORMATION:**
-• REAL MADRID: Coach = Xabi Alonso (since June 2024). 15 UEFA Champions League titles.
-• SPAIN NATIONAL TEAM: Coach = Luis de la Fuente (since 2022).
-• 2024 TRANSFERS: Kylian Mbappé → Real Madrid, Luka Modrić → Al Nassr, Toni Kroos → Retired.
-
-**CORRECT EXAMPLES:**
-
-For "Spain" (national team):
-{
-  "players": [
-    {"name": "Álvaro Morata", "currentTeam": "Atlético de Madrid", "position": "Forward", "age": 31, "nationality": "Spanish", ...},
-    {"name": "Rodri", "currentTeam": "Manchester City", "position": "Midfielder", "age": 27, "nationality": "Spanish", ...},
-    ...
-  ],
-  "teams": [{
-    "name": "Spain",
-    "type": "national",
-    "country": "Spain",
-    "currentCoach": "Luis de la Fuente",
-    ...
-  }]
-}
-
-For "Real Madrid" (club):
-{
-  "players": [
-    {"name": "Thibaut Courtois", "currentTeam": "Real Madrid", "position": "Goalkeeper", ...},
-    {"name": "Kylian Mbappé", "currentTeam": "Real Madrid", "position": "Forward", ...},
-    ...
-  ],
-  "teams": [{
-    "name": "Real Madrid",
-    "type": "club",
-    "country": "Spain",
-    "currentCoach": "Xabi Alonso",
-    ...
-  }]
-}
-
-**MANDATORY RULES:**
-1. If user searches a country (Spain, Argentina, Brazil) = NATIONAL TEAM
-2. If user searches a club = CLUB
-3. Return REAL, current players (2024-2025 season)
-4. For national teams: 12-15 players from CURRENT national squad
-5. For clubs: 15-20 players from CURRENT club squad
-6. UPDATED 2024-2025 data
-
-EXACT JSON FORMAT (ONLY JSON):
+**EXACT JSON FORMAT:**
 {
   "players": [{
     "name": "string",
@@ -839,30 +912,32 @@ EXACT JSON FORMAT (ONLY JSON):
     "careerAssists": number,
     "internationalAppearances": number,
     "internationalGoals": number,
-    "majorAchievements": ["string"],
+    "majorAchievements": ["string (ONLY REAL achievements)"],
     "careerSummary": "string"
   }],
   "teams": [{
     "name": "string",
     "type": "club" or "national",
     "country": "string",
-    "stadium": "string",
-    "currentCoach": "string (CURRENT 2024-2025 COACH)",
+    "stadium": "string (clubs only)",
+    "currentCoach": "string",
     "foundedYear": number,
     "majorAchievements": {
-      "worldCup": ["string"],
+      "worldCup": ["string (ONLY CORRECT years)"],
       "continental": ["string"],
       "domestic": ["string"]
     }
   }],
   "youtubeQuery": "string",
-  "message": "string (Include 'Information as of 2024')"
+  "message": "string"
 }
+
+**DO NOT INVENT:** If Brazil, maximum 5 World Cups. Current Brazilian players do NOT have World Cup.
 `;
 
     const userPrompt = language === 'es' 
-      ? `Consulta de fútbol: "${query}". Devuelve SOLO datos en formato JSON.`
-      : `Football query: "${query}". Return ONLY data in JSON format.`;
+      ? `Consulta de fútbol: "${query}". Devuelve SOLO datos VERIFICADOS en formato JSON. NO inventes títulos.`
+      : `Football query: "${query}". Return ONLY VERIFIED data in JSON format. DO NOT invent titles.`;
 
     const completion = await groq.chat.completions.create({
       messages: [
@@ -877,7 +952,7 @@ EXACT JSON FORMAT (ONLY JSON):
       ],
       model: model,
       temperature: 0.1,
-      max_tokens: 3500, // Increased for more players
+      max_tokens: 4000,
       response_format: { type: 'json_object' }
     });
 
@@ -896,10 +971,7 @@ EXACT JSON FORMAT (ONLY JSON):
           analysis: { error: 'Empty response' },
           appliedUpdates: [],
           dataSources: ['GROQ AI'],
-          apiStatus: {
-            wikipedia: 'Not used',
-            groq: 'Success'
-          },
+          apiStatus: { wikipedia: 'Not used', groq: 'Success' },
           currentSeason: `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`,
           dataCurrency: {
             aiCutoff: '2024',
@@ -909,11 +981,7 @@ EXACT JSON FORMAT (ONLY JSON):
           },
           disclaimer: 'AI returned empty response.',
           recommendations: ['Try a different search term'],
-          wikipediaUsage: {
-            queries: 0,
-            updates: 0,
-            timestamp: new Date().toISOString()
-          }
+          wikipediaUsage: { queries: 0, updates: 0, timestamp: new Date().toISOString() }
         }
       };
     }
@@ -925,7 +993,12 @@ EXACT JSON FORMAT (ONLY JSON):
       const playerCount = Array.isArray(parsed.players) ? parsed.players.length : 0;
       console.log(`[GROQ] Found ${playerCount} players in response`);
       
-      // Use ENHANCED GROQ RESPONSE (the main fix!)
+      // Ensure team achievements are properly formatted
+      if (parsed.teams && Array.isArray(parsed.teams)) {
+        parsed.teams = parsed.teams.map(ensureAchievementFormat);
+      }
+      
+      // Use ENHANCED GROQ RESPONSE
       console.log('[GROQ] Using enhanced GROQ response from dataEnhancerService...');
       const wikipediaConfigured = isWikipediaConfigured();
       console.log('[GROQ] Wikipedia API configured:', wikipediaConfigured);
@@ -935,15 +1008,28 @@ EXACT JSON FORMAT (ONLY JSON):
       let wikipediaUpdates = 0;
       let achievementCorrections: string[] = [];
       
+      // Apply critical updates regardless of Wikipedia
+      if (enhancedResult.players && enhancedResult.players.length > 0) {
+        const criticalResult = applyCriticalUpdates(enhancedResult.players);
+        enhancedResult.players = criticalResult.players;
+        wikipediaUpdates += criticalResult.updates;
+      }
+      
+      if (enhancedResult.teams && enhancedResult.teams.length > 0) {
+        const criticalTeamResult = applyCriticalTeamUpdates(enhancedResult.teams);
+        enhancedResult.teams = criticalTeamResult.teams;
+        wikipediaUpdates += criticalTeamResult.updates;
+      }
+      
       if (wikipediaConfigured) {
         try {
-          // CRITICAL FIX: Use the correct enhanceGROQResponse function
-          enhancedResult = await enhanceGROQResponse(parsed, query);
-          console.log('[GROQ] Enhanced result via dataEnhancerService:', enhancedResult);
+          // Use enhanceGROQResponse for Wikipedia enhancement
+          const enhancedResponse = await enhanceGROQResponse(enhancedResult, query);
+          enhancedResult = enhancedResponse;
           
           if (enhancedResult._metadata) {
             wikipediaQueries = enhancedResult._metadata.wikipediaUsage?.queries || 0;
-            wikipediaUpdates = enhancedResult._metadata.wikipediaUsage?.updates || 0;
+            wikipediaUpdates += enhancedResult._metadata.wikipediaUsage?.updates || 0;
             achievementCorrections = enhancedResult._metadata.achievementCorrections || [];
           }
           
@@ -968,59 +1054,100 @@ EXACT JSON FORMAT (ONLY JSON):
             }
           } catch (smartError) {
             console.error('[GROQ] Smart enhancement also failed:', smartError);
-            enhancedResult = parsed;
           }
         }
       } else {
         console.log('[GROQ] Wikipedia API not configured, using basic result');
-        enhancedResult = parsed;
+      }
+      
+      // Ensure final teams have proper achievement format
+      if (enhancedResult.teams && Array.isArray(enhancedResult.teams)) {
+        enhancedResult.teams = enhancedResult.teams.map(ensureAchievementFormat);
+      }
+      
+      const queryType = determineQueryType(query);
+      const isClub = queryType === 'club';
+      const minPlayersRequired = isClub ? 8 : 10;
+      const hasEnoughPlayers = playerCount >= minPlayersRequired;
+      
+      // Calculate achievement counts for metadata
+      let worldCupCount = 0;
+      let continentalCount = 0;
+      let domesticCount = 0;
+      
+      if (enhancedResult.teams && enhancedResult.teams.length > 0) {
+        const team = enhancedResult.teams[0];
+        if (team.majorAchievements) {
+          worldCupCount = team.majorAchievements.worldCup?.length || 0;
+          continentalCount = team.majorAchievements.continental?.length || 0;
+          domesticCount = team.majorAchievements.domestic?.length || 0;
+        }
+      }
+      
+      // Track achievement corrections
+      const queryLower = query.toLowerCase();
+      if (queryLower.includes('brazil') && worldCupCount > 5) {
+        achievementCorrections.push(`Corrected Brazil World Cup count from ${worldCupCount} to 5`);
+        worldCupCount = 5;
       }
       
       const result: GROQSearchResponse = {
         players: Array.isArray(enhancedResult.players) ? enhancedResult.players : [],
         teams: Array.isArray(enhancedResult.teams) ? enhancedResult.teams.slice(0, 1) : [],
-        youtubeQuery: enhancedResult.youtubeQuery || `${query} football highlights ${new Date().getFullYear()}`,
+        youtubeQuery: enhancedResult.youtubeQuery || `${query} football 2024 highlights`,
         message: enhancedResult.message || `Found information for "${query}"`,
         error: enhancedResult.error || null,
-        _metadata: enhancedResult._metadata || {
+        _metadata: {
           enhancedAt: new Date().toISOString(),
           analysis: {
             playerCount: playerCount,
-            isLikelyOutdated: false,
-            outdatedFields: [],
-            suggestions: playerCount < 5 ? ['Insufficient players returned'] : ['Data verified'],
-            needsEnhancement: false,
-            confidence: wikipediaUpdates > 0 ? 'high' : (playerCount >= 10 ? 'medium' : 'low'),
-            smartEnhancement: false,
+            isLikelyOutdated: !hasEnoughPlayers,
+            outdatedFields: hasEnoughPlayers ? [] : ['player_count'],
+            suggestions: hasEnoughPlayers ? 
+              ['Data appears current'] : 
+              [`Expected ${minPlayersRequired}+ players, got ${playerCount}`],
+            needsEnhancement: wikipediaUpdates > 0,
+            confidence: wikipediaUpdates > 0 ? 'high' : (hasEnoughPlayers ? 'medium' : 'low'),
+            smartEnhancement: true,
             playersChecked: playerCount,
             playersUpdated: wikipediaUpdates,
             modelUsed: model,
             criticalUpdatesApplied: wikipediaUpdates > 0,
-            queryType: determineQueryType(query)
+            queryType: queryType,
+            achievementCounts: {
+              worldCup: worldCupCount,
+              continental: continentalCount,
+              domestic: domesticCount
+            },
+            dataValidation: {
+              worldCupYearsValidated: true,
+              achievementCorrections: achievementCorrections.length,
+              criticalUpdates: wikipediaUpdates
+            }
           },
           appliedUpdates: [],
-          dataSources: ['GROQ AI'],
+          dataSources: ['GROQ AI', ...(wikipediaUpdates > 0 ? ['Critical Updates'] : [])],
           apiStatus: {
             wikipedia: wikipediaConfigured ? 'Enhanced' : 'Not configured',
             groq: 'Success'
           },
-          currentSeason: `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`,
+          currentSeason: '2024/2025',
           dataCurrency: {
-            aiCutoff: '2024',
-            verifiedWith: wikipediaConfigured ? 'Wikipedia + Critical Updates' : 'None',
-            confidence: wikipediaUpdates > 0 ? 'high' : (playerCount >= 10 ? 'medium' : 'low'),
+            aiCutoff: 'October 2024',
+            verifiedWith: wikipediaConfigured ? 'Wikipedia + Critical Updates' : 'Critical Updates',
+            confidence: wikipediaUpdates > 0 ? 'high' : (hasEnoughPlayers ? 'medium' : 'low'),
             lastVerified: new Date().toISOString()
           },
           disclaimer: wikipediaConfigured 
-            ? 'Wikipedia verification with critical 2024 updates applied.'
-            : 'Wikipedia API not configured. Data may be outdated.',
-          recommendations: playerCount < 5 ? [
-            'The AI returned fewer players than expected.',
-            'Try searching for the specific team name.',
-            'Visit official team websites for complete squad lists.'
+            ? `Wikipedia verification applied. ${wikipediaUpdates} critical updates. ${achievementCorrections.length > 0 ? 'Achievements validated and corrected.' : ''}`
+            : 'Critical updates applied. Wikipedia API not configured.',
+          recommendations: hasEnoughPlayers ? [
+            'Data verified with 2024-2025 updates',
+            'Check official club websites for latest transfers'
           ] : [
-            'Check official sources for absolutely current information',
-            'Visit club websites for latest squad details'
+            `Expected more players (got ${playerCount}, expected ${minPlayersRequired}+)`,
+            'Try more specific search terms',
+            'The AI might not have complete squad data'
           ],
           wikipediaUsage: {
             queries: wikipediaQueries,
@@ -1031,82 +1158,83 @@ EXACT JSON FORMAT (ONLY JSON):
         }
       };
       
-      // Add enhancement note to message
-      let enhancementNote = '';
-      if (wikipediaUpdates > 0 && result.message) {
-        enhancementNote = language === 'es' 
-          ? ` (Actualizado 2024 - ${wikipediaUpdates} correcciones)`
-          : ` (Updated 2024 - ${wikipediaUpdates} corrections)`;
-      } else if (wikipediaConfigured && result.message) {
-        enhancementNote = language === 'es'
-          ? ' (Verificado con Wikipedia)'
-          : ' (Verified with Wikipedia)';
-      }
-      
-      let playerCountMessage = '';
-      if (playerCount >= 5) {
-        playerCountMessage = language === 'es' 
+      // Add player count and update info to message
+      let playerCountNote = '';
+      if (playerCount > 0) {
+        playerCountNote = language === 'es' 
           ? ` • ${playerCount} jugadores`
           : ` • ${playerCount} players`;
       }
       
+      let updateNote = '';
+      if (wikipediaUpdates > 0) {
+        updateNote = language === 'es'
+          ? ` (Actualizado 2024-2025)`
+          : ` (Updated 2024-2025)`;
+      }
+      
+      // Add validation note for Brazil
+      if (queryLower.includes('brazil') && achievementCorrections.length > 0) {
+        const validationNote = language === 'es'
+          ? ' • Logros validados'
+          : ' • Achievements validated';
+        if (result.message) {
+          result.message = `${result.message}${validationNote}`;
+        }
+      }
+      
       if (result.message) {
-        result.message = `${result.message}${playerCountMessage}${enhancementNote}`;
+        result.message = `${result.message}${playerCountNote}${updateNote}`;
       }
       
       console.log(`[GROQ] Final response: ${result.players.length} players, ${result.teams.length} teams`);
+      console.log(`[GROQ] Achievement counts: World Cup: ${worldCupCount}, Continental: ${continentalCount}, Domestic: ${domesticCount}`);
       console.log('[GROQ] Model used:', model);
-      console.log('[GROQ] Wikipedia usage:', result._metadata.wikipediaUsage);
       return result;
       
     } catch (parseError) {
-      console.error('[GROQ] Failed to parse JSON response:', parseError, 'Response:', response);
+      console.error('[GROQ] Failed to parse JSON response:', parseError);
       
+      // Try to extract JSON from text
       try {
         const jsonMatch = response.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           console.log('[GROQ] Attempting to extract JSON from text...');
           const extracted = JSON.parse(jsonMatch[0]);
           
-          // Try to enhance extracted JSON
-          let enhancedExtracted = extracted;
-          if (wikipediaConfigured) {
-            try {
-              enhancedExtracted = await enhanceGROQResponse(extracted, query);
-            } catch (e) {
-              console.error('[GROQ] Enhancement of extracted JSON failed:', e);
-            }
+          // Apply critical updates to extracted data
+          if (extracted.players) {
+            const criticalResult = applyCriticalUpdates(extracted.players);
+            extracted.players = criticalResult.players;
+          }
+          
+          // Ensure achievement format
+          if (extracted.teams && Array.isArray(extracted.teams)) {
+            extracted.teams = extracted.teams.map(ensureAchievementFormat);
           }
           
           return {
-            players: Array.isArray(enhancedExtracted.players) ? enhancedExtracted.players : [],
-            teams: Array.isArray(enhancedExtracted.teams) ? enhancedExtracted.teams.slice(0, 1) : [],
-            youtubeQuery: enhancedExtracted.youtubeQuery || `${query} football highlights`,
-            message: enhancedExtracted.message || `Found information for "${query}"`,
+            players: Array.isArray(extracted.players) ? extracted.players : [],
+            teams: Array.isArray(extracted.teams) ? extracted.teams.slice(0, 1) : [],
+            youtubeQuery: extracted.youtubeQuery || `${query} football highlights`,
+            message: extracted.message || `Found information for "${query}"`,
             error: null,
-            _metadata: enhancedExtracted._metadata || {
+            _metadata: {
               enhancedAt: new Date().toISOString(),
-              analysis: { note: 'Response extracted from text', playerCount: Array.isArray(enhancedExtracted.players) ? enhancedExtracted.players.length : 0 },
+              analysis: { note: 'Response extracted from text' },
               appliedUpdates: [],
               dataSources: ['GROQ AI (extracted)'],
-              apiStatus: {
-                wikipedia: wikipediaConfigured ? 'Used' : 'Not used',
-                groq: 'Success'
-              },
-              currentSeason: `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`,
+              apiStatus: { wikipedia: 'Not used', groq: 'Success' },
+              currentSeason: '2024/2025',
               dataCurrency: {
                 aiCutoff: '2024',
-                verifiedWith: wikipediaConfigured ? 'Wikipedia' : 'None',
+                verifiedWith: 'Critical Updates',
                 confidence: 'medium',
                 lastVerified: new Date().toISOString()
               },
-              disclaimer: 'Response required extraction. Data may be incomplete.',
+              disclaimer: 'Response required extraction.',
               recommendations: ['Verify with official sources'],
-              wikipediaUsage: {
-                queries: 0,
-                updates: 0,
-                timestamp: new Date().toISOString()
-              }
+              wikipediaUsage: { queries: 0, updates: 0, timestamp: new Date().toISOString() }
             }
           };
         }
@@ -1118,18 +1246,15 @@ EXACT JSON FORMAT (ONLY JSON):
         players: [],
         teams: [],
         youtubeQuery: `${query} football highlights`,
-        error: 'Failed to parse AI response. The service returned invalid JSON.',
+        error: 'Failed to parse AI response.',
         message: 'Technical error processing the response.',
         _metadata: {
           enhancedAt: new Date().toISOString(),
           analysis: { error: 'JSON parse failed' },
           appliedUpdates: [],
           dataSources: [],
-          apiStatus: {
-            wikipedia: 'Not used',
-            groq: 'Success'
-          },
-          currentSeason: `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`,
+          apiStatus: { wikipedia: 'Not used', groq: 'Success' },
+          currentSeason: '2024/2025',
           dataCurrency: {
             aiCutoff: 'N/A',
             verifiedWith: 'None',
@@ -1138,11 +1263,7 @@ EXACT JSON FORMAT (ONLY JSON):
           },
           disclaimer: 'Could not parse AI response.',
           recommendations: ['Try again with a different query'],
-          wikipediaUsage: {
-            queries: 0,
-            updates: 0,
-            timestamp: new Date().toISOString()
-          }
+          wikipediaUsage: { queries: 0, updates: 0, timestamp: new Date().toISOString() }
         }
       };
     }
@@ -1165,7 +1286,7 @@ EXACT JSON FORMAT (ONLY JSON):
           wikipedia: 'Not used',
           groq: error?.status === 401 ? 'Invalid key' : 'Error'
         },
-        currentSeason: `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`,
+        currentSeason: '2024/2025',
         dataCurrency: {
           aiCutoff: 'N/A',
           verifiedWith: 'None',
@@ -1174,27 +1295,18 @@ EXACT JSON FORMAT (ONLY JSON):
         },
         disclaimer: 'API request failed.',
         recommendations: ['Check your internet connection', 'Verify API keys'],
-        wikipediaUsage: {
-          queries: 0,
-          updates: 0,
-          timestamp: new Date().toISOString()
-        }
+        wikipediaUsage: { queries: 0, updates: 0, timestamp: new Date().toISOString() }
       }
     };
     
     if (error?.status === 401) {
-      errorResponse.error = 'Invalid GROQ API key. Please check your GROQ_API_KEY in .env.local';
+      errorResponse.error = 'Invalid GROQ API key.';
       errorResponse._metadata!.recommendations = ['Verify your GROQ API key is correct'];
     }
     
     if (error?.status === 429) {
       errorResponse.error = 'Rate limit exceeded. Please wait a moment and try again.';
       errorResponse._metadata!.recommendations = ['Wait 60 seconds before trying again'];
-    }
-    
-    if (error?.message?.includes('network') || error?.message?.includes('fetch')) {
-      errorResponse.error = 'Network error. Please check your internet connection.';
-      errorResponse._metadata!.recommendations = ['Check your internet connection and try again'];
     }
     
     return errorResponse;
@@ -1205,46 +1317,76 @@ EXACT JSON FORMAT (ONLY JSON):
 export const GROQSearch = searchWithGROQ;
 
 /**
- * Get historical/legendary players for a team
+ * Get historical/legendary players for a team with dynamic era naming
  */
 export const getHistoricalPlayers = async (teamName: string, teamType: 'club' | 'national', language: string = 'en'): Promise<Player[]> => {
   try {
-    console.log(`[GROQ] Fetching historical players for: "${teamName}" (${teamType}), Language: ${language}`);
+    console.log(`[GROQ] Fetching historical players for: "${teamName}"`);
     
     const apiKey = process.env.NEXT_PUBLIC_GROQ_API_KEY || process.env.GROQ_API_KEY;
-    if (!apiKey || apiKey.trim() === '') {
+    if (!apiKey) {
       console.error('[GROQ] API key missing for historical players');
       return [];
+    }
+
+    // Determine era based on team type and name
+    let eraContext = '';
+    if (teamType === 'national') {
+      if (teamName.toLowerCase().includes('argentina')) {
+        eraContext = 'Golden generations including 1978, 1986, and 2022 World Cup winners';
+      } else if (teamName.toLowerCase().includes('brazil')) {
+        eraContext = 'Legendary squads from 1958, 1962, 1970, 1994, and 2002 World Cup winning teams';
+      } else if (teamName.toLowerCase().includes('spain')) {
+        eraContext = '2008-2012 golden era with tiki-taka style and 2010 World Cup';
+      } else if (teamName.toLowerCase().includes('italy')) {
+        eraContext = 'Defensive masters from 1934, 1938, 1982, and 2006 World Cup winning eras';
+      } else if (teamName.toLowerCase().includes('germany')) {
+        eraContext = 'Efficient squads from 1954, 1974, 1990, and 2014 World Cup winning eras';
+      }
+    } else {
+      // Club eras
+      if (teamName.toLowerCase().includes('real madrid')) {
+        eraContext = 'Galácticos era, 5 consecutive European Cups (1956-1960), and modern Champions League dominance';
+      } else if (teamName.toLowerCase().includes('barcelona')) {
+        eraContext = 'Dream Team (1990s), Pep Guardiola era (2008-2012), and MSN trident (2014-2017)';
+      }
     }
 
     const completion = await groq.chat.completions.create({
       messages: [
         {
           role: 'system',
-          content: `You are a football historian. Provide information about legendary/iconic players from football teams.
+          content: `You are a football historian. Provide ACCURATE information about legendary players.
 
 ${language === 'es' ? 'RESPONDE EN ESPAÑOL.' : 'RESPOND IN ENGLISH.'}
+
+**IMPORTANT:**
+- For Brazil: only players from 1958, 1962, 1970, 1994, or 2002 World Cup winning squads
+- NO current Brazilian players (they haven't won World Cup)
+- Be specific about eras and achievements
 
 Return JSON with this exact structure:
 {
   "legendaryPlayers": [{
     "name": "string",
-    "era": "string",
+    "era": "string (specific era like '1958 World Cup Squad', '1970 Golden Generation', etc.)",
     "position": "string",
     "nationality": "string",
     "yearsAtTeam": "string",
-    "achievementsWithTeam": ["string"],
+    "achievementsWithTeam": ["string (only REAL achievements)"],
     "legacySummary": "string"
   }]
 }
 
-${language === 'es' ? 'Proporciona 8-12 jugadores legendarios.' : 'Return 8-12 legendary players.'}`
+${eraContext ? `Context: ${eraContext}` : ''}
+
+${language === 'es' ? 'Proporciona 8-12 jugadores legendarios de diferentes épocas.' : 'Return 8-12 legendary players from different eras.'}`
         },
         {
           role: 'user',
           content: `${language === 'es' ? 
-            `Proporciona información sobre jugadores legendarios de ${teamName}.` : 
-            `Provide information about legendary players from ${teamName}.`}`
+            `Proporciona información VERIFICADA sobre jugadores legendarios de ${teamName}. Solo logros reales.` : 
+            `Provide VERIFIED information about legendary players from ${teamName}. Only real achievements.`}`
         }
       ],
       model: MODEL_CONFIG.historical,
@@ -1263,7 +1405,7 @@ ${language === 'es' ? 'Proporciona 8-12 jugadores legendarios.' : 'Return 8-12 l
     try {
       const parsed = JSON.parse(response);
       if (parsed.legendaryPlayers && Array.isArray(parsed.legendaryPlayers)) {
-        console.log(`[GROQ] Found ${parsed.legendaryPlayers.length} historical players for ${teamName}`);
+        console.log(`[GROQ] Found ${parsed.legendaryPlayers.length} historical players`);
         
         return parsed.legendaryPlayers.map((legend: any) => ({
           name: legend.name,
@@ -1279,7 +1421,8 @@ ${language === 'es' ? 'Proporciona 8-12 jugadores legendarios.' : 'Return 8-12 l
           careerSummary: legend.legacySummary || `${legend.name} is a legendary player for ${teamName}.`,
           _source: 'Historical Legend',
           _era: legend.era,
-          _yearsAtTeam: legend.yearsAtTeam
+          _yearsAtTeam: legend.yearsAtTeam,
+          _priority: 'low'
         }));
       }
       return [];
@@ -1302,17 +1445,11 @@ export const needsDataVerification = (response: GROQSearchResponse): boolean => 
   if (response._metadata.analysis?.isLikelyOutdated) return true;
   if (response._metadata.analysis?.outdatedFields?.length > 0) return true;
   
-  if (response._metadata.wikipediaUsage?.updates === 0 && 
-      response._metadata.wikipediaUsage?.queries > 0) {
-    return false;
-  }
+  const playerCount = response.players.length;
+  const queryType = response._metadata.analysis?.queryType;
+  const minRequired = queryType === 'club' ? 8 : 10;
   
-  if (response.players.length < 5) {
-    return true;
-  }
-  
-  const allText = JSON.stringify(response).toLowerCase();
-  if (allText.includes('as of 2024') || allText.includes('2024 season')) {
+  if (playerCount < minRequired) {
     return true;
   }
   
@@ -1332,15 +1469,15 @@ export const getDataSourceInfo = (response: GROQSearchResponse): {
   }
   
   if (response._metadata.wikipediaUsage?.updates > 0) {
-    return { source: 'Wikipedia Updated', color: 'green', icon: '✅' };
+    return { source: 'Wikipedia + Critical Updates', color: 'green', icon: '✅' };
+  }
+  
+  if (response._metadata.dataCurrency?.verifiedWith?.includes('Critical')) {
+    return { source: 'Critical Updates', color: 'purple', icon: '🔧' };
   }
   
   if (response._metadata.wikipediaUsage?.queries > 0) {
     return { source: 'Wikipedia Verified', color: 'blue', icon: '🌐' };
-  }
-  
-  if (response._metadata.dataSources?.includes('Critical Update')) {
-    return { source: 'Critical Update', color: 'purple', icon: '🔧' };
   }
   
   return { source: 'AI Data', color: 'yellow', icon: '🤖' };
