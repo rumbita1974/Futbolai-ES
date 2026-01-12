@@ -15,40 +15,6 @@ interface EnhancedTeamResultsProps {
   language?: string;
 }
 
-// Placeholder squad players when GROQ doesn't return player data
-const generatePlaceholderSquad = (teamName: string, teamType: string, language: string = 'en'): Player[] => {
-  const positions = language === 'es' 
-    ? ['Portero', 'Defensa', 'Centrocampista', 'Delantero']
-    : ['Goalkeeper', 'Defender', 'Midfielder', 'Forward'];
-  
-  const nationalities = teamType === 'national' 
-    ? [teamName] 
-    : language === 'es'
-      ? ['Español', 'Inglés', 'Brasileño', 'Francés', 'Alemán', 'Italiano', 'Argentino', 'Portugués']
-      : ['Spanish', 'English', 'Brazilian', 'French', 'German', 'Italian', 'Argentine', 'Portuguese'];
-  
-  const playerCount = teamType === 'national' ? 12 : 18;
-  
-  return Array.from({ length: playerCount }, (_, i) => ({
-    name: language === 'es' ? `Jugador ${i + 1}` : `Player ${i + 1}`,
-    currentTeam: teamName,
-    position: positions[Math.floor(Math.random() * positions.length)],
-    age: Math.floor(Math.random() * 15) + 20,
-    nationality: nationalities[Math.floor(Math.random() * nationalities.length)],
-    careerGoals: Math.floor(Math.random() * 100),
-    careerAssists: Math.floor(Math.random() * 50),
-    internationalAppearances: teamType === 'national' ? Math.floor(Math.random() * 50) : 0,
-    internationalGoals: teamType === 'national' ? Math.floor(Math.random() * 20) : 0,
-    majorAchievements: language === 'es' 
-      ? ['Campeón de Liga', 'Campeón de Copa']
-      : ['League Winner', 'Cup Winner'],
-    careerSummary: language === 'es'
-      ? `Jugador clave para ${teamName} con contribuciones significativas.`
-      : `Key player for ${teamName} with significant contributions.`,
-    _source: language === 'es' ? 'Datos de ejemplo' : 'Placeholder data'
-  }));
-};
-
 export default function EnhancedTeamResults({
   teams,
   players,
@@ -69,23 +35,16 @@ export default function EnhancedTeamResults({
   const team = teams[0];
   const teamMetadata = team?._dataCurrency;
 
-  // Generate placeholder squad if insufficient players returned
+  // Update the useEffect in EnhancedTeamResults.tsx:
   useEffect(() => {
-    if (team) {
-      const minPlayersRequired = team.type === 'national' ? 10 : 15;
+    if (team && players.length === 0) {
+      // Only show warning, don't generate fake data
+      console.warn(`No players returned for team: ${team.name}. GROQ AI returned empty player data.`);
       
-      if (players.length < minPlayersRequired) {
-        console.log(`Generating placeholder squad: only ${players.length} players returned, need at least ${minPlayersRequired}`);
-        const placeholderPlayers = generatePlaceholderSquad(team.name, team.type, language);
-        
-        // Merge real players with placeholders, but avoid duplicates
-        const realPlayerNames = new Set(players.map(p => p.name));
-        const additionalPlaceholders = placeholderPlayers.filter(p => !realPlayerNames.has(p.name));
-        
-        setDisplayPlayers([...players, ...additionalPlaceholders.slice(0, minPlayersRequired - players.length)]);
-      } else {
-        setDisplayPlayers(players);
-      }
+      // Instead of generating fake data, set empty array
+      setDisplayPlayers([]);
+    } else {
+      setDisplayPlayers(players);
     }
   }, [team, players, language]);
 
@@ -332,7 +291,9 @@ export default function EnhancedTeamResults({
       ? "2014-2022" 
       : new Date().getFullYear() - 10 + "-" + new Date().getFullYear(),
     achievements: allAchievements.slice(0, 3),
-    keyPlayers: displayPlayers.slice(0, 4).map(p => p.name)
+    keyPlayers: displayPlayers.length > 0 
+      ? displayPlayers.slice(0, 4).map(p => p.name)
+      : [t('Legendary players would appear here', 'Jugadores legendarios aparecerían aquí')]
   };
 
   return (
@@ -421,7 +382,7 @@ export default function EnhancedTeamResults({
                 </div>
               )}
               <div className="px-3 py-1.5 bg-purple-900/30 text-purple-300 rounded-full text-sm border border-purple-700/30">
-                {displayPlayers.length > 0 ? `${displayPlayers.length} ${t('Players', 'Jugadores')}` : t('Full Squad', 'Equipo completo')}
+                {displayPlayers.length > 0 ? `${displayPlayers.length} ${t('Players', 'Jugadores')}` : t('Squad Loading...', 'Cargando equipo...')}
               </div>
               <div className="px-3 py-1.5 bg-yellow-900/30 text-yellow-300 rounded-full text-sm border border-yellow-700/30">
                 {t('AI Analysis', 'Análisis IA')}
@@ -444,7 +405,7 @@ export default function EnhancedTeamResults({
             onClick={() => setActiveTab('squad')}
             className={`px-4 py-2 rounded-lg font-medium transition flex-1 min-w-[120px] text-center ${activeTab === 'squad' ? 'bg-gradient-to-r from-blue-600 to-green-500 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}
           >
-            👥 {t('Current Squad', 'Equipo actual')}
+            👥 {displayPlayers.length > 0 ? t('Current Squad', 'Equipo actual') : t('No Squad', 'Sin equipo')}
           </button>
           <button
             onClick={() => setActiveTab('achievements')}
@@ -601,6 +562,29 @@ export default function EnhancedTeamResults({
                 )}
               </div>
             )}
+
+            {/* No Players Warning */}
+            {displayPlayers.length === 0 && (
+              <div className="bg-yellow-900/20 border border-yellow-700/30 rounded-xl p-6">
+                <h4 className="text-lg font-semibold text-yellow-300 mb-3 flex items-center">
+                  <span className="mr-2">⚠️</span> {t('Squad Data Unavailable', 'Datos del equipo no disponibles')}
+                </h4>
+                <p className="text-yellow-200 text-sm">
+                  {t('The GROQ AI service did not return player data for this team. This could be because:',
+                     'El servicio GROQ AI no devolvió datos de jugadores para este equipo. Esto podría deberse a:')}
+                </p>
+                <ul className="text-yellow-200 text-xs mt-2 list-disc list-inside">
+                  <li>{t('The team may not have current players in the database',
+                          'El equipo puede no tener jugadores actuales en la base de datos')}</li>
+                  <li>{t('There might be an issue with the AI response',
+                          'Puede haber un problema con la respuesta de la IA')}</li>
+                  <li>{t('Try searching for a more specific team name',
+                          'Intenta buscar un nombre de equipo más específico')}</li>
+                  <li>{t('The 2024-2025 squad data is still being updated',
+                          'Los datos del equipo 2024-2025 aún se están actualizando')}</li>
+                </ul>
+              </div>
+            )}
           </div>
         )}
 
@@ -610,134 +594,132 @@ export default function EnhancedTeamResults({
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
               <div>
                 <h3 className="text-2xl font-bold text-white mb-2">
-                  {t('Current Squad', 'Equipo actual')}
+                  {displayPlayers.length > 0 
+                    ? t('Current Squad', 'Equipo actual')
+                    : t('No Squad Data Available', 'Sin datos del equipo disponibles')}
                 </h3>
                 <p className="text-gray-400">
                   {displayPlayers.length > 0 
                     ? t(`Showing ${displayPlayers.length} key players for ${team.name}`,
                         `Mostrando ${displayPlayers.length} jugadores clave de ${team.name}`)
-                    : t('Loading squad information...', 'Cargando información del equipo...')}
-                  {players.length === 0 && displayPlayers.length > 0 && (
-                    <span className="text-yellow-500 text-sm ml-2">
-                      {t('(Using placeholder data)', '(Usando datos de ejemplo)')}
-                    </span>
-                  )}
+                    : t('GROQ AI did not return player data for this team',
+                        'GROQ AI no devolvió datos de jugadores para este equipo')}
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                <button className="px-4 py-2 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 text-sm">
-                  {t('Filter by Position', 'Filtrar por posición')}
-                </button>
-                <button className="px-4 py-2 bg-gradient-to-r from-blue-600 to-green-500 text-white rounded-lg hover:opacity-90 text-sm">
-                  {t('View Full Roster', 'Ver plantilla completa')}
-                </button>
+                {displayPlayers.length > 0 ? (
+                  <>
+                    <button className="px-4 py-2 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 text-sm">
+                      {t('Filter by Position', 'Filtrar por posición')}
+                    </button>
+                    <button className="px-4 py-2 bg-gradient-to-r from-blue-600 to-green-500 text-white rounded-lg hover:opacity-90 text-sm">
+                      {t('View Full Roster', 'Ver plantilla completa')}
+                    </button>
+                  </>
+                ) : (
+                  <button 
+                    onClick={() => window.location.reload()}
+                    className="px-4 py-2 bg-gradient-to-r from-yellow-600 to-orange-500 text-white rounded-lg hover:opacity-90 text-sm"
+                  >
+                    {t('Retry Search', 'Reintentar búsqueda')}
+                  </button>
+                )}
               </div>
             </div>
 
             {displayPlayers.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {displayPlayers.map((player, index) => (
-                  <PlayerCard key={index} player={player} index={index} />
-                ))}
-              </div>
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {displayPlayers.map((player, index) => (
+                    <PlayerCard key={index} player={player} index={index} />
+                  ))}
+                </div>
+
+                {/* Squad Statistics */}
+                <div className="mt-8 pt-8 border-t border-gray-700">
+                  <h4 className="text-xl font-bold text-white mb-6">
+                    {t('Squad Statistics', 'Estadísticas del equipo')}
+                  </h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-gray-800/50 rounded-xl p-4 text-center">
+                      <div className="text-2xl font-bold text-blue-400">
+                        {Math.round(displayPlayers.reduce((avg, p) => avg + (p.age || 0), 0) / displayPlayers.length) || 0}
+                      </div>
+                      <div className="text-gray-400 text-sm mt-1">
+                        {t('Average Age', 'Edad promedio')}
+                      </div>
+                    </div>
+                    <div className="bg-gray-800/50 rounded-xl p-4 text-center">
+                      <div className="text-2xl font-bold text-green-400">
+                        {displayPlayers.filter(p => 
+                          p.position?.toLowerCase().includes('forward') || 
+                          p.position?.toLowerCase().includes('delantero') ||
+                          p.position?.toLowerCase().includes('atacante')
+                        ).length}
+                      </div>
+                      <div className="text-gray-400 text-sm mt-1">
+                        {t('Forwards', 'Delanteros')}
+                      </div>
+                    </div>
+                    <div className="bg-gray-800/50 rounded-xl p-4 text-center">
+                      <div className="text-2xl font-bold text-yellow-400">
+                        {displayPlayers.filter(p => 
+                          p.position?.toLowerCase().includes('midfielder') || 
+                          p.position?.toLowerCase().includes('centrocampista') ||
+                          p.position?.toLowerCase().includes('mediocampista')
+                        ).length}
+                      </div>
+                      <div className="text-gray-400 text-sm mt-1">
+                        {t('Midfielders', 'Centrocampistas')}
+                      </div>
+                    </div>
+                    <div className="bg-gray-800/50 rounded-xl p-4 text-center">
+                      <div className="text-2xl font-bold text-red-400">
+                        {displayPlayers.filter(p => 
+                          p.position?.toLowerCase().includes('defender') || 
+                          p.position?.toLowerCase().includes('defensa') ||
+                          p.position?.toLowerCase().includes('goalkeeper') ||
+                          p.position?.toLowerCase().includes('portero') ||
+                          p.position?.toLowerCase().includes('arquero')
+                        ).length}
+                      </div>
+                      <div className="text-gray-400 text-sm mt-1">
+                        {t('Defenders + GK', 'Defensas + Portero')}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </>
             ) : (
               <div className="text-center py-12 bg-gray-800/30 rounded-xl">
                 <div className="text-5xl mb-4">👥</div>
                 <h4 className="text-xl font-semibold text-white mb-2">
-                  {t('Loading Squad Data', 'Cargando datos del equipo')}
+                  {t('No Squad Data', 'Sin datos del equipo')}
                 </h4>
                 <p className="text-gray-400 max-w-md mx-auto">
-                  {t('Fetching current squad information from the database...',
-                     'Obteniendo información actual del equipo desde la base de datos...')}
+                  {t('The GROQ AI service did not return player data for this team. This is common for:',
+                     'El servicio GROQ AI no devolvió datos de jugadores para este equipo. Esto es común para:')}
                 </p>
-                <div className="mt-6 flex justify-center">
-                  <div className="animate-pulse flex space-x-2">
-                    <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                    <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
-                  </div>
+                <ul className="text-gray-400 text-sm mt-3 max-w-md mx-auto text-left">
+                  <li>• {t('Very new or obscure teams', 'Equipos muy nuevos o desconocidos')}</li>
+                  <li>• {t('Teams from lower divisions', 'Equipos de divisiones inferiores')}</li>
+                  <li>• {t('National teams with limited recent data', 'Selecciones con datos recientes limitados')}</li>
+                  <li>• {t('Teams whose 2024-2025 squad is still being compiled', 'Equipos cuya plantilla 2024-2025 aún se está compilando')}</li>
+                </ul>
+                <div className="mt-6 flex justify-center gap-4">
+                  <button 
+                    onClick={() => window.location.reload()}
+                    className="px-4 py-2 bg-gradient-to-r from-blue-600 to-green-500 text-white rounded-lg hover:opacity-90"
+                  >
+                    {t('Try Again', 'Intentar de nuevo')}
+                  </button>
+                  <button 
+                    onClick={() => setActiveTab('achievements')}
+                    className="px-4 py-2 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600"
+                  >
+                    {t('View Achievements Instead', 'Ver logros en su lugar')}
+                  </button>
                 </div>
-              </div>
-            )}
-
-            {/* Squad Statistics */}
-            {displayPlayers.length > 0 && (
-              <div className="mt-8 pt-8 border-t border-gray-700">
-                <h4 className="text-xl font-bold text-white mb-6">
-                  {t('Squad Statistics', 'Estadísticas del equipo')}
-                </h4>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-gray-800/50 rounded-xl p-4 text-center">
-                    <div className="text-2xl font-bold text-blue-400">
-                      {Math.round(displayPlayers.reduce((avg, p) => avg + (p.age || 0), 0) / displayPlayers.length) || 0}
-                    </div>
-                    <div className="text-gray-400 text-sm mt-1">
-                      {t('Average Age', 'Edad promedio')}
-                    </div>
-                  </div>
-                  <div className="bg-gray-800/50 rounded-xl p-4 text-center">
-                    <div className="text-2xl font-bold text-green-400">
-                      {displayPlayers.filter(p => 
-                        p.position?.toLowerCase().includes('forward') || 
-                        p.position?.toLowerCase().includes('delantero') ||
-                        p.position?.toLowerCase().includes('atacante')
-                      ).length}
-                    </div>
-                    <div className="text-gray-400 text-sm mt-1">
-                      {t('Forwards', 'Delanteros')}
-                    </div>
-                  </div>
-                  <div className="bg-gray-800/50 rounded-xl p-4 text-center">
-                    <div className="text-2xl font-bold text-yellow-400">
-                      {displayPlayers.filter(p => 
-                        p.position?.toLowerCase().includes('midfielder') || 
-                        p.position?.toLowerCase().includes('centrocampista') ||
-                        p.position?.toLowerCase().includes('mediocampista')
-                      ).length}
-                    </div>
-                    <div className="text-gray-400 text-sm mt-1">
-                      {t('Midfielders', 'Centrocampistas')}
-                    </div>
-                  </div>
-                  <div className="bg-gray-800/50 rounded-xl p-4 text-center">
-                    <div className="text-2xl font-bold text-red-400">
-                      {displayPlayers.filter(p => 
-                        p.position?.toLowerCase().includes('defender') || 
-                        p.position?.toLowerCase().includes('defensa') ||
-                        p.position?.toLowerCase().includes('goalkeeper') ||
-                        p.position?.toLowerCase().includes('portero') ||
-                        p.position?.toLowerCase().includes('arquero')
-                      ).length}
-                    </div>
-                    <div className="text-gray-400 text-sm mt-1">
-                      {t('Defenders + GK', 'Defensas + Portero')}
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Placeholder data notice */}
-                {players.length === 0 && (
-                  <div className="mt-6 pt-6 border-t border-gray-700">
-                    <div className="bg-yellow-900/20 border border-yellow-700/30 rounded-lg p-4">
-                      <p className="text-yellow-300 text-sm">
-                        <span className="font-bold">
-                          {t('Note:', 'Nota:')}
-                        </span> {t('This squad data is simulated. In production, the GROQ AI would fetch real player data including:',
-                                   'Estos datos del equipo son simulados. En producción, la IA GROQ obtendría datos reales de jugadores incluyendo:')}
-                      </p>
-                      <ul className="text-yellow-200 text-xs mt-2 list-disc list-inside">
-                        <li>{t('Real player names and photos from Wikipedia',
-                                'Nombres reales de jugadores y fotos de Wikipedia')}</li>
-                        <li>{t('Accurate statistics and career details',
-                                'Estadísticas precisas y detalles de carrera')}</li>
-                        <li>{t('Current transfer information',
-                                'Información actual de transferencias')}</li>
-                        <li>{t('Injury status and availability',
-                                'Estado de lesiones y disponibilidad')}</li>
-                      </ul>
-                    </div>
-                  </div>
-                )}
               </div>
             )}
           </div>

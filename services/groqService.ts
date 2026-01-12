@@ -1,5 +1,5 @@
 import Groq from 'groq-sdk';
-import { isWikipediaConfigured, fetchFromWikipedia } from '@/services/dataEnhancerService';
+import { isWikipediaConfigured, fetchFromWikipedia, enhanceGROQResponse } from '@/services/dataEnhancerService';
 
 const groq = new Groq({
   apiKey: process.env.NEXT_PUBLIC_GROQ_API_KEY || '',
@@ -335,6 +335,42 @@ const shouldUseFallbackModel = (query: string): boolean => {
          complexPatterns.some(pattern => queryLower.includes(pattern));
 };
 
+// Helper to determine query type
+const determineQueryType = (query: string): 'national' | 'club' | 'player' | 'unknown' => {
+  const queryLower = query.toLowerCase();
+  
+  const nationalTeams = [
+    'españa', 'spain', 'espana',
+    'argentina', 'brazil', 'brasil', 
+    'france', 'francia', 'germany', 'alemania',
+    'italy', 'italia', 'portugal',
+    'england', 'inglaterra', 'netherlands', 'holanda',
+    'belgium', 'bélgica', 'croatia', 'croacia',
+    'uruguay', 'chile', 'colombia', 'mexico', 'méxico',
+    'usa', 'united states', 'estados unidos',
+    'canada', 'canadá', 'japan', 'japón',
+    'south korea', 'corea del sur', 'australia'
+  ];
+  
+  const clubs = [
+    'real madrid', 'barcelona', 'manchester',
+    'bayern', 'psg', 'chelsea', 'liverpool',
+    'arsenal', 'juventus', 'milan', 'inter',
+    'dortmund', 'atlético', 'atletico', 'sevilla',
+    'valencia', 'betis', 'villarreal'
+  ];
+  
+  if (nationalTeams.some(team => queryLower.includes(team))) {
+    return 'national';
+  }
+  
+  if (clubs.some(club => queryLower.includes(club))) {
+    return 'club';
+  }
+  
+  return 'unknown';
+};
+
 // Player priority system
 const getPlayerPriority = (player: Player): 'high' | 'medium' | 'low' => {
   const name = player.name.toLowerCase();
@@ -637,21 +673,67 @@ export const searchWithGROQ = async (query: string, language: string = 'en'): Pr
     
     console.log(`[GROQ] Searching for: "${query}" with model: ${model}, Language: ${language}`);
     
+    // ENHANCED PROMPT: Better understanding of national teams vs clubs
     const systemPrompt = language === 'es' ? `
 ERES FutbolAI. Datos EXACTOS de fútbol 2024-2025.
 
-INFORMACIÓN CRÍTICA 2024-2025:
-• REAL MADRID: Entrenador = Xabi Alonso (desde junio 2024). 15 Champions League.
-• JUGADORES DEL REAL MADRID 2024-2025: Thibaut Courtois, Éder Militão, David Alaba, Antonio Rüdiger, Eduardo Camavinga, Federico Valverde, Aurélien Tchouaméni, Jude Bellingham, Vinícius Júnior, Rodrygo Goes, Kylian Mbappé, Arda Güler, Brahim Díaz, Fran García, Andriy Lunin.
-• TRANSFERENCIAS 2024: Kylian Mbappé → Real Madrid, Luka Modrić → Al Nassr, Toni Kroos → Retirado, Nacho → Al Qadsiah, Kepa → Chelsea.
-• OTROS ENTRENADORES: Bayern = Vincent Kompany, Liverpool = Arne Slot, Barcelona = Hansi Flick, Chelsea = Enzo Maresca.
+**CRÍTICO: DISTINGUIR ENTRE EQUIPOS NACIONALES Y CLUBS**
 
-REGLAS:
-1. Datos ACTUALES para 2024-2025
-2. Entrenadores actuales exactos
-3. No inventar jugadores
-4. Usar solo jugadores reales
-5. Para búsquedas de equipos, devolver la plantilla ACTUAL
+EQUIPOS NACIONALES (selecciones):
+- "España", "Argentina", "Brasil", "Francia" = Selección nacional
+- Deben devolver JUGADORES de la selección actual (12-15 jugadores)
+- NO devolver clubs españoles cuando se busca "España"
+
+CLUBS:
+- "Real Madrid", "Barcelona", "Manchester United" = Clubes
+- Devuelven jugadores del CLUB (15-20 jugadores)
+
+**INFORMACIÓN CRÍTICA 2024-2025:**
+• REAL MADRID: Entrenador = Xabi Alonso (desde junio 2024). 15 Champions League.
+• SELECCIÓN ESPAÑOLA: Entrenador = Luis de la Fuente (desde 2022).
+• TRANSFERENCIAS 2024: Kylian Mbappé → Real Madrid, Luka Modrić → Al Nassr, Toni Kroos → Retirado.
+
+**EJEMPLOS CORRECTOS:**
+
+Para "España" (selección nacional):
+{
+  "players": [
+    {"name": "Álvaro Morata", "currentTeam": "Atlético de Madrid", "position": "Delantero", "age": 31, "nationality": "Español", ...},
+    {"name": "Rodri", "currentTeam": "Manchester City", "position": "Centrocampista", "age": 27, "nationality": "Español", ...},
+    ...
+  ],
+  "teams": [{
+    "name": "España",
+    "type": "national",
+    "country": "España",
+    "currentCoach": "Luis de la Fuente",
+    ...
+  }]
+}
+
+Para "Real Madrid" (club):
+{
+  "players": [
+    {"name": "Thibaut Courtois", "currentTeam": "Real Madrid", "position": "Portero", ...},
+    {"name": "Kylian Mbappé", "currentTeam": "Real Madrid", "position": "Delantero", ...},
+    ...
+  ],
+  "teams": [{
+    "name": "Real Madrid",
+    "type": "club",
+    "country": "España",
+    "currentCoach": "Xabi Alonso",
+    ...
+  }]
+}
+
+**REGLAS OBLIGATORIAS:**
+1. Si el usuario busca un país (España, Argentina, Brasil) = EQUIPO NACIONAL
+2. Si el usuario busca un club = CLUB
+3. Devuelve jugadores REALES, actuales (temporada 2024-2025)
+4. Para nacionales: 12-15 jugadores de la selección ACTUAL
+5. Para clubs: 15-20 jugadores del plantel ACTUAL
+6. Datos ACTUALIZADOS 2024-2025
 
 FORMATO EXACTO JSON (SOLO JSON):
 {
@@ -684,23 +766,66 @@ FORMATO EXACTO JSON (SOLO JSON):
   "youtubeQuery": "string",
   "message": "string (Incluir 'Información actualizada a 2024')"
 }
-
-NO incluir texto adicional, solo JSON.
 ` : `
 YOU ARE FutbolAI. EXACT football data 2024-2025.
 
-CRITICAL 2024-2025 INFORMATION:
-• REAL MADRID: Coach = Xabi Alonso (since June 2024). 15 UEFA Champions League titles.
-• REAL MADRID 2024-2025 SQUAD: Thibaut Courtois, Éder Militão, David Alaba, Antonio Rüdiger, Eduardo Camavinga, Federico Valverde, Aurélien Tchouaméni, Jude Bellingham, Vinícius Júnior, Rodrygo Goes, Kylian Mbappé, Arda Güler, Brahim Díaz, Fran García, Andriy Lunin.
-• 2024 TRANSFERS: Kylian Mbappé → Real Madrid, Luka Modrić → Al Nassr, Toni Kroos → Retired, Nacho → Al Qadsiah, Kepa → Chelsea.
-• OTHER COACHES: Bayern = Vincent Kompany, Liverpool = Arne Slot, Barcelona = Hansi Flick, Chelsea = Enzo Maresca.
+**CRITICAL: DISTINGUISH BETWEEN NATIONAL TEAMS AND CLUBS**
 
-RULES:
-1. CURRENT data for 2024-2025 season
-2. Exact current coaches
-3. Do not invent players
-4. Use only real players
-5. For team searches, return CURRENT squad
+NATIONAL TEAMS (countries):
+- "Spain", "Argentina", "Brazil", "France" = National team
+- Must return PLAYERS from the national squad (12-15 players)
+- Do NOT return Spanish clubs when searching for "Spain"
+
+CLUBS:
+- "Real Madrid", "Barcelona", "Manchester United" = Clubs
+- Return players from the CLUB (15-20 players)
+
+**CRITICAL 2024-2025 INFORMATION:**
+• REAL MADRID: Coach = Xabi Alonso (since June 2024). 15 UEFA Champions League titles.
+• SPAIN NATIONAL TEAM: Coach = Luis de la Fuente (since 2022).
+• 2024 TRANSFERS: Kylian Mbappé → Real Madrid, Luka Modrić → Al Nassr, Toni Kroos → Retired.
+
+**CORRECT EXAMPLES:**
+
+For "Spain" (national team):
+{
+  "players": [
+    {"name": "Álvaro Morata", "currentTeam": "Atlético de Madrid", "position": "Forward", "age": 31, "nationality": "Spanish", ...},
+    {"name": "Rodri", "currentTeam": "Manchester City", "position": "Midfielder", "age": 27, "nationality": "Spanish", ...},
+    ...
+  ],
+  "teams": [{
+    "name": "Spain",
+    "type": "national",
+    "country": "Spain",
+    "currentCoach": "Luis de la Fuente",
+    ...
+  }]
+}
+
+For "Real Madrid" (club):
+{
+  "players": [
+    {"name": "Thibaut Courtois", "currentTeam": "Real Madrid", "position": "Goalkeeper", ...},
+    {"name": "Kylian Mbappé", "currentTeam": "Real Madrid", "position": "Forward", ...},
+    ...
+  ],
+  "teams": [{
+    "name": "Real Madrid",
+    "type": "club",
+    "country": "Spain",
+    "currentCoach": "Xabi Alonso",
+    ...
+  }]
+}
+
+**MANDATORY RULES:**
+1. If user searches a country (Spain, Argentina, Brazil) = NATIONAL TEAM
+2. If user searches a club = CLUB
+3. Return REAL, current players (2024-2025 season)
+4. For national teams: 12-15 players from CURRENT national squad
+5. For clubs: 15-20 players from CURRENT club squad
+6. UPDATED 2024-2025 data
 
 EXACT JSON FORMAT (ONLY JSON):
 {
@@ -733,8 +858,6 @@ EXACT JSON FORMAT (ONLY JSON):
   "youtubeQuery": "string",
   "message": "string (Include 'Information as of 2024')"
 }
-
-NO extra text, ONLY JSON.
 `;
 
     const userPrompt = language === 'es' 
@@ -754,7 +877,7 @@ NO extra text, ONLY JSON.
       ],
       model: model,
       temperature: 0.1,
-      max_tokens: 3000,
+      max_tokens: 3500, // Increased for more players
       response_format: { type: 'json_object' }
     });
 
@@ -802,8 +925,8 @@ NO extra text, ONLY JSON.
       const playerCount = Array.isArray(parsed.players) ? parsed.players.length : 0;
       console.log(`[GROQ] Found ${playerCount} players in response`);
       
-      // Smart Wikipedia enhancement
-      console.log('[GROQ] Smart Wikipedia enhancement...');
+      // Use ENHANCED GROQ RESPONSE (the main fix!)
+      console.log('[GROQ] Using enhanced GROQ response from dataEnhancerService...');
       const wikipediaConfigured = isWikipediaConfigured();
       console.log('[GROQ] Wikipedia API configured:', wikipediaConfigured);
       
@@ -814,25 +937,39 @@ NO extra text, ONLY JSON.
       
       if (wikipediaConfigured) {
         try {
-          if (enhancedResult.players && enhancedResult.players.length > 0) {
-            const enhancedPlayers = await smartEnhancePlayers(enhancedResult.players);
-            enhancedResult.players = enhancedPlayers.players;
-            wikipediaQueries += enhancedPlayers.queries;
-            wikipediaUpdates += enhancedPlayers.updates;
+          // CRITICAL FIX: Use the correct enhanceGROQResponse function
+          enhancedResult = await enhanceGROQResponse(parsed, query);
+          console.log('[GROQ] Enhanced result via dataEnhancerService:', enhancedResult);
+          
+          if (enhancedResult._metadata) {
+            wikipediaQueries = enhancedResult._metadata.wikipediaUsage?.queries || 0;
+            wikipediaUpdates = enhancedResult._metadata.wikipediaUsage?.updates || 0;
+            achievementCorrections = enhancedResult._metadata.achievementCorrections || [];
           }
           
-          if (enhancedResult.teams && enhancedResult.teams.length > 0) {
-            const enhancedTeams = await smartEnhanceTeams(enhancedResult.teams);
-            enhancedResult.teams = enhancedTeams.teams;
-            wikipediaQueries += enhancedTeams.queries;
-            wikipediaUpdates += enhancedTeams.updates;
-          }
-          
-          console.log(`[GROQ] Smart enhancement complete: ${wikipediaQueries} queries, ${wikipediaUpdates} updates`);
+          console.log(`[GROQ] Enhancement complete: ${wikipediaQueries} queries, ${wikipediaUpdates} updates`);
           
         } catch (enhanceError) {
-          console.error('[GROQ] Smart Wikipedia enhancement failed:', enhanceError);
-          enhancedResult = parsed;
+          console.error('[GROQ] Enhancement via dataEnhancerService failed:', enhanceError);
+          // Fall back to smart enhancement
+          try {
+            if (enhancedResult.players && enhancedResult.players.length > 0) {
+              const enhancedPlayers = await smartEnhancePlayers(enhancedResult.players);
+              enhancedResult.players = enhancedPlayers.players;
+              wikipediaQueries += enhancedPlayers.queries;
+              wikipediaUpdates += enhancedPlayers.updates;
+            }
+            
+            if (enhancedResult.teams && enhancedResult.teams.length > 0) {
+              const enhancedTeams = await smartEnhanceTeams(enhancedResult.teams);
+              enhancedResult.teams = enhancedTeams.teams;
+              wikipediaQueries += enhancedTeams.queries;
+              wikipediaUpdates += enhancedTeams.updates;
+            }
+          } catch (smartError) {
+            console.error('[GROQ] Smart enhancement also failed:', smartError);
+            enhancedResult = parsed;
+          }
         }
       } else {
         console.log('[GROQ] Wikipedia API not configured, using basic result');
@@ -845,7 +982,7 @@ NO extra text, ONLY JSON.
         youtubeQuery: enhancedResult.youtubeQuery || `${query} football highlights ${new Date().getFullYear()}`,
         message: enhancedResult.message || `Found information for "${query}"`,
         error: enhancedResult.error || null,
-        _metadata: {
+        _metadata: enhancedResult._metadata || {
           enhancedAt: new Date().toISOString(),
           analysis: {
             playerCount: playerCount,
@@ -854,27 +991,28 @@ NO extra text, ONLY JSON.
             suggestions: playerCount < 5 ? ['Insufficient players returned'] : ['Data verified'],
             needsEnhancement: false,
             confidence: wikipediaUpdates > 0 ? 'high' : (playerCount >= 10 ? 'medium' : 'low'),
-            smartEnhancement: true,
-            playersChecked: Math.min(playerCount, 5),
+            smartEnhancement: false,
+            playersChecked: playerCount,
             playersUpdated: wikipediaUpdates,
             modelUsed: model,
-            criticalUpdatesApplied: wikipediaUpdates > 0
+            criticalUpdatesApplied: wikipediaUpdates > 0,
+            queryType: determineQueryType(query)
           },
           appliedUpdates: [],
           dataSources: ['GROQ AI'],
           apiStatus: {
-            wikipedia: wikipediaConfigured ? 'Smart Enhanced' : 'Not configured',
+            wikipedia: wikipediaConfigured ? 'Enhanced' : 'Not configured',
             groq: 'Success'
           },
           currentSeason: `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`,
           dataCurrency: {
             aiCutoff: '2024',
-            verifiedWith: wikipediaConfigured ? 'Selective Wikipedia + Critical Updates' : 'None',
+            verifiedWith: wikipediaConfigured ? 'Wikipedia + Critical Updates' : 'None',
             confidence: wikipediaUpdates > 0 ? 'high' : (playerCount >= 10 ? 'medium' : 'low'),
             lastVerified: new Date().toISOString()
           },
           disclaimer: wikipediaConfigured 
-            ? 'Smart Wikipedia verification with critical 2024 updates applied.'
+            ? 'Wikipedia verification with critical 2024 updates applied.'
             : 'Wikipedia API not configured. Data may be outdated.',
           recommendations: playerCount < 5 ? [
             'The AI returned fewer players than expected.',
@@ -930,25 +1068,35 @@ NO extra text, ONLY JSON.
           console.log('[GROQ] Attempting to extract JSON from text...');
           const extracted = JSON.parse(jsonMatch[0]);
           
+          // Try to enhance extracted JSON
+          let enhancedExtracted = extracted;
+          if (wikipediaConfigured) {
+            try {
+              enhancedExtracted = await enhanceGROQResponse(extracted, query);
+            } catch (e) {
+              console.error('[GROQ] Enhancement of extracted JSON failed:', e);
+            }
+          }
+          
           return {
-            players: Array.isArray(extracted.players) ? extracted.players : [],
-            teams: Array.isArray(extracted.teams) ? extracted.teams.slice(0, 1) : [],
-            youtubeQuery: extracted.youtubeQuery || `${query} football highlights`,
-            message: extracted.message || `Found information for "${query}"`,
+            players: Array.isArray(enhancedExtracted.players) ? enhancedExtracted.players : [],
+            teams: Array.isArray(enhancedExtracted.teams) ? enhancedExtracted.teams.slice(0, 1) : [],
+            youtubeQuery: enhancedExtracted.youtubeQuery || `${query} football highlights`,
+            message: enhancedExtracted.message || `Found information for "${query}"`,
             error: null,
-            _metadata: {
+            _metadata: enhancedExtracted._metadata || {
               enhancedAt: new Date().toISOString(),
-              analysis: { note: 'Response extracted from text', playerCount: Array.isArray(extracted.players) ? extracted.players.length : 0 },
+              analysis: { note: 'Response extracted from text', playerCount: Array.isArray(enhancedExtracted.players) ? enhancedExtracted.players.length : 0 },
               appliedUpdates: [],
               dataSources: ['GROQ AI (extracted)'],
               apiStatus: {
-                wikipedia: 'Not used',
+                wikipedia: wikipediaConfigured ? 'Used' : 'Not used',
                 groq: 'Success'
               },
               currentSeason: `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`,
               dataCurrency: {
                 aiCutoff: '2024',
-                verifiedWith: 'None',
+                verifiedWith: wikipediaConfigured ? 'Wikipedia' : 'None',
                 confidence: 'medium',
                 lastVerified: new Date().toISOString()
               },
