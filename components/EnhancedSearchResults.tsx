@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { searchYouTubeHighlights, YouTubeVideo } from '@/services/youtubeService';
 import { Player, Team, needsDataVerification, getDataSourceInfo } from '@/services/groqService';
-import { getDataCurrencyBadge } from '@/services/dataEnhancerService';
+import { getDataQualityBadge } from '@/services/dataEnhancerService';
 
 interface EnhancedResultsProps {
   players: Player[];

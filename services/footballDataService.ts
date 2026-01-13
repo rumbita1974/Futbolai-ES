@@ -1,265 +1,139 @@
-/**
- * Service for fetching current football data from reliable APIs
- * Combines multiple sources for the most accurate, up-to-date information
- */
+// /services/footballDataService.ts
 
-// Current season year
-const CURRENT_SEASON = new Date().getFullYear();
+const FOOTBALL_DATA_API_KEY = process.env.NEXT_PUBLIC_FOOTBALL_DATA_API_KEY;
+const FOOTBALL_DATA_BASE_URL = 'https://api.football-data.org/v4';
 
-// Football-data.org API (free tier with rate limits)
-const FOOTBALL_DATA_API_KEY = process.env.NEXT_PUBLIC_FOOTBALL_DATA_API_KEY || '';
-const FOOTBALL_DATA_BASE = 'https://api.football-data.org/v4';
-
-// Alternative: API-Football (rapidapi.com) or Sportmonks API
-
-export interface CurrentTeamData {
+interface FootballDataPlayer {
+  id: number;
   name: string;
-  country: string;
-  stadium?: string;
-  currentCoach: string;
-  coachNationality?: string;
-  coachSince?: string;
-  foundedYear?: number;
-  currentCompetitions: string[];
-  squadSize?: number;
-  marketValue?: string;
-  lastUpdated: string;
-}
-
-export interface CurrentPlayerData {
-  name: string;
-  currentTeam: string;
   position: string;
+  dateOfBirth: string;
   nationality: string;
-  dateOfBirth?: string;
-  age?: number;
-  height?: string;
-  marketValue?: string;
   shirtNumber?: number;
-  contractUntil?: string;
-  lastUpdated: string;
 }
 
-export interface TeamAchievement {
-  competition: string;
-  seasons: string[];
-  count: number;
+interface FootballDataTeam {
+  id: number;
+  name: string;
+  shortName: string;
+  tla: string;
+  crest: string;
+  address: string;
+  website: string;
+  founded: number;
+  clubColors: string;
+  venue: string;
+  coach: {
+    id: number;
+    name: string;
+    nationality: string;
+  };
+  squad: FootballDataPlayer[];
 }
 
-/**
- * Get current team data from football-data.org
- */
-export const getCurrentTeamData = async (teamName: string): Promise<CurrentTeamData | null> => {
+export const fetchTeamFromFootballData = async (teamName: string): Promise<FootballDataTeam | null> => {
   if (!FOOTBALL_DATA_API_KEY) {
-    console.warn('Football-data.org API key not configured');
+    console.error('[Football Data] API key not configured');
     return null;
   }
 
   try {
-    // First, search for the team
+    // First search for team ID
     const searchResponse = await fetch(
-      `${FOOTBALL_DATA_BASE}/teams?name=${encodeURIComponent(teamName)}`,
+      `${FOOTBALL_DATA_BASE_URL}/teams?name=${encodeURIComponent(teamName)}`,
       {
         headers: {
-          'X-Auth-Token': FOOTBALL_DATA_API_KEY
-        }
+          'X-Auth-Token': FOOTBALL_DATA_API_KEY,
+        },
       }
     );
 
-    if (!searchResponse.ok) return null;
+    if (!searchResponse.ok) {
+      console.error('[Football Data] Search failed:', searchResponse.status);
+      return null;
+    }
 
     const searchData = await searchResponse.json();
     
-    if (!searchData.teams || searchData.teams.length === 0) {
-      // Try alternative search
-      const altResponse = await fetch(
-        `${FOOTBALL_DATA_BASE}/teams`,
-        {
-          headers: {
-            'X-Auth-Token': FOOTBALL_DATA_API_KEY
-          }
-        }
-      );
-      
-      if (!altResponse.ok) return null;
-      
-      const allTeams = await altResponse.json();
-      const matchedTeam = allTeams.teams?.find((team: any) => 
-        team.name.toLowerCase().includes(teamName.toLowerCase()) ||
-        team.shortName.toLowerCase().includes(teamName.toLowerCase())
-      );
-      
-      if (!matchedTeam) return null;
-      
-      return formatTeamData(matchedTeam);
-    }
-
-    const team = searchData.teams[0];
-    return formatTeamData(team);
-
-  } catch (error) {
-    console.error('Error fetching team data:', error);
-    return null;
-  }
-};
-
-/**
- * Format team data from API response
- */
-const formatTeamData = (teamData: any): CurrentTeamData => {
-  return {
-    name: teamData.name,
-    country: teamData.area?.name || 'Unknown',
-    stadium: teamData.venue,
-    currentCoach: teamData.coach?.name || 'Unknown',
-    coachNationality: teamData.coach?.nationality,
-    coachSince: teamData.coach?.contract?.start,
-    foundedYear: teamData.founded,
-    currentCompetitions: teamData.runningCompetitions?.map((comp: any) => comp.name) || [],
-    squadSize: teamData.squad?.length,
-    marketValue: teamData.squad?.reduce((total: number, player: any) => total + (player.marketValue || 0), 0)?.toLocaleString('en-US', {
-      style: 'currency',
-      currency: 'EUR',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }),
-    lastUpdated: new Date().toISOString()
-  };
-};
-
-/**
- * Fallback: Use Wikipedia for current coach information
- */
-export const getCoachInfoFromWikipedia = async (teamName: string): Promise<{ coach: string; coachInfo?: string } | null> => {
-  try {
-    // This is a simplified version - you'd need to parse Wikipedia properly
-    const response = await fetch(
-      `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(teamName + " (football club)")}`
-    );
-    
-    if (!response.ok) {
-      // Try without suffix
-      const altResponse = await fetch(
-        `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(teamName)}`
-      );
-      if (!altResponse.ok) return null;
-      
-      const data = await altResponse.json();
-      const summary = data.extract || '';
-      
-      // Extract coach info from summary (simplistic approach)
-      const coachMatch = summary.match(/manager is (.+?)(\.|,|$)/i) || 
-                        summary.match(/coach is (.+?)(\.|,|$)/i) ||
-                        summary.match(/head coach is (.+?)(\.|,|$)/i);
-      
-      if (coachMatch) {
-        return {
-          coach: coachMatch[1],
-          coachInfo: summary.substring(0, 200) + '...'
-        };
-      }
-      
+    if (searchData.teams.length === 0) {
+      console.error('[Football Data] No team found for:', teamName);
       return null;
     }
-    
-    const data = await response.json();
-    const summary = data.extract || '';
-    
-    const coachMatch = summary.match(/manager is (.+?)(\.|,|$)/i) || 
-                      summary.match(/coach is (.+?)(\.|,|$)/i) ||
-                      summary.match(/head coach is (.+?)(\.|,|$)/i);
-    
-    if (coachMatch) {
-      return {
-        coach: coachMatch[1],
-        coachInfo: summary.substring(0, 200) + '...'
-      };
-    }
-    
-    return null;
-  } catch (error) {
-    console.error('Error fetching Wikipedia coach info:', error);
-    return null;
-  }
-};
 
-/**
- * Combine GROQ data with current real-time data
- */
-export const enhanceGROQDataWithCurrentInfo = async (
-  groqData: any,
-  query: string
-): Promise<any> => {
-  const enhancedData = { ...groqData };
-  
-  try {
-    // If we have team data from GROQ, enhance it with current info
-    if (enhancedData.teams && enhancedData.teams.length > 0) {
-      const team = enhancedData.teams[0];
-      
-      // Try to get current data from football-data.org
-      const currentTeamData = await getCurrentTeamData(team.name);
-      
-      if (currentTeamData) {
-        // Update with current information
-        enhancedData.teams[0] = {
-          ...team,
-          currentCoach: currentTeamData.currentCoach,
-          stadium: currentTeamData.stadium || team.stadium,
-          // Add current season context
-          currentSeason: CURRENT_SEASON,
-          lastUpdated: currentTeamData.lastUpdated,
-          _source: 'GROQ + Football-data.org API'
-        };
-      } else {
-        // Fallback to Wikipedia for coach info
-        const wikiCoachInfo = await getCoachInfoFromWikipedia(team.name);
-        if (wikiCoachInfo) {
-          enhancedData.teams[0] = {
-            ...team,
-            currentCoach: wikiCoachInfo.coach,
-            _source: 'GROQ + Wikipedia',
-            _note: 'Coach information from Wikipedia'
-          };
-        } else {
-          // Add a note that data might be outdated
-          enhancedData.teams[0] = {
-            ...team,
-            _note: 'Coach information may be outdated. Last updated in training data.',
-            _dataCurrency: 'Check official sources for current information'
-          };
-        }
+    // Get the first matching team
+    const teamId = searchData.teams[0].id;
+    
+    // Fetch detailed team data with squad
+    const teamResponse = await fetch(
+      `${FOOTBALL_DATA_BASE_URL}/teams/${teamId}`,
+      {
+        headers: {
+          'X-Auth-Token': FOOTBALL_DATA_API_KEY,
+        },
       }
+    );
+
+    if (!teamResponse.ok) {
+      console.error('[Football Data] Team fetch failed:', teamResponse.status);
+      return null;
     }
-    
-    // Add data currency disclaimer
-    if (!enhancedData.disclaimer) {
-      enhancedData.disclaimer = 'Some information may be outdated. For the most current data, check official team websites.';
-    }
-    
-    return enhancedData;
-    
+
+    return await teamResponse.json();
   } catch (error) {
-    console.error('Error enhancing GROQ data:', error);
-    return groqData; // Return original data if enhancement fails
+    console.error('[Football Data] Error:', error);
+    return null;
   }
 };
 
-/**
- * Get current season achievements (simplified - would need proper API)
- */
-export const getCurrentSeasonStandings = async (teamName: string): Promise<string[]> => {
-  // This would need integration with a standings API
-  // For now, return empty or placeholder
-  return [
-    `Current season: ${CURRENT_SEASON}/${CURRENT_SEASON + 1}`,
-    'Check official league websites for current standings'
-  ];
+// Map Football Data positions to your format
+const mapPosition = (position: string): string => {
+  const positionMap: Record<string, string> = {
+    'Goalkeeper': 'Goalkeeper',
+    'Defence': 'Defender',
+    'Midfield': 'Midfielder',
+    'Offence': 'Forward',
+    'ATTACKING_MIDFIELD': 'Midfielder',
+    'CENTRAL_MIDFIELD': 'Midfielder',
+    'DEFENSIVE_MIDFIELD': 'Midfielder',
+    'LEFT_BACK': 'Defender',
+    'RIGHT_BACK': 'Defender',
+    'CENTRE_BACK': 'Defender',
+    'LEFT_WINGER': 'Forward',
+    'RIGHT_WINGER': 'Forward',
+    'CENTRE_FORWARD': 'Forward',
+  };
+  
+  return positionMap[position] || position;
 };
 
-export default {
-  getCurrentTeamData,
-  getCoachInfoFromWikipedia,
-  enhanceGROQDataWithCurrentInfo,
-  getCurrentSeasonStandings
+// Calculate age from date of birth
+const calculateAge = (dateOfBirth: string): number => {
+  const birthDate = new Date(dateOfBirth);
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDiff = today.getMonth() - birthDate.getMonth();
+  
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  
+  return age;
+};
+
+export const convertFootballDataToPlayers = (teamData: FootballDataTeam): Player[] => {
+  return teamData.squad.map(player => ({
+    name: player.name,
+    currentTeam: teamData.name,
+    position: mapPosition(player.position),
+    age: calculateAge(player.dateOfBirth),
+    nationality: player.nationality,
+    careerGoals: undefined, // We don't have this data
+    careerAssists: undefined,
+    internationalAppearances: undefined,
+    internationalGoals: undefined,
+    majorAchievements: [], // Will be populated from Wikipedia
+    careerSummary: `${player.name} plays for ${teamData.name} as a ${mapPosition(player.position)}.`,
+    _source: 'Football-Data.org',
+    _lastVerified: new Date().toISOString(),
+  }));
 };

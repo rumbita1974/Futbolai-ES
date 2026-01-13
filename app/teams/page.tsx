@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { searchWithGROQ, Team, Player } from '@/services/groqService';
+import { searchWithGROQ, Team, Player, searchFresh, clearSearchCache } from '@/services/groqService';
 import { useTranslation } from '@/hooks/useTranslation';
 import EnhancedTeamResults from '@/components/EnhancedTeamResults';
 
@@ -28,6 +28,11 @@ export default function TeamsPage() {
   const [searchError, setSearchError] = useState<string | null>(null);
   const { t, language } = useTranslation();
   
+  // Cache busting states
+  const [cacheStatus, setCacheStatus] = useState<'fresh' | 'cached' | 'none'>('none');
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+  const [refreshCount, setRefreshCount] = useState(0);
+  
   const searchParams = useSearchParams();
   const router = useRouter();
   
@@ -35,13 +40,50 @@ export default function TeamsPage() {
   const hasAutoSearchedRef = useRef(false);
   const lastSearchTimeRef = useRef<number>(0);
 
+  // Clear cache on initial load (helps with mobile cache issues)
+  useEffect(() => {
+    const clearCacheOnLoad = () => {
+      try {
+        // Clear all team search cache
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key?.startsWith('teams_search_cache_')) {
+            keysToRemove.push(key);
+          }
+        }
+        
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+        console.log('Cleared cache on load:', keysToRemove.length, 'items');
+        setRefreshCount(0);
+      } catch (err) {
+        console.error('Clear cache on load error:', err);
+      }
+    };
+    
+    // Clear cache when page loads
+    clearCacheOnLoad();
+    
+    // Also clear cache periodically
+    const interval = setInterval(() => {
+      clearCacheOnLoad();
+    }, 10 * 60 * 1000); // Clear every 10 minutes
+    
+    return () => clearInterval(interval);
+  }, []);
+
   // Get current language translations using the hook
   const getTranslation = (key: string): string => {
     return t(`teams.${key}`);
   };
 
-  // Local cache implementation
-  const getCachedResult = (query: string): SearchResult | null => {
+  // Local cache implementation with cache busting support
+  const getCachedResult = (query: string, forceFresh: boolean = false): SearchResult | null => {
+    if (forceFresh) {
+      console.log('Force fresh search, ignoring cache for:', query);
+      return null;
+    }
+    
     try {
       const cacheKey = `teams_search_cache_${query.toLowerCase()}_${language}`;
       const cached = localStorage.getItem(cacheKey);
@@ -51,10 +93,14 @@ export default function TeamsPage() {
       const now = Date.now();
       const cacheAge = now - cacheItem.timestamp;
       
-      // Cache valid for 1 hour (3600000 ms)
-      if (cacheAge < 3600000 && cacheItem.language === language) {
-        console.log('Using cached team result for:', query);
+      // Cache valid for 30 minutes (1800000 ms)
+      if (cacheAge < 1800000 && cacheItem.language === language) {
+        console.log('Using cached team result for:', query, `(${Math.floor(cacheAge/1000)}s old)`);
+        setCacheStatus('cached');
         return cacheItem.data;
+      } else {
+        console.log('Cache expired for:', query, `(${Math.floor(cacheAge/1000)}s old)`);
+        localStorage.removeItem(cacheKey); // Remove expired cache
       }
     } catch (err) {
       console.error('Cache read error:', err);
@@ -73,6 +119,38 @@ export default function TeamsPage() {
       localStorage.setItem(cacheKey, JSON.stringify(cacheItem));
     } catch (err) {
       console.error('Cache write error:', err);
+    }
+  };
+
+  // Clear cache for specific query
+  const clearCachedResult = (query: string) => {
+    try {
+      const cacheKey = `teams_search_cache_${query.toLowerCase()}_${language}`;
+      localStorage.removeItem(cacheKey);
+      console.log('Cleared cache for:', query);
+    } catch (err) {
+      console.error('Cache clear error:', err);
+    }
+  };
+
+  // Clear all cache
+  const clearAllCache = () => {
+    try {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key?.startsWith('teams_search_cache_')) {
+          keysToRemove.push(key);
+        }
+      }
+      
+      keysToRemove.forEach(key => localStorage.removeItem(key));
+      clearSearchCache(); // Clear service cache too
+      console.log('Cleared all cache:', keysToRemove.length, 'items');
+      setCacheStatus('none');
+      setRefreshCount(prev => prev + 1);
+    } catch (err) {
+      console.error('Clear all cache error:', err);
     }
   };
 
@@ -101,7 +179,7 @@ export default function TeamsPage() {
         
         // Auto-trigger search after a short delay
         const timer = setTimeout(() => {
-          handleSearchWithCache(searchParam, true);
+          handleSearchWithCache(searchParam, false, true);
         }, 500);
         
         return () => clearTimeout(timer);
@@ -109,25 +187,32 @@ export default function TeamsPage() {
     }
   }, [searchParams]);
 
-  // Unified search function with caching
-  const handleSearchWithCache = async (query: string, isAutoSearch = false) => {
+  // Unified search function with caching and cache busting
+  const handleSearchWithCache = async (query: string, forceFresh: boolean = false, isAutoSearch = false) => {
     const now = Date.now();
     const timeSinceLastSearch = now - lastSearchTimeRef.current;
     
     // Debounce: Prevent searches within 1 second
-    if (timeSinceLastSearch < 1000 && !isAutoSearch) {
+    if (timeSinceLastSearch < 1000 && !isAutoSearch && !forceFresh) {
       console.log('Search debounced, too soon since last search');
       return;
     }
     
-    // Check cache first (except for auto-searches that already checked)
-    if (!isAutoSearch) {
-      const cached = getCachedResult(query);
+    // Check cache first (unless forcing fresh)
+    if (!forceFresh && !isAutoSearch) {
+      const cached = getCachedResult(query, forceFresh);
       if (cached) {
         console.log('Using cached team result for:', query);
         setSearchResults(cached);
+        setCacheStatus('cached');
         return;
       }
+    }
+    
+    // Clear cache if forcing fresh
+    if (forceFresh) {
+      clearCachedResult(query);
+      setCacheStatus('fresh');
     }
     
     setLoading(true);
@@ -137,22 +222,31 @@ export default function TeamsPage() {
     }
 
     try {
-      console.log(`${isAutoSearch ? 'Auto-' : ''}Searching team for:`, query);
-      const result = await searchWithGROQ(query, language);
-      console.log(`${isAutoSearch ? 'Auto-' : ''}Team search result:`, result);
+      console.log(`${forceFresh ? 'FRESH ' : ''}${isAutoSearch ? 'Auto-' : ''}Searching team for:`, query);
+      
+      // Use searchFresh for cache busting, or regular search otherwise
+      const result = forceFresh 
+        ? await searchFresh(query)
+        : await searchWithGROQ(query, language);
+      
+      console.log(`${forceFresh ? 'FRESH ' : ''}${isAutoSearch ? 'Auto-' : ''}Team search result:`, result);
       
       if (result.error) {
         setSearchError(result.error);
+        setCacheStatus('none');
       } else {
         setSearchResults(result);
-        // Cache successful results
-        if (!result.error) {
+        setLastRefreshed(new Date());
+        
+        // Cache successful results (unless it's a fresh search)
+        if (!forceFresh && !result.error) {
           setCachedResult(query, result);
         }
       }
     } catch (err: any) {
       console.error('Team search error:', err);
       setSearchError(isAutoSearch ? 'Failed to perform auto-search.' : 'Failed to perform search. Please try again.');
+      setCacheStatus('none');
     } finally {
       setLoading(false);
       lastSearchTimeRef.current = Date.now();
@@ -166,6 +260,22 @@ export default function TeamsPage() {
       return;
     }
     handleSearchWithCache(searchQuery);
+  };
+
+  // Refresh current search with cache busting
+  const handleRefreshSearch = () => {
+    if (searchQuery) {
+      console.log('Refreshing search with cache busting:', searchQuery);
+      handleSearchWithCache(searchQuery, true);
+    }
+  };
+
+  // Force refresh all cache
+  const handleForceRefreshAll = () => {
+    clearAllCache();
+    if (searchQuery) {
+      handleSearchWithCache(searchQuery, true);
+    }
   };
 
   const exampleTeams = [
@@ -313,10 +423,67 @@ export default function TeamsPage() {
                     </svg>
                     {getTranslation('searching') || 'Analyzing...'}
                   </span>
-                ) : getTranslation('searchButton') || 'Analyze Team'}
+                ) : (
+                  <>
+                    🔍 {getTranslation('searchButton') || 'Analyze Team'}
+                    {cacheStatus === 'cached' && <span className="ml-2 text-xs bg-yellow-500/20 text-yellow-300 px-2 py-0.5 rounded">CACHED</span>}
+                  </>
+                )}
               </button>
             </div>
           </form>
+
+          {/* Cache Status and Controls */}
+          {(searchResults || cacheStatus !== 'none') && !loading && (
+            <div className="mt-4 mb-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 bg-gray-900/30 border border-gray-700 rounded-lg p-3">
+                <div className="flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full ${
+                    cacheStatus === 'fresh' ? 'bg-green-500 animate-pulse' :
+                    cacheStatus === 'cached' ? 'bg-yellow-500' : 'bg-gray-500'
+                  }`} />
+                  <span className="text-sm text-gray-300">
+                    {cacheStatus === 'fresh' ? '🔄 Fresh data loaded' :
+                     cacheStatus === 'cached' ? '💾 Using cached data' :
+                     '⚡ Live search'}
+                  </span>
+                  {lastRefreshed && (
+                    <span className="text-xs text-gray-400 ml-2">
+                      • Last updated: {lastRefreshed.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                    </span>
+                  )}
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleRefreshSearch}
+                    disabled={loading || !searchQuery}
+                    className="px-3 py-1.5 text-sm bg-blue-900/40 border border-blue-700 text-blue-300 rounded-lg hover:bg-blue-800 hover:border-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center"
+                    title="Refresh with latest data"
+                  >
+                    <span className="mr-1">🔄</span>
+                    Refresh
+                  </button>
+                  
+                  <button
+                    onClick={handleForceRefreshAll}
+                    disabled={loading}
+                    className="px-3 py-1.5 text-sm bg-red-900/40 border border-red-700 text-red-300 rounded-lg hover:bg-red-800 hover:border-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center"
+                    title="Clear all cache and refresh"
+                  >
+                    <span className="mr-1">🗑️</span>
+                    Clear Cache
+                  </button>
+                </div>
+              </div>
+              
+              {/* Cache Stats */}
+              <div className="text-xs text-gray-500 mt-2 text-center">
+                Cache busted {refreshCount} time{refreshCount !== 1 ? 's' : ''} this session
+                {refreshCount > 0 && ' • Refresh to get latest 2024/2025 data'}
+              </div>
+            </div>
+          )}
 
           {/* Example searches */}
           <div className="mt-6">
@@ -362,6 +529,7 @@ export default function TeamsPage() {
                       <li>Check if API keys are set in <code className="bg-red-900/50 px-1 py-0.5 rounded">.env.local</code></li>
                       <li>Verify your internet connection</li>
                       <li>Try a different search term</li>
+                      <li>Click "Refresh" button to clear cache</li>
                     </ul>
                   </div>
                 </div>
@@ -388,20 +556,27 @@ export default function TeamsPage() {
             <p className="text-gray-400 text-sm mt-2">
               {getTranslation('fetching') || 'Fetching squad details, achievements, and statistics...'}
             </p>
+            {cacheStatus === 'fresh' && (
+              <p className="text-green-400 text-sm mt-2">
+                ⚡ Getting fresh 2024/2025 season data...
+              </p>
+            )}
           </div>
         )}
 
-{/* Enhanced Team Results */}
-{searchResults && !loading && (
-  <EnhancedTeamResults
-    teams={searchResults.teams}
-    players={searchResults.players}
-    youtubeQuery={searchResults.youtubeQuery}
-    searchTerm={searchQuery}
-    getTeamFlagUrl={getTeamFlagUrl}
-    language={language} // Add this line
-  />
-)}
+        {/* Enhanced Team Results */}
+        {searchResults && !loading && (
+          <EnhancedTeamResults
+            teams={searchResults.teams}
+            players={searchResults.players}
+            youtubeQuery={searchResults.youtubeQuery}
+            searchTerm={searchQuery}
+            getTeamFlagUrl={getTeamFlagUrl}
+            language={language}
+            cacheStatus={cacheStatus}
+            lastRefreshed={lastRefreshed}
+          />
+        )}
 
         {/* Features Section - Only show when no search results */}
         {!searchResults && !loading && !searchError && (
@@ -535,6 +710,9 @@ export default function TeamsPage() {
             </p>
             <p className="text-gray-400">
               {getTranslation('dataSource') || 'Data enhanced with Wikipedia and GROQ AI'}
+            </p>
+            <p className="text-gray-500 text-xs mt-2">
+              ⚡ Click "Refresh" button to get latest 2024/2025 season data
             </p>
           </div>
         </div>
