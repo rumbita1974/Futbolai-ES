@@ -641,7 +641,7 @@ ${specificKnowledge}
 
 IMPORTANT:
 1. Provide CURRENT 2025/2026 season information
-2. Include 8-15 current squad players if known
+2. Include 15-24 current squad players if known
 3. If you don't know current players, provide historical key players
 4. For achievements, include actual trophy counts
 5. Return valid JSON in this structure:
