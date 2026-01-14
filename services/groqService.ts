@@ -428,7 +428,7 @@ const enhanceWithHistoricalData = (result: GROQSearchResponse, query: string): G
   for (const [team, data] of Object.entries(HISTORICAL_TEAM_DATA)) {
     if (queryLower.includes(team)) {
       if (enhanced.teams?.[0]) {
-        // Add historical data that doesn't change
+        // Add historical data that doesn't change (ONLY for static info)
         if (!enhanced.teams[0].stadium || enhanced.teams[0].stadium === 'Unknown') {
           enhanced.teams[0].stadium = data.stadium;
         }
@@ -452,12 +452,11 @@ const enhanceWithHistoricalData = (result: GROQSearchResponse, query: string): G
           };
         }
         
-        // Enhance achievements with historical data
-        const teamType = data.type || enhanced.teams[0].type;
+        // Enhance achievements with historical data (these don't change seasonally)
         const currentAchievements = enhanced.teams[0].majorAchievements;
         
-        // For clubs: add clubWorldCup
-        if (teamType === 'club') {
+        // For clubs: add clubWorldCup if not present
+        if (data.type === 'club') {
           if ((!currentAchievements.clubWorldCup || currentAchievements.clubWorldCup.length === 0) && 
               data.historicalAchievements.clubWorldCup) {
             currentAchievements.clubWorldCup = data.historicalAchievements.clubWorldCup;
@@ -470,46 +469,40 @@ const enhanceWithHistoricalData = (result: GROQSearchResponse, query: string): G
           currentAchievements.continental = data.historicalAchievements.continental;
         }
         
-        if (teamType === 'club' && 
-            (!currentAchievements.domestic || currentAchievements.domestic.length === 0) && 
+        if ((!currentAchievements.domestic || currentAchievements.domestic.length === 0) && 
             data.historicalAchievements.domestic) {
           currentAchievements.domestic = data.historicalAchievements.domestic;
         }
         
         enhanced.teams[0]._achievementsUpdated = true;
         console.log(`[HISTORY] Added historical achievements for ${team}`);
-        
-        // Add key players as fallback if AI returned no players
-        if ((!enhanced.players || enhanced.players.length === 0) && data.keyPlayers) {
-          console.log(`[HISTORY] Adding ${data.keyPlayers.length} key players as fallback`);
-          
-          enhanced.players = data.keyPlayers.map((playerName: string, index: number) => {
-            const positions = ['Forward', 'Midfielder', 'Defender', 'Goalkeeper'];
-            const nationalities = data.country ? [data.country, 'Brazil', 'Argentina', 'France', 'Spain', 'England', 'Germany', 'Portugal'] : ['Unknown'];
-            
-            return {
-              name: playerName,
-              currentTeam: enhanced.teams[0].name,
-              position: positions[index % positions.length],
-              age: 25 + (index % 6),
-              nationality: nationalities[index % nationalities.length],
-              careerGoals: 10 + (index * 5),
-              careerAssists: 5 + (index * 3),
-              internationalAppearances: 20 + (index * 4),
-              internationalGoals: 5 + (index * 2),
-              majorAchievements: [
-                `${data.historicalAchievements.domestic?.[0]?.split('(')[0] || 'League Title'}`,
-                'Champions League participant'
-              ],
-              careerSummary: `${playerName} is a key player for ${enhanced.teams[0].name}.`,
-              _source: 'Historical Fallback',
-              _lastVerified: new Date().toISOString(),
-              _priority: 'medium',
-              _needsVerification: true
-            };
-          });
-        }
       }
+      
+      // CRITICAL: DO NOT add players from historical data
+      // Players change every season - always use GROQ AI data or Wikipedia for current squad
+      // Fallback should be a message, not fake player data
+      if ((!enhanced.players || enhanced.players.length === 0)) {
+        console.warn(`[WARNING] GROQ returned no players for ${query} - this is a data quality issue`);
+        console.warn(`[FIX] Please improve the system prompt or check GROQ response format`);
+        
+        // Create a single placeholder message instead of fake players
+        enhanced.players = [{
+          name: `Current squad data for ${query} unavailable`,
+          currentTeam: enhanced.teams[0]?.name || query,
+          position: 'Information',
+          nationality: 'N/A',
+          careerGoals: 0,
+          careerAssists: 0,
+          internationalAppearances: 0,
+          internationalGoals: 0,
+          majorAchievements: [],
+          careerSummary: `Check the official ${query} website or transfermarkt.com for current squad information.`,
+          _source: 'System Notice',
+          _lastVerified: new Date().toISOString(),
+          _priority: 'low'
+        }];
+      }
+      
       break;
     }
   }
@@ -635,47 +628,54 @@ const getEnhancedSystemPrompt = (query: string, language: string = 'en'): string
     `"worldCup": ["FIFA World Cup (2022)"],` :
     `"clubWorldCup": ["FIFA Club World Cup (2022)"],`;
   
-  return `You are a football expert with current 2025/2026 season knowledge.
+  return `You are a football expert with 2025/2026 season knowledge.
 
 ${specificKnowledge}
 
-IMPORTANT:
-1. Provide CURRENT 2025/2026 season information
-2. Include 15-24 current squad players if known
-3. If you don't know current players, provide historical key players
-4. For achievements, include actual trophy counts
-5. Return valid JSON in this structure:
+CRITICAL INSTRUCTIONS:
+1. ALWAYS include a "players" array with at LEAST 5 players
+2. If unsure about current players, use well-known players from the team
+3. Return VALID JSON that can be parsed - no markdown, no explanations
+4. Achievements should be actual trophy lists (can be historical)
+5. Manager/Coach must be accurate for 2025/2026
 
+REQUIRED JSON STRUCTURE (must include these fields):
 {
   "teams": [{
     "name": "Team Name",
     "type": "${isNationalTeam ? 'national' : 'club'}",
     "country": "Country",
     "stadium": "Stadium Name",
-    "currentCoach": "Current Manager",
+    "currentCoach": "Current Manager Name",
     "foundedYear": 1900,
     "majorAchievements": {
       ${achievementStructure}
-      "continental": ["UEFA Champions League (2 titles: 1963, 1969)"],
-      "domestic": ["Serie A (19 titles)"]
+      "continental": ["Trophy name (count)"],
+      "domestic": ["Trophy name (count)"]
     }
   }],
-  "players": [{
-    "name": "Player Name",
-    "currentTeam": "Team",
-    "position": "Position",
-    "age": 28,
-    "nationality": "Country",
-    "careerGoals": 100,
-    "careerAssists": 50,
-    "internationalAppearances": 50,
-    "internationalGoals": 15,
-    "majorAchievements": ["Achievement"],
-    "careerSummary": "Career summary"
-  }]
+  "players": [
+    {
+      "name": "Player Name",
+      "currentTeam": "Team Name",
+      "position": "Forward/Midfielder/Defender/Goalkeeper",
+      "age": 28,
+      "nationality": "Country",
+      "careerGoals": 100,
+      "careerAssists": 50,
+      "internationalAppearances": 50,
+      "internationalGoals": 15,
+      "majorAchievements": ["Trophy or honor"],
+      "careerSummary": "Brief career description"
+    },
+    ...MORE PLAYERS (minimum 5, up to 24)...
+  ]
 }
 
-If you cannot provide current players, provide at least 5-8 key players from recent years.`;
+VALIDATION:
+- The "players" array MUST have at least 5 objects
+- Each player MUST have all required fields
+- Return ONLY valid JSON, no other text`;
 };
 
 const getOptimalModel = (query: string): string => {
@@ -758,11 +758,11 @@ export const searchWithGROQ = async (query: string, language: string = 'en', bus
       const completion = await groq.chat.completions.create({
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: `Provide 2025/2026 season information about ${query}. Focus on current squad and achievements. Return valid JSON.` }
+          { role: 'user', content: `IMPORTANT: Provide 2025/2026 season information about ${query}. Include EXACTLY 20-24 current squad players (not fewer). Focus on accurate current squad and achievements. Return valid JSON with "players" array containing 20-24 player objects.` }
         ],
         model: selectedModel,
         temperature: 0.1,
-        max_tokens: selectedModel.includes('70b') ? 2500 : 3500,
+        max_tokens: selectedModel.includes('70b') ? 4000 : 5000,
         response_format: { type: 'json_object' }
       });
 
@@ -862,12 +862,21 @@ export const searchWithGROQ = async (query: string, language: string = 'en', bus
               }));
               finalPlayers = [...finalPlayers, ...remainingPlayers];
             }
+          } else {
+            console.warn(`[WARNING] GROQ response missing 'players' array or not an array`);
+            console.warn(`[DEBUG] parsed.players =`, parsed.players);
           }
           
           console.log(`[✓] Got ${finalPlayers.length} players from GROQ`);
+          if (finalPlayers.length === 0) {
+            console.error(`[ERROR] GROQ returned 0 players for "${query}"`);
+            console.log(`[DEBUG] Full GROQ response:`, response.substring(0, 1000));
+          }
         } catch (error) {
           console.error('[ERROR] Failed to parse GROQ response:', error);
-          console.log('[DEBUG] Response:', response.substring(0, 300));
+          if (response) {
+            console.log('[DEBUG] GROQ response (first 500 chars):', response.substring(0, 500));
+          }
         }
       } else {
         console.error('[ERROR] No response content from GROQ');

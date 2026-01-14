@@ -585,6 +585,7 @@ export default function EnhancedTeamResults({
                       <PlayerImageErrorBoundary key={`${player.name}-${index}`}>
                         <PlayerCard 
                           player={player as ValidatedPlayer}
+                          imageUrl={player.imageUrl}
                           showValidationScore={true}
                         />
                       </PlayerImageErrorBoundary>
