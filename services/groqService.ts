@@ -370,15 +370,9 @@ const fetchFromWikipedia = async (query: string): Promise<any> => {
 const extractCoachFromWikipedia = (summary: string, teamName: string): string | null => {
   console.log(`[Wikipedia] Extracting coach for: ${teamName}`);
   
-  const teamNameLower = teamName.toLowerCase();
-  
-  // First check known 2024 coaches
-  for (const [team, data] of Object.entries(CURRENT_SQUADS_2024)) {
-    if (teamNameLower.includes(team)) {
-      console.log(`[Wikipedia] Known 2024 coach: ${data.coach}`);
-      return data.coach;
-    }
-  }
+  // Do NOT use hard-coded coaches - they're always outdated
+  // Let GROQ provide current manager information
+  // We only use Wikipedia for verification, not as source of truth for current managers
   
   return null;
 };
@@ -429,6 +423,8 @@ const getEnhancedSystemPrompt = (query: string, language: string = 'en'): string
   }
   
   return `You are a football expert with current 2025/2026 season knowledge.
+
+RETURN VALID JSON OBJECT with team and player details.
 
 IMPORTANT: Provide CURRENT manager names and squad compositions.
 Manager positions change frequently - use your most recent knowledge.

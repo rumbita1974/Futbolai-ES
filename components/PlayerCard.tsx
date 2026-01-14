@@ -18,12 +18,15 @@ interface PlayerCardProps {
 
 export default function PlayerCard({
   player,
-  imageUrl = '/images/player-placeholder.png',
+  imageUrl,
   loading = false,
   showValidationScore = true
 }: PlayerCardProps) {
   const [imageError, setImageError] = useState(false);
   const [imageLoading, setImageLoading] = useState(true);
+  
+  // Use provided image or fall back to placeholder
+  const displayImageUrl = imageUrl || '/images/player-placeholder.svg';
   
   const isValidated = '_validationScore' in player;
   const validatedPlayer = player as ValidatedPlayer;
@@ -58,7 +61,7 @@ export default function PlayerCard({
         
         {!imageError ? (
           <img
-            src={imageUrl}
+            src={displayImageUrl}
             alt={player.name}
             className="w-full h-full object-cover"
             onLoad={() => setImageLoading(false)}
