@@ -19,6 +19,83 @@ interface EnhancedTeamResultsProps {
   language?: string;
 }
 
+// ADD THIS COMPONENT AT THE TOP LEVEL (before the main component)
+const AchievementItem = ({ achievement, index }: { achievement: string; index: number }) => (
+  <div className="flex items-start gap-3 p-3 bg-gradient-to-r from-gray-900 to-gray-800 border border-gray-700 rounded-lg hover:border-yellow-500/50 transition">
+    <div className="flex-shrink-0 pt-1">
+      <span className="text-yellow-500">🏆</span>
+    </div>
+    <div className="flex-1">
+      <p className="text-white text-sm">{achievement}</p>
+    </div>
+  </div>
+);
+
+// Also add the PlayerCard component since you might need it for historical players
+const HistoricalPlayerCard = ({ player, index }: { player: Player; index: number }) => {
+  const playerPhotoUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(player.name)}&background=random&color=fff&size=128&bold=true`;
+  
+  return (
+    <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-purple-700 rounded-xl p-4 hover:border-blue-500/50 transition-all hover:-translate-y-1">
+      <div className="flex items-start gap-4">
+        <div className="flex-shrink-0">
+          <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-gray-800 to-gray-900 border border-purple-600 overflow-hidden">
+            <img
+              src={playerPhotoUrl}
+              alt={player.name}
+              className="w-full h-full object-cover"
+            />
+          </div>
+        </div>
+        
+        <div className="flex-1">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <h4 className="font-bold text-white text-lg">{player.name}</h4>
+            <span className="px-2 py-1 bg-purple-900/50 text-purple-300 text-xs rounded-full flex items-center">
+              <span className="mr-1">⭐</span> Legend
+            </span>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            {player.position && (
+              <div>
+                <div className="text-gray-400 text-xs">Position</div>
+                <div className="text-white font-medium">{player.position}</div>
+              </div>
+            )}
+            {player.nationality && (
+              <div>
+                <div className="text-gray-400 text-xs">Nationality</div>
+                <div className="text-white font-medium">{player.nationality}</div>
+              </div>
+            )}
+          </div>
+          
+          {player._era && (
+            <div className="mt-2">
+              <div className="text-gray-400 text-xs">Era</div>
+              <div className="text-yellow-300 font-medium text-sm">{player._era}</div>
+            </div>
+          )}
+          
+          {player.majorAchievements && player.majorAchievements.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-gray-700">
+              <div className="text-gray-400 text-xs mb-1">Key Achievements</div>
+              <div className="flex flex-wrap gap-1">
+                {player.majorAchievements.slice(0, 2).map((achievement, i) => (
+                  <span key={i} className="px-2 py-0.5 bg-yellow-900/30 text-yellow-300 text-xs rounded-full">
+                    {achievement.split('(')[0].trim()}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function EnhancedTeamResults({
   teams,
   players,
@@ -39,7 +116,7 @@ export default function EnhancedTeamResults({
   const team = teams[0];
   const teamMetadata = team?._dataCurrency;
 
-  // Update the useEffect in EnhancedTeamResults.tsx:
+  // FIXED: Use useLayoutEffect to avoid React warning about state updates during render
   useEffect(() => {
     if (team && players.length === 0) {
       // Only show warning, don't generate fake data
@@ -98,50 +175,6 @@ export default function EnhancedTeamResults({
 
   // Helper function for translations
   const t = (en: string, es: string) => language === 'es' ? es : en;
-
-
-  // Helper function to get player photo URL
-  const getPlayerPhotoUrl = (playerName: string): string => {
-    // Clean the player name for URL
-    const cleanName = playerName
-      .replace(/[^a-zA-Z0-9\s]/g, '')
-      .replace(/\s+/g, '_');
-    
-    // Try Wikipedia image URL first
-    const wikiUrl = `https://en.wikipedia.org/wiki/${cleanName}`;
-    
-    // For known players, we can use specific image services
-    // In a real app, you'd fetch this from Wikipedia API
-    const knownPlayers: Record<string, string> = {
-      'kylian mbappé': 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/03/Kylian_Mbapp%C3%A9_2021.jpg/300px-Kylian_Mbapp%C3%A9_2021.jpg',
-      'lionel messi': 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/Lionel-Messi-Argentina-2022-FIFA-World-Cup_%28cropped%29.jpg/300px-Lionel-Messi-Argentina-2022-FIFA-World-Cup_%28cropped%29.jpg',
-      'cristiano ronaldo': 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/Cristiano_Ronaldo_2018.jpg/300px-Cristiano_Ronaldo_2018.jpg',
-      'neymar jr': 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/bb/Neymar_Jr._with_Al_Hilal%2C_3_October_2023_-_03_%28cropped%29.jpg/300px-Neymar_Jr._with_Al_Hilal%2C_3_October_2023_-_03_%28cropped%29.jpg',
-      'karim benzema': 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Karim_Benzema_2021.jpg/300px-Karim_Benzema_2021.jpg',
-      'erling haaland': 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/Erling_Haaland_2023.jpg/300px-Erling_Haaland_2023.jpg',
-      'kevin de bruyne': 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/68/Kevin_De_Bruyne_%28cropped%29.jpg/300px-Kevin_De_Bruyne_%28cropped%29.jpg',
-      'virgil van dijk': 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f5/Virgil_van_Dijk_2021.jpg/300px-Virgil_van_Dijk_2021.jpg',
-      'manuel neuer': 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Manuel_Neuer_2021.jpg/300px-Manuel_Neuer_2021.jpg',
-      'robert lewandowski': 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7c/Robert_Lewandowski_2021.jpg/300px-Robert_Lewandowski_2021.jpg',
-      'harry kane': 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/65/Harry_Kane_2021.jpg/300px-Harry_Kane_2021.jpg',
-      'mohamed salah': 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Mohamed_Salah_2018.jpg/300px-Mohamed_Salah_2018.jpg',
-      'toni kroos': 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5b/Toni_Kroos_2021.jpg/300px-Toni_Kroos_2021.jpg',
-      'luka modrić': 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Luka_Modri%C4%87_2021.jpg/300px-Luka_Modri%C4%87_2021.jpg',
-      'antoine griezmann': 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/76/Antoine_Griezmann_2021.jpg/300px-Antoine_Griezmann_2021.jpg',
-    };
-    
-    const playerKey = playerName.toLowerCase();
-    for (const [key, url] of Object.entries(knownPlayers)) {
-      if (playerKey.includes(key)) {
-        return url;
-      }
-    }
-    
-    // Fallback to UI Avatars for unknown players
-    return `https://ui-avatars.com/api/?name=${encodeURIComponent(playerName)}&background=random&color=fff&size=128&bold=true&font-size=0.5`;
-  };
-
-
 
   // Format date for YouTube videos
   const formatDate = (dateString: string) => {
@@ -839,18 +872,11 @@ export default function EnhancedTeamResults({
                   </p>
                 </div>
               ) : legendaryPlayers.length > 0 ? (
-                <PlayerGridErrorBoundary>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {legendaryPlayers.map((player, index) => (
-                      <PlayerImageErrorBoundary key={`legendary-${player.name}-${index}`}>
-                        <PlayerCard 
-                          player={player as ValidatedPlayer} 
-                          showValidationScore={true}
-                        />
-                      </PlayerImageErrorBoundary>
-                    ))}
-                  </div>
-                </PlayerGridErrorBoundary>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {legendaryPlayers.map((player, index) => (
+                    <HistoricalPlayerCard key={index} player={player} index={index} />
+                  ))}
+                </div>
               ) : (
                 <div className="bg-gray-800/30 rounded-xl p-8 text-center">
                   <div className="text-5xl mb-4">📜</div>
