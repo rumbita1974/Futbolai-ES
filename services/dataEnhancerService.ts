@@ -84,34 +84,16 @@ export const analyzeDataQuality = (groqResponse: any): {
     }
   }
 
-  // Check coach accuracy for major teams
-  const coachChecks: Record<string, string> = {
-    'real madrid': 'Carlo Ancelotti',
-    'barcelona': 'Xavi',
-    'bayern': 'Thomas Tuchel',
-    'liverpool': 'Jürgen Klopp',
-    'manchester city': 'Pep Guardiola',
-    'arsenal': 'Mikel Arteta',
-    'psg': 'Luis Enrique',
-    'juventus': 'Massimiliano Allegri',
-    'milan': 'Stefano Pioli',
-    'inter': 'Simone Inzaghi',
-    'dortmund': 'Edin Terzić',
-    'atlético': 'Diego Simeone',
-    'chelsea': 'Mauricio Pochettino',
-    'tottenham': 'Ange Postecoglou',
-    'manchester united': 'Erik ten Hag',
-    'newcastle': 'Eddie Howe',
-    'aston villa': 'Unai Emery'
-  };
-
+  // NOTE: We no longer hard-code expected manager names
+  // Managers change frequently and GROQ AI has current knowledge
+  // Instead, we validate the manager field exists and is reasonable
   const teamName = groqResponse.teams?.[0]?.name?.toLowerCase() || '';
-  const expectedCoach = coachChecks[teamName];
-  const actualCoach = groqResponse.teams?.[0]?.currentCoach || '';
+  const currentCoach = groqResponse.teams?.[0]?.currentCoach || '';
   
-  if (expectedCoach && actualCoach && actualCoach.toLowerCase() !== expectedCoach.toLowerCase()) {
-    result.dataIssues.push(`Incorrect coach: ${actualCoach}`);
-    result.suggestions.push(`Current coach is ${expectedCoach}`);
+  // Check that coach field is not empty or "Unknown"
+  if (!currentCoach || currentCoach.toLowerCase() === 'unknown') {
+    result.dataIssues.push('Coach information missing');
+    result.suggestions.push('GROQ did not return coach information - this is expected for obscure teams');
   }
 
   // Check achievements
@@ -120,16 +102,15 @@ export const analyzeDataQuality = (groqResponse: any): {
     // Barcelona should have continental achievements
     if (teamName.includes('barcelona') && team.majorAchievements.continental?.length === 0) {
       result.dataIssues.push('Missing continental achievements');
-      result.suggestions.push('Barcelona has 5 UEFA Champions League titles');
+      result.suggestions.push('Barcelona should have UEFA Champions League titles in data');
     }
     
-    // Real Madrid should have 15 UCL titles
+    // Real Madrid should have Champions League achievements
     if (teamName.includes('real madrid')) {
       const achievements = JSON.stringify(team.majorAchievements).toLowerCase();
-      if (!achievements.includes('15') && achievements.includes('champions league')) {
-        result.dataIssues.push('Incorrect UCL count');
-        result.suggestions.push('Real Madrid has 15 UEFA Champions League titles (won in 2024)');
-      }
+      if (!achievements.includes('champions league')) {
+        result.dataIssues.push('Missing Champions League achievements');
+
     }
   }
 
@@ -149,7 +130,8 @@ export const analyzeDataQuality = (groqResponse: any): {
 };
 
 /**
- * Fix common data issues
+ * Fix common data issues - Does NOT override manager names
+ * Managers change frequently, GROQ AI provides current info
  */
 const fixCommonDataIssues = (groqResponse: any): any => {
   const fixedResponse = JSON.parse(JSON.stringify(groqResponse));
@@ -159,53 +141,31 @@ const fixCommonDataIssues = (groqResponse: any): any => {
   const teamName = fixedResponse.teams[0].name.toLowerCase();
   const team = fixedResponse.teams[0];
   
-  // Fix Real Madrid data
+  // Real Madrid: Only fix achievements, NOT the coach
   if (teamName.includes('real madrid')) {
-    // Fix coach
-    if (team.currentCoach !== 'Carlo Ancelotti') {
-      team.currentCoach = 'Carlo Ancelotti';
-      team._coachFixed = true;
-    }
-    
-    // Fix UCL count in achievements
+    // Fix UCL count in achievements only
     if (team.majorAchievements?.continental) {
       const continental = team.majorAchievements.continental;
       team.majorAchievements.continental = continental.map((ach: string) => {
-        if (ach.toLowerCase().includes('champions league') && ach.includes('14')) {
-          return 'UEFA Champions League (15 titles: 1956, 1957, 1958, 1959, 1960, 1966, 1998, 2000, 2002, 2014, 2016, 2017, 2018, 2022, 2024)';
+        if (ach.toLowerCase().includes('champions league')) {
+          // Just ensure it mentions titles exist, don't enforce count
+          return ach;
         }
         return ach;
       });
     }
-    
-    // Filter out departed players
-    const departedPlayers = ['Karim Benzema', 'Eden Hazard', 'Marco Asensio', 'Mariano Díaz'];
-    fixedResponse.players = fixedResponse.players?.filter((player: any) => 
-      !departedPlayers.includes(player.name)
-    ) || [];
   }
   
-  // Fix Barcelona data
+  // Barcelona: Only add achievements if missing, NOT override coach
   if (teamName.includes('barcelona')) {
-    // Fix coach
-    if (team.currentCoach !== 'Xavi') {
-      team.currentCoach = 'Xavi';
-      team._coachFixed = true;
-    }
-    
     // Add continental achievements if missing
     if (team.majorAchievements?.continental?.length === 0) {
       team.majorAchievements.continental = [
-        'UEFA Champions League (5 titles: 1992, 2006, 2009, 2011, 2015)',
-        'UEFA Cup Winners\' Cup (4 titles)',
-        'UEFA Super Cup (5 titles)'
+        'UEFA Champions League (multiple titles)',
+        'UEFA Cup Winners\' Cup (multiple titles)',
+        'UEFA Super Cup (multiple titles)'
       ];
     }
-    
-    // Filter out Ansu Fati (on loan)
-    fixedResponse.players = fixedResponse.players?.filter((player: any) => 
-      !player.name.includes('Ansu Fati')
-    ) || [];
   }
   
   return fixedResponse;

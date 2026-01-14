@@ -5,6 +5,10 @@ import { useState, useEffect } from 'react';
 import { searchYouTubeHighlights, YouTubeVideo } from '@/services/youtubeService';
 import { Team, Player, needsDataVerification, getDataSourceInfo, getHistoricalPlayers } from '@/services/groqService';
 import { getDataCurrencyBadge } from '@/services/dataEnhancerService';
+import PlayerCard from '@/components/PlayerCard';
+import { PlayerImageErrorBoundary, PlayerGridErrorBoundary } from '@/components/PlayerImageErrorBoundary';
+import { usePlayerImages } from '@/hooks/usePlayerImages';
+import { ValidatedPlayer } from '@/services/dataValidationService';
 
 interface EnhancedTeamResultsProps {
   teams: Team[];
@@ -137,168 +141,7 @@ export default function EnhancedTeamResults({
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(playerName)}&background=random&color=fff&size=128&bold=true&font-size=0.5`;
   };
 
-  // Helper component for player cards in squad tab
-  const PlayerCard = ({ player, index, isHistorical = false }: { player: Player; index: number; isHistorical?: boolean }) => {
-    const isPlaceholder = player._source?.includes('Placeholder') || 
-                         player._source?.includes('ejemplo') || 
-                         player.name.startsWith('Player') || 
-                         player.name.startsWith('Jugador');
-    const isLegendary = player._source?.includes('Historical') || isHistorical;
-    const playerPhotoUrl = getPlayerPhotoUrl(player.name);
-    
-    return (
-      <div className={`bg-gradient-to-br from-gray-900 to-gray-800 border ${isLegendary ? 'border-purple-700' : 'border-gray-700'} rounded-xl p-4 hover:border-blue-500/50 transition-all hover:-translate-y-1`}>
-        <div className="flex items-start gap-4">
-          {/* Player photo */}
-          <div className="flex-shrink-0">
-            <div className={`w-16 h-16 rounded-lg bg-gradient-to-br from-gray-800 to-gray-900 border ${isLegendary ? 'border-purple-600' : 'border-gray-700'} overflow-hidden`}>
-              <img
-                src={playerPhotoUrl}
-                alt={player.name}
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  // Fallback to avatar if image fails to load
-                  e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(player.name)}&background=random&color=fff&size=128`;
-                  e.currentTarget.onerror = null; // Prevent infinite loop
-                }}
-              />
-            </div>
-          </div>
-          
-          {/* Player info */}
-          <div className="flex-1">
-            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
-              <h4 className="font-bold text-white text-lg">{player.name}</h4>
-              <div className="flex items-center gap-2">
-                {isLegendary && (
-                  <span className="px-2 py-1 bg-purple-900/50 text-purple-300 text-xs rounded-full flex items-center">
-                    <span className="mr-1">⭐</span> {t('Legend', 'Leyenda')}
-                  </span>
-                )}
-                <span className="px-2 py-1 bg-blue-900/50 text-blue-300 text-xs rounded-full">
-                  #{index + 1}
-                </span>
-              </div>
-            </div>
-            
-            {player._era && (
-              <div className="mb-2">
-                <div className="text-gray-400 text-xs">{t('Era', 'Época')}</div>
-                <div className="text-yellow-300 font-medium text-sm">{player._era}</div>
-              </div>
-            )}
-            
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <div>
-                <div className="text-gray-400 text-xs">
-                  {t('Position', 'Posición')}
-                </div>
-                <div className="text-white font-medium">{player.position}</div>
-              </div>
-              <div>
-                <div className="text-gray-400 text-xs">
-                  {t('Nationality', 'Nacionalidad')}
-                </div>
-                <div className="text-white font-medium">{player.nationality}</div>
-              </div>
-              {player.age && !isLegendary && (
-                <div>
-                  <div className="text-gray-400 text-xs">
-                    {t('Age', 'Edad')}
-                  </div>
-                  <div className="text-white font-medium">{player.age}</div>
-                </div>
-              )}
-              {player.careerGoals !== undefined && (
-                <div>
-                  <div className="text-gray-400 text-xs">
-                    {t('Career Goals', 'Goles en carrera')}
-                  </div>
-                  <div className="text-white font-medium">{player.careerGoals}</div>
-                </div>
-              )}
-            </div>
-            
-            {player.currentTeam && !isPlaceholder && !isLegendary && (
-              <div className="mt-3 pt-3 border-t border-gray-700">
-                <div className="text-gray-400 text-xs">
-                  {t('Current Club', 'Club actual')}
-                </div>
-                <div className="text-white font-medium text-sm">{player.currentTeam}</div>
-              </div>
-            )}
-            
-            {player._yearsAtTeam && (
-              <div className="mt-2 pt-2 border-t border-gray-700">
-                <div className="text-gray-400 text-xs">
-                  {t('Years at Team', 'Años en el equipo')}
-                </div>
-                <div className="text-white font-medium text-sm">{player._yearsAtTeam}</div>
-              </div>
-            )}
-            
-            {/* Major Achievements */}
-            {player.majorAchievements && player.majorAchievements.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-gray-700">
-                <div className="text-gray-400 text-xs mb-1">
-                  {t('Key Achievements', 'Logros clave')}
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {player.majorAchievements.slice(0, 2).map((achievement, i) => (
-                    <span key={i} className="px-2 py-0.5 bg-yellow-900/30 text-yellow-300 text-xs rounded-full">
-                      {achievement.split('(')[0].trim()}
-                    </span>
-                  ))}
-                  {player.majorAchievements.length > 2 && (
-                    <span className="px-2 py-0.5 bg-gray-800 text-gray-400 text-xs rounded-full">
-                      +{player.majorAchievements.length - 2}
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
-            
-            {/* Placeholder data indicator */}
-            {isPlaceholder && (
-              <div className="mt-3 pt-3 border-t border-gray-700">
-                <div className="text-yellow-500 text-xs">
-                  {t(
-                    'Placeholder data - Real squad details would load here',
-                    'Datos de ejemplo - Los detalles reales del equipo se cargarían aquí'
-                  )}
-                </div>
-              </div>
-            )}
-            
-            {/* Legendary player indicator */}
-            {isLegendary && !isPlaceholder && (
-              <div className="mt-3 pt-3 border-t border-gray-700">
-                <div className="text-purple-400 text-xs flex items-center">
-                  <span className="mr-1">🏆</span>
-                  {t(
-                    'Historical legend of the club',
-                    'Leyenda histórica del club'
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  };
 
-  // Helper component for achievement items
-  const AchievementItem = ({ achievement, index }: { achievement: string; index: number }) => (
-    <div className="flex items-start gap-3 p-3 bg-gradient-to-r from-gray-900 to-gray-800 border border-gray-700 rounded-lg hover:border-yellow-500/50 transition">
-      <div className="flex-shrink-0 pt-1">
-        <span className="text-yellow-500">🏆</span>
-      </div>
-      <div className="flex-1">
-        <p className="text-white text-sm">{achievement}</p>
-      </div>
-    </div>
-  );
 
   // Format date for YouTube videos
   const formatDate = (dateString: string) => {
@@ -703,11 +546,18 @@ export default function EnhancedTeamResults({
 
             {displayPlayers.length > 0 ? (
               <>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {displayPlayers.map((player, index) => (
-                    <PlayerCard key={index} player={player} index={index} />
-                  ))}
-                </div>
+                <PlayerGridErrorBoundary>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {displayPlayers.map((player, index) => (
+                      <PlayerImageErrorBoundary key={`${player.name}-${index}`}>
+                        <PlayerCard 
+                          player={player as ValidatedPlayer}
+                          showValidationScore={true}
+                        />
+                      </PlayerImageErrorBoundary>
+                    ))}
+                  </div>
+                </PlayerGridErrorBoundary>
 
                 {/* Squad Statistics */}
                 <div className="mt-8 pt-8 border-t border-gray-700">
@@ -989,11 +839,18 @@ export default function EnhancedTeamResults({
                   </p>
                 </div>
               ) : legendaryPlayers.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {legendaryPlayers.map((player, index) => (
-                    <PlayerCard key={index} player={player} index={index} isHistorical={true} />
-                  ))}
-                </div>
+                <PlayerGridErrorBoundary>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {legendaryPlayers.map((player, index) => (
+                      <PlayerImageErrorBoundary key={`legendary-${player.name}-${index}`}>
+                        <PlayerCard 
+                          player={player as ValidatedPlayer} 
+                          showValidationScore={true}
+                        />
+                      </PlayerImageErrorBoundary>
+                    ))}
+                  </div>
+                </PlayerGridErrorBoundary>
               ) : (
                 <div className="bg-gray-800/30 rounded-xl p-8 text-center">
                   <div className="text-5xl mb-4">📜</div>

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { searchWithGROQ, Team, Player, searchFresh, clearSearchCache } from '@/services/groqService';
 import { useTranslation } from '@/hooks/useTranslation';
+import { translateTeamData } from '@/services/translationService';
 import EnhancedTeamResults from '@/components/EnhancedTeamResults';
 
 interface SearchResult {
@@ -136,21 +137,29 @@ export default function TeamsPage() {
   // Clear all cache
   const clearAllCache = () => {
     try {
-      const keysToRemove: string[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
+      // Only clear if cache exists
+      let clearedCount = 0;
+      for (let i = localStorage.length - 1; i >= 0; i--) {
         const key = localStorage.key(i);
         if (key?.startsWith('teams_search_cache_')) {
-          keysToRemove.push(key);
+          localStorage.removeItem(key);
+          clearedCount++;
         }
       }
       
-      keysToRemove.forEach(key => localStorage.removeItem(key));
-      clearSearchCache(); // Clear service cache too
-      console.log('Cleared all cache:', keysToRemove.length, 'items');
+      // Also clear the in-memory cache in groqService
+      clearSearchCache();
+      
+      console.log(`[CACHE] Cleared ${clearedCount} items`);
       setCacheStatus('none');
       setRefreshCount(prev => prev + 1);
+      
+      // Show success message
+      alert(`Cleared ${clearedCount} cached items`);
+      
     } catch (err) {
       console.error('Clear all cache error:', err);
+      alert('Error clearing cache');
     }
   };
 
@@ -229,23 +238,28 @@ export default function TeamsPage() {
         ? await searchFresh(query)
         : await searchWithGROQ(query, language);
       
-      console.log(`${forceFresh ? 'FRESH ' : ''}${isAutoSearch ? 'Auto-' : ''}Team search result:`, result);
+      // Translate the results if not in English
+      const translatedResult = language !== 'en' 
+        ? translateTeamData(result, language)
+        : result;
+      
+      console.log(`${forceFresh ? 'FRESH ' : ''}${isAutoSearch ? 'Auto-' : ''}Team search result:`, translatedResult);
       
       if (result.error) {
         setSearchError(result.error);
         setCacheStatus('none');
       } else {
-        setSearchResults(result);
+        setSearchResults(translatedResult); // Use translated result
         setLastRefreshed(new Date());
         
         // Cache successful results (unless it's a fresh search)
         if (!forceFresh && !result.error) {
-          setCachedResult(query, result);
+          setCachedResult(query, translatedResult); // Cache translated result
         }
       }
     } catch (err: any) {
       console.error('Team search error:', err);
-      setSearchError(isAutoSearch ? 'Failed to perform auto-search.' : 'Failed to perform search. Please try again.');
+      setSearchError(isAutoSearch ? getTranslation('searchFailed') : getTranslation('searchError'));
       setCacheStatus('none');
     } finally {
       setLoading(false);

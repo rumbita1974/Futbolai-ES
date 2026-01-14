@@ -1,4 +1,5 @@
 import Groq from 'groq-sdk';
+import { validatePlayer } from './dataValidationService';
 
 const groq = new Groq({
   apiKey: process.env.NEXT_PUBLIC_GROQ_API_KEY || '',
@@ -53,19 +54,19 @@ export interface GROQSearchResponse {
   error?: string;
   message?: string;
   _metadata?: {
-    enhancedAt: string;
-    analysis: any;
-    appliedUpdates: string[];
-    dataSources: string[];
-    currentSeason: string;
-    dataCurrency: {
+    enhancedAt?: string;
+    analysis?: any;
+    appliedUpdates?: string[];
+    dataSources?: string[];
+    currentSeason?: string;
+    dataCurrency?: {
       aiCutoff: string;
       verifiedWith: string;
       confidence: string;
       lastVerified: string;
     };
-    disclaimer: string;
-    recommendations: string[];
+    disclaimer?: string;
+    recommendations?: string[];
   };
 }
 
@@ -207,6 +208,92 @@ const CURRENT_SQUADS_2024: Record<string, { players: string[]; coach: string; co
   }
 };
 
+// IMMUTABLE TEAM DATA - Only stadium/founding year (managers change frequently)
+// NOTE: Manager data removed to allow GROQ AI to provide current information
+// We trust GROQ's knowledge and validate with dataValidationService instead of overriding
+const IMMUTABLE_TEAM_DATA: Record<string, any> = {
+  'real madrid': {
+    foundedYear: 1902,
+    stadium: 'Santiago Bernabéu'
+  },
+  'barcelona': {
+    foundedYear: 1899,
+    stadium: 'Spotify Camp Nou'
+  },
+  'manchester city': {
+    foundedYear: 1880,
+    stadium: 'Etihad Stadium'
+  },
+  'liverpool': {
+    foundedYear: 1892,
+    stadium: 'Anfield'
+  },
+  'bayern munich': {
+    foundedYear: 1900,
+    stadium: 'Allianz Arena'
+  },
+  'arsenal': {
+    foundedYear: 1886,
+    stadium: 'Emirates Stadium'
+  },
+  'manchester united': {
+    foundedYear: 1878,
+    stadium: 'Old Trafford'
+  },
+  'chelsea': {
+    foundedYear: 1905,
+    stadium: 'Stamford Bridge'
+  }
+};
+
+const enhanceWithImmutableData = (result: GROQSearchResponse, query: string): GROQSearchResponse => {
+  const queryLower = query.toLowerCase();
+  const enhanced = JSON.parse(JSON.stringify(result));
+  
+  // Only add immutable data - never override manager (let GROQ provide current info)
+  for (const [team, data] of Object.entries(IMMUTABLE_TEAM_DATA)) {
+    if (queryLower.includes(team)) {
+      if (enhanced.teams?.[0]) {
+        // Only set if GROQ didn't provide these
+        if (!enhanced.teams[0].stadium || enhanced.teams[0].stadium === 'Unknown') {
+          enhanced.teams[0].stadium = data.stadium;
+        }
+        if (!enhanced.teams[0].foundedYear || enhanced.teams[0].foundedYear === 0) {
+          enhanced.teams[0].foundedYear = data.foundedYear;
+        }
+      }
+      
+      // Ensure key players are included
+      if (enhanced.players && data.keyPlayers) {
+        data.keyPlayers.forEach((playerName: string) => {
+          if (!enhanced.players.some((p: any) => p.name.toLowerCase() === playerName.toLowerCase())) {
+            enhanced.players.unshift({
+              name: playerName,
+              position: 'Player',
+              currentTeam: enhanced.teams?.[0]?.name || query,
+              nationality: '',
+              careerGoals: 0,
+              careerAssists: 0,
+              internationalAppearances: 0,
+              internationalGoals: 0,
+              majorAchievements: [],
+              careerSummary: `Key player for ${enhanced.teams?.[0]?.name || query}`,
+              _addedByVerification: true,
+              _source: 'Manual Verification',
+              _priority: 'high'
+            } as Player);
+          }
+        });
+      }
+      
+      console.log(`[VERIFICATION] Enhanced data for: ${team}`);
+      break;
+    }
+  }
+  
+  return enhanced;
+};
+
 const createDefaultTeam = (name: string): Team => {
   const nameLower = name.toLowerCase();
   let coach = 'Unknown';
@@ -296,11 +383,73 @@ const extractCoachFromWikipedia = (summary: string, teamName: string): string | 
   return null;
 };
 
+const getOptimalModel = (query: string): string => {
+  const queryLower = query.toLowerCase();
+  
+  // Use 70B for important/current data
+  const majorTeams = [
+    'real madrid', 'barcelona', 'manchester city', 'liverpool',
+    'bayern', 'psg', 'juventus', 'ac milan', 'inter milan',
+    'arsenal', 'chelsea', 'manchester united', 'tottenham',
+    'france', 'argentina', 'brazil', 'england', 'germany',
+    'spain', 'italy', 'portugal', 'netherlands'
+  ];
+  
+  // Use 70B for major teams, 8B for others
+  if (majorTeams.some(team => queryLower.includes(team))) {
+    return 'llama-3.3-70b-versatile';
+  }
+  
+  return 'llama-3.1-8b-instant';
+};
+
+const getEnhancedSystemPrompt = (query: string, language: string = 'en'): string => {
+  const queryLower = query.toLowerCase();
+  
+  // Add specific knowledge for major teams
+  const teamKnowledge: Record<string, string> = {
+    'real madrid': `Real Madrid: Provide current 2026 season information with latest manager and squad. Historical: Mbappé (2024), Kroos retired (2024).`,
+    'barcelona': `FC Barcelona: Provide current 2026 season information with latest manager and squad.`,
+    'manchester city': `Manchester City 2024/2025: Coach Pep Guardiola. Key players: Erling Haaland, Kevin De Bruyne, Rodri, Phil Foden.`,
+    'liverpool': `Liverpool 2024/2025: NEW Coach Arne Slot (replaced Jürgen Klopp). Key players: Mohamed Salah, Virgil van Dijk, Trent Alexander-Arnold.`,
+    'bayern munich': `Bayern Munich 2024/2025: Coach Vincent Kompany. Key players: Harry Kane, Jamal Musiala, Kingsley Coman.`,
+    'psg': `Paris Saint-Germain 2024/2025: Key players: Kylian Mbappé (transferred to Real Madrid), Neymar (transferred to Al-Hilal in 2023).`,
+    'arsenal': `Arsenal 2024/2025: Coach Mikel Arteta. Key players: Bukayo Saka, Martin Ødegaard.`,
+    'chelsea': `Chelsea 2024/2025: Key players: Cole Palmer, Nicolas Jackson.`,
+    'manchester united': `Manchester United 2024/2025: Key players: Bruno Fernandes, Antony.`,
+    'tottenham': `Tottenham 2024/2025: Key players: Harry Kane (transferred to Bayern Munich), Son Heung-min.`
+  };
+  
+  let specificKnowledge = '';
+  for (const [team, knowledge] of Object.entries(teamKnowledge)) {
+    if (queryLower.includes(team)) {
+      specificKnowledge = knowledge;
+      break;
+    }
+  }
+  
+  return `You are a football expert with current 2025/2026 season knowledge.
+
+IMPORTANT: Provide CURRENT manager names and squad compositions.
+Manager positions change frequently - use your most recent knowledge.
+Do NOT provide outdated information.
+If you're uncertain about current managers, indicate your uncertainty level.
+
+Historical transfers (2023-2024) for context:
+- Toni Kroos retired in 2024
+- Kylian Mbappé transferred to Real Madrid (2024)
+- Harry Kane transferred to Bayern Munich (2024)
+- Neymar transferred to Al-Hilal (2023)`;
+};
+
 /**
  * SIMPLIFIED SEARCH - NO FOOTBALL DATA API (IT'S BROKEN)
  */
 export const searchWithGROQ = async (query: string, language: string = 'en', bustCache: boolean = false): Promise<GROQSearchResponse> => {
-  console.log(`\n⚽ [${CURRENT_SEASON}] Searching: "${query}"`);
+  console.log(`\n⚽ [${CURRENT_SEASON}] Searching: "${query}" using optimized model selection`);
+  
+  const selectedModel = getOptimalModel(query);
+  console.log(`[MODEL] Using: ${selectedModel}`);
   
   // Clear old cache
   clearStaleCache();
@@ -383,20 +532,16 @@ export const searchWithGROQ = async (query: string, language: string = 'en', bus
       console.log('[2/3] Getting player details from GROQ AI...');
       
       try {
-        const systemPrompt = `You are a football expert. Provide player details for the ${CURRENT_SEASON} season.
-        
-For each player, provide: nationality, position, and age.
-Return as JSON array of players with these fields.
-Be accurate and current for ${CURRENT_SEASON}.`;
+        const systemPrompt = getEnhancedSystemPrompt(query, language);
 
         const completion = await groq.chat.completions.create({
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: `Provide nationality, position, and age for these ${query} players: ${finalPlayers.slice(0, 10).map(p => p.name).join(', ')}` }
           ],
-          model: 'llama-3.1-8b-instant',
+          model: selectedModel,
           temperature: 0.1,
-          max_tokens: 2000,
+          max_tokens: selectedModel.includes('70b') ? 1500 : 2000,
           response_format: { type: 'json_object' }
         });
 
@@ -431,25 +576,16 @@ Be accurate and current for ${CURRENT_SEASON}.`;
       console.log('[2/3] Getting data from GROQ AI...');
       
       try {
-        const systemPrompt = `You are a football expert. Provide CURRENT ${CURRENT_SEASON} season information.
-        
-IMPORTANT UPDATES FOR ${CURRENT_SEASON}:
-- Real Madrid: Coach = Carlo Ancelotti. Players include: Jude Bellingham, Kylian Mbappé, Vinícius Júnior
-- Liverpool: NEW coach = Arne Slot (replaced Jürgen Klopp)
-- Bayern Munich: NEW coach = Vincent Kompany
-- Toni Kroos RETIRED in 2024
-- Karim Benzema LEFT Real Madrid in 2023
-
-Return JSON with current coach and 15-24 current players.`;
+        const systemPrompt = getEnhancedSystemPrompt(query, language);
 
         const completion = await groq.chat.completions.create({
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: `Provide current ${CURRENT_SEASON} information about ${query}. Include coach and 15-24 players. Return valid JSON.` }
           ],
-          model: 'llama-3.1-8b-instant',
+          model: selectedModel,
           temperature: 0.2,
-          max_tokens: 4000,
+          max_tokens: selectedModel.includes('70b') ? 1500 : 4000,
           response_format: { type: 'json_object' }
         });
 
@@ -586,17 +722,41 @@ Return JSON with current coach and 15-24 current players.`;
       }
     };
     
+    // Enhance with manually verified data
+    const enhancedResult = enhanceWithImmutableData(result, query);
+    
+    // Validate all players
+    const validatedPlayers = enhancedResult.players.map(player => validatePlayer(player));
+    const enhancedResultWithValidation = {
+      ...enhancedResult,
+      players: validatedPlayers,
+      _metadata: {
+        ...enhancedResult._metadata,
+        analysis: {
+          ...enhancedResult._metadata?.analysis,
+          dataValidation: {
+            validatedAt: new Date().toISOString(),
+            totalPlayers: validatedPlayers.length,
+            averageScore: Math.round(
+              validatedPlayers.reduce((sum, p) => sum + p._validationScore, 0) / validatedPlayers.length
+            ),
+            playersWithIssues: validatedPlayers.filter(p => p._issues.length > 0).length
+          }
+        }
+      }
+    };
+    
     // Cache the result
     if (!bustCache) {
       cache.set(cacheKey, {
-        data: result,
+        data: enhancedResultWithValidation,
         timestamp: Date.now()
       });
       console.log(`[CACHE] Result cached`);
     }
     
     console.log(`✅ [COMPLETE]\n`);
-    return result;
+    return enhancedResultWithValidation;
     
   } catch (error: any) {
     console.error('[ERROR] Search failed:', error);
