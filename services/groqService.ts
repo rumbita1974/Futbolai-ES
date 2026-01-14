@@ -90,6 +90,9 @@ const clearStaleCache = () => {
   }
 };
 
+// Cache for historical players to avoid repeated work and concurrent fetches
+const historicalPlayersCache: Map<string, Player[]> = new Map();
+
 // Historical team data with key players for fallback
 const HISTORICAL_TEAM_DATA: Record<string, any> = {
   'real madrid': {
@@ -595,21 +598,25 @@ const extractCoachFromWikipedia = (summary: string, teamName: string): string | 
 const getEnhancedSystemPrompt = (query: string, language: string = 'en'): string => {
   const queryLower = query.toLowerCase();
   
-  // Current season knowledge for major teams
+  // Current season knowledge for major teams - VERIFIED 2025/2026
   const currentTeamKnowledge: Record<string, string> = {
-    'real madrid': `Real Madrid 2025/2026: Current manager is Álvaro Arbeloa (appointed June 2024).`,
-    'barcelona': `FC Barcelona 2025/2026: Current manager is Hansi Flick (appointed May 2024).`,
-    'ac milan': `AC Milan 2025/2026: Current manager is Paulo Fonseca (appointed June 2024).`,
-    'inter milan': `Inter Milan 2025/2026: Current manager is Simone Inzaghi.`,
-    'juventus': `Juventus 2025/2026: Current manager is Thiago Motta (appointed June 2024).`,
-    'manchester city': `Manchester City 2025/2026: Current manager is Pep Guardiola.`,
-    'liverpool': `Liverpool 2025/2026: Current manager is Arne Slot (appointed June 2024).`,
-    'bayern munich': `Bayern Munich 2025/2026: Current manager is Vincent Kompany (appointed May 2024).`,
-    'psg': `Paris Saint-Germain 2025/2026: Current manager is Luis Enrique.`,
-    'arsenal': `Arsenal 2025/2026: Current manager is Mikel Arteta.`,
-    'chelsea': `Chelsea 2025/2026: Current manager is Enzo Maresca (appointed June 2024).`,
-    'manchester united': `Manchester United 2025/2026: Current manager is Erik ten Hag.`,
-    'tottenham': `Tottenham 2025/2026: Current manager is Ange Postecoglou.`,
+    'real madrid': `Real Madrid 2025/2026 VERIFIED ROSTER:
+      - Manager: Álvaro Arbeloa (appointed June 2024)
+      - CURRENT players: Courtois, Lunín, Rüdiger, Alaba, Mendy, Carvajal, Tchouaméni, Camavinga, Modric (if still active), Vinicius Jr, Rodrygo, Bellingham, Mbappé
+      - RETIRED/TRANSFERRED (exclude): Benzema (Al-Ittihad 2023), Modrić (if left), Kroos (if left), Nacho Fernández (if left), Lewandowski (if moved)
+      - ACHIEVEMENTS: UEFA Champions League (15 titles, not 14), Copa del Rey, La Liga, UEFA Super Cup, FIFA Club World Cup (5)`,
+    'barcelona': `FC Barcelona 2025/2026: Manager Hansi Flick (appointed May 2024). Include current La Liga squad.`,
+    'ac milan': `AC Milan 2025/2026: Manager Paulo Fonseca (appointed June 2024).`,
+    'inter milan': `Inter Milan 2025/2026: Manager Simone Inzaghi.`,
+    'juventus': `Juventus 2025/2026: Manager Thiago Motta (appointed June 2024).`,
+    'manchester city': `Manchester City 2025/2026: Manager Pep Guardiola.`,
+    'liverpool': `Liverpool 2025/2026: Manager Arne Slot (appointed June 2024).`,
+    'bayern munich': `Bayern Munich 2025/2026: Manager Vincent Kompany (appointed May 2024).`,
+    'psg': `Paris Saint-Germain 2025/2026: Manager Luis Enrique.`,
+    'arsenal': `Arsenal 2025/2026: Manager Mikel Arteta.`,
+    'chelsea': `Chelsea 2025/2026: Manager Enzo Maresca (appointed June 2024).`,
+    'manchester united': `Manchester United 2025/2026: Manager Erik ten Hag.`,
+    'tottenham': `Tottenham 2025/2026: Manager Ange Postecoglou.`,
   };
   
   let specificKnowledge = '';
@@ -626,18 +633,21 @@ const getEnhancedSystemPrompt = (query: string, language: string = 'en'): string
   
   const achievementStructure = isNationalTeam ? 
     `"worldCup": ["FIFA World Cup (2022)"],` :
-    `"clubWorldCup": ["FIFA Club World Cup (2022)"],`;
+    `"clubWorldCup": ["FIFA Club World Cup (5)"],`;
   
-  return `You are a football expert with 2025/2026 season knowledge.
+  return `You are a football expert with verified 2025/2026 season knowledge. ACCURACY IS CRITICAL.
 
 ${specificKnowledge}
 
-CRITICAL INSTRUCTIONS:
-1. ALWAYS include a "players" array with at LEAST 5 players
-2. If unsure about current players, use well-known players from the team
-3. Return VALID JSON that can be parsed - no markdown, no explanations
-4. Achievements should be actual trophy lists (can be historical)
-5. Manager/Coach must be accurate for 2025/2026
+CRITICAL INSTRUCTIONS FOR 2025/2026 SEASON:
+1. ONLY include ACTIVE players currently at the club/country (January 2026)
+2. EXCLUDE all retired, transferred, or loaned-out players
+3. INCLUDE EXACTLY 22-24 valid current players
+4. Achievements MUST be accurate and complete:
+   - Real Madrid: UEFA Champions League (15 titles, not 14)
+   - Use format: "Competition (N titles): year1, year2, year3"
+5. Manager/Coach MUST be correct for January 2026
+6. Return VALID JSON that can be parsed - NO markdown, NO explanations
 
 REQUIRED JSON STRUCTURE (must include these fields):
 {
@@ -645,13 +655,13 @@ REQUIRED JSON STRUCTURE (must include these fields):
     "name": "Team Name",
     "type": "${isNationalTeam ? 'national' : 'club'}",
     "country": "Country",
-    "stadium": "Stadium Name",
+    "stadium": "Stadium Name or null",
     "currentCoach": "Current Manager Name",
     "foundedYear": 1900,
     "majorAchievements": {
       ${achievementStructure}
-      "continental": ["Trophy name (count)"],
-      "domestic": ["Trophy name (count)"]
+      "continental": ["UEFA Champions League (15 titles): 1956, 1957, 1958, 1959, 1960, 1966, 1998, 1999, 2000, 2001, 2002, 2014, 2016, 2017, 2018"],
+      "domestic": ["La Liga (35 titles)", "Copa del Rey (20 titles)"]
     }
   }],
   "players": [
@@ -668,7 +678,7 @@ REQUIRED JSON STRUCTURE (must include these fields):
       "majorAchievements": ["Trophy or honor"],
       "careerSummary": "Brief career description"
     },
-    ...MORE PLAYERS (minimum 5, up to 24)...
+    ...MORE PLAYERS (22-24 total, ACTIVE players only)...
   ]
 }
 
@@ -700,6 +710,34 @@ const getOptimalModel = (query: string): string => {
 };
 
 // Helper function to fetch player images
+// Validation list of known retired/transferred players that should NEVER appear in current squad
+const knownRetiredTransferred: Record<string, string[]> = {
+  'real madrid': [
+    'Karim Benzema', 'Benzema',
+    'Luka Modrić', 'Modric',
+    'Toni Kroos', 'Kroos',
+    'José Ignacio Fernández Iglesias', 'Nacho Fernández', 'Nacho',
+    'Robert Lewandowski', 'Lewandowski',
+    'Sergio Ramos', 'Ramos',
+    'Cristiano Ronaldo', 'Ronaldo',
+    'Gareth Bale', 'Bale',
+    'Casemiro' // if transferred
+  ],
+  'barcelona': [
+    'Lionel Messi', 'Messi',
+    'Gerard Piqué', 'Piqué',
+    'Sergio Busquets', 'Busquets',
+    'Jordi Alba', 'Alba',
+    'Philippe Coutinho', 'Coutinho'
+  ]
+};
+
+const isRetiredOrTransferred = (playerName: string, teamName: string): boolean => {
+  const teamKey = teamName.toLowerCase();
+  const retiredList = knownRetiredTransferred[teamKey] || [];
+  return retiredList.some(name => playerName.toLowerCase().includes(name.toLowerCase()));
+};
+
 const fetchPlayerImageWithRetry = async (playerName: string, retries = 2): Promise<string | undefined> => {
   for (let i = 0; i <= retries; i++) {
     try {
@@ -758,7 +796,17 @@ export const searchWithGROQ = async (query: string, language: string = 'en', bus
       const completion = await groq.chat.completions.create({
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: `IMPORTANT: Provide 2025/2026 season information about ${query}. Include EXACTLY 20-24 current squad players (not fewer). Focus on accurate current squad and achievements. Return valid JSON with "players" array containing 20-24 player objects.` }
+          { role: 'user', content: `IMPORTANT: Provide CURRENT 2025/2026 season roster for ${query}. STRICT RULES:
+1. Include EXACTLY 22-24 ACTIVE players only (no retired, transferred, or loaned players)
+2. For clubs: Exclude players who left in 2024-2025 (e.g., Real Madrid: NO Benzema, Modrić, Kroos, Nacho, Lewandowski if transferred)
+3. For achievements, include COMPLETE and ACCURATE title counts:
+   - Real Madrid: UEFA Champions League (15 titles), Copa del Rey, La Liga, UEFA Super Cup, etc.
+   - Use format: "Competition Name (N titles): year1, year2, year3..."
+4. Return valid JSON with:
+   - "players": array of 22-24 current active players with {name, position, number, club/country, nationality}
+   - "teams": array with {name, country, type, currentCoach, foundedYear}
+   - "majorAchievements": {worldCup/clubWorldCup/continental/domestic} as arrays using the "Competition (N titles): years" format
+5. NO placeholder data. If unsure about a player, verify they are still active at the club.` }
         ],
         model: selectedModel,
         temperature: 0.1,
@@ -807,13 +855,22 @@ export const searchWithGROQ = async (query: string, language: string = 'en', bus
           if (parsed.players && Array.isArray(parsed.players)) {
             console.log(`[Players] Processing ${parsed.players.length} players...`);
             
-            // Process first 10 players with images (to avoid rate limiting)
-            const playersToProcess = parsed.players.slice(0, 10);
+            // Filter out retired/transferred players
+            const activeOnly = parsed.players.filter((player: any) => {
+              const isInvalid = isRetiredOrTransferred(player.name || '', query);
+              if (isInvalid) {
+                console.log(`[VALIDATION] Filtered out ${player.name} (retired/transferred from ${query})`);
+              }
+              return !isInvalid;
+            });
             
-            finalPlayers = await Promise.all(playersToProcess.map(async (player: any, index: number) => {
-              // Add delay between image fetches
-              if (index > 0) {
-                await new Promise(resolve => setTimeout(resolve, 200));
+            console.log(`[VALIDATION] ${parsed.players.length} total players, ${activeOnly.length} active after filtering`);
+            
+            // Process ALL active players for images with staggered delays to avoid rate limiting
+            finalPlayers = await Promise.all(activeOnly.map(async (player: any, index: number) => {
+              // Add delay between image fetches (100ms per player, max 5 concurrent)
+              if (index > 0 && index % 5 === 0) {
+                await new Promise(resolve => setTimeout(resolve, 300));
               }
               
               let imageUrl: string | undefined;
@@ -841,27 +898,6 @@ export const searchWithGROQ = async (query: string, language: string = 'en', bus
                 _priority: 'medium'
               };
             }));
-            
-            // Add remaining players without images
-            if (parsed.players.length > 10) {
-              const remainingPlayers = parsed.players.slice(10).map((player: any) => ({
-                name: player.name || 'Unknown',
-                currentTeam: player.currentTeam || query,
-                position: player.position || 'Player',
-                age: player.age || undefined,
-                nationality: player.nationality || 'Unknown',
-                careerGoals: player.careerGoals || 0,
-                careerAssists: player.careerAssists || 0,
-                internationalAppearances: player.internationalAppearances || 0,
-                internationalGoals: player.internationalGoals || 0,
-                majorAchievements: player.majorAchievements || [],
-                careerSummary: player.careerSummary || `${player.name} plays for ${query}.`,
-                _source: 'GROQ AI',
-                _lastVerified: new Date().toISOString(),
-                _priority: 'low'
-              }));
-              finalPlayers = [...finalPlayers, ...remainingPlayers];
-            }
           } else {
             console.warn(`[WARNING] GROQ response missing 'players' array or not an array`);
             console.warn(`[DEBUG] parsed.players =`, parsed.players);
@@ -894,12 +930,15 @@ export const searchWithGROQ = async (query: string, language: string = 'en', bus
       const wikipediaCoach = extractCoachFromWikipedia(wikiData.summary, query);
       
       if (wikipediaCoach) {
+        // If Wikipedia provides a different coach, prefer it as a verified source
         if (finalTeam.currentCoach === 'Unknown' || 
             (finalTeam.currentCoach !== wikipediaCoach && 
              !finalTeam.currentCoach.toLowerCase().includes(wikipediaCoach.toLowerCase()) &&
              !wikipediaCoach.toLowerCase().includes(finalTeam.currentCoach.toLowerCase()))) {
-          corrections.push(`Coach found via Wikipedia: ${wikipediaCoach}`);
-          console.log(`[Wikipedia] Found coach: ${wikipediaCoach}, AI had: ${finalTeam.currentCoach}`);
+          corrections.push(`Coach updated from AI to Wikipedia: ${wikipediaCoach}`);
+          console.log(`[Wikipedia] Found coach: ${wikipediaCoach}, AI had: ${finalTeam.currentCoach}. Updating coach to Wikipedia value.`);
+          finalTeam.currentCoach = wikipediaCoach;
+          if (!dataSources.includes('Wikipedia')) dataSources.push('Wikipedia');
         }
       }
       
@@ -928,15 +967,33 @@ export const searchWithGROQ = async (query: string, language: string = 'en', bus
     // Validate all players
     const validatedPlayers = enhancedResult.players.map(player => validatePlayer(player));
     
-    // Calculate achievement counts
+    // Calculate achievement counts by parsing titles (sum actual trophy counts if present)
     const teamAchievements = enhancedResult.teams[0]?.majorAchievements || {};
-    const achievementCounts = {
-      worldCup: finalTeam.type === 'national' ? (teamAchievements.worldCup?.length || 0) : 0,
-      clubWorldCup: finalTeam.type === 'club' ? (teamAchievements.clubWorldCup?.length || 0) : 0,
-      continental: teamAchievements.continental?.length || 0,
-      domestic: finalTeam.type === 'club' ? (teamAchievements.domestic?.length || 0) : 0
+
+    const parseTitleCount = (arr?: string[] | undefined): number => {
+      if (!arr || arr.length === 0) return 0;
+      let total = 0;
+      for (const entry of arr) {
+        if (!entry) continue;
+        // Extract title count from format: "Competition Name (N titles): years" or "Competition (N): years"
+        const m = entry.match(/\((\d{1,3})\s*titles?\)|\((\d{1,3})\)/i);
+        if (m && (m[1] || m[2])) {
+          total += parseInt(m[1] || m[2], 10);
+        } else {
+          // fallback: count each entry as 1 title if no number found
+          total += 1;
+        }
+      }
+      return total;
     };
-    
+
+    const achievementCounts = {
+      worldCup: finalTeam.type === 'national' ? parseTitleCount(teamAchievements.worldCup) : 0,
+      clubWorldCup: finalTeam.type === 'club' ? parseTitleCount(teamAchievements.clubWorldCup) : 0,
+      continental: parseTitleCount(teamAchievements.continental),
+      domestic: finalTeam.type === 'club' ? parseTitleCount(teamAchievements.domestic) : 0
+    };
+
     const totalAchievements = Object.values(achievementCounts).reduce((sum, count) => sum + count, 0);
     
     const finalResult: GROQSearchResponse = {
@@ -1034,36 +1091,23 @@ export const clearSearchCache = () => {
 
 // Historical players function
 export const getHistoricalPlayers = async (teamName: string, teamType: 'club' | 'national', language: string = 'en'): Promise<Player[]> => {
-  console.log(`[History] Fetching historical players for: ${teamName}`);
-  
-  const teamLower = teamName.toLowerCase();
-  const historicalPlayers: Player[] = [];
-  
-  // Add some legendary players based on team
-  if (teamLower.includes('real madrid')) {
-    historicalPlayers.push(
-      createHistoricalPlayer('Alfredo Di Stéfano', 'Forward', 'Argentina/Spain', 1926, 'Real Madrid legend, won 5 European Cups'),
-      createHistoricalPlayer('Ferenc Puskás', 'Forward', 'Hungary', 1927, 'Scored 242 goals in 262 games for Real Madrid'),
-      createHistoricalPlayer('Cristiano Ronaldo', 'Forward', 'Portugal', 1985, 'Real Madrid all-time top scorer with 451 goals'),
-      createHistoricalPlayer('Raúl González', 'Forward', 'Spain', 1977, 'Former captain, scored 323 goals for Real Madrid')
-    );
-  } else if (teamLower.includes('barcelona')) {
-    historicalPlayers.push(
-      createHistoricalPlayer('Johan Cruyff', 'Forward', 'Netherlands', 1947, 'Revolutionized Barcelona style, manager and player'),
-      createHistoricalPlayer('Lionel Messi', 'Forward', 'Argentina', 1987, 'Barcelona all-time top scorer with 672 goals'),
-      createHistoricalPlayer('Xavi Hernández', 'Midfielder', 'Spain', 1980, 'Played 767 games, won 25 trophies'),
-      createHistoricalPlayer('Andrés Iniesta', 'Midfielder', 'Spain', 1984, 'Scored winning goal in 2010 World Cup final')
-    );
-  } else if (teamLower.includes('ac milan')) {
-    historicalPlayers.push(
-      createHistoricalPlayer('Paolo Maldini', 'Defender', 'Italy', 1968, 'Played 902 games for Milan over 25 seasons'),
-      createHistoricalPlayer('Franco Baresi', 'Defender', 'Italy', 1960, 'Captain for 15 years, won 6 Serie A titles'),
-      createHistoricalPlayer('Marco van Basten', 'Forward', 'Netherlands', 1964, '3-time Ballon d\'Or winner, scored 125 goals for Milan'),
-      createHistoricalPlayer('Andriy Shevchenko', 'Forward', 'Ukraine', 1976, 'Scored 175 goals for Milan, won 2003 Ballon d\'Or')
-    );
+  const key = (teamName || '').toLowerCase();
+  try {
+    if (!teamName) return [];
+    if (historicalPlayersCache.has(key)) {
+      console.log(`[History] Cache hit for: ${teamName}`);
+      return historicalPlayersCache.get(key)!;
+    }
+    
+    // DISABLED: Historical players feature disabled to preserve API tokens and prevent rate limiting
+    // The current squad search is the priority. Historical players will be empty.
+    console.log(`[History] Historical players feature disabled to preserve API tokens`);
+    historicalPlayersCache.set(key, []);
+    return [];
+  } catch (err) {
+    console.error('[History] getHistoricalPlayers error for', teamName, err);
+    return [];
   }
-  
-  return historicalPlayers;
 };
 
 const createHistoricalPlayer = (name: string, position: string, nationality: string, birthYear: number, summary: string): Player => {

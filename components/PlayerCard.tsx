@@ -53,8 +53,8 @@ export default function PlayerCard({
   
   return (
     <div className={`player-card border-2 rounded-lg p-4 transition-all ${getQualityColor(score)}`}>
-      {/* Image Container */}
-      <div className="relative mb-3 bg-gray-200 rounded-md overflow-hidden h-48 w-full">
+      {/* Image Container - Panini-style (portrait 3:4 aspect, face centered) */}
+      <div className="relative mb-3 bg-gray-200 rounded-md overflow-hidden aspect-[3/4] flex items-center justify-center">
         {loading || imageLoading ? (
           <div className="absolute inset-0 bg-gradient-to-r from-gray-300 to-gray-200 animate-pulse" />
         ) : null}
@@ -63,7 +63,7 @@ export default function PlayerCard({
           <img
             src={displayImageUrl}
             alt={player.name}
-            className="w-full h-full object-cover"
+            className="min-w-full min-h-full object-cover object-center"
             onLoad={() => setImageLoading(false)}
             onError={() => {
               setImageError(true);

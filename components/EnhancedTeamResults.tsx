@@ -155,11 +155,11 @@ export default function EnhancedTeamResults({
   // Fetch historical players when history tab is selected
   useEffect(() => {
     const fetchHistoricalPlayers = async () => {
-      if (activeTab === 'history' && team && legendaryPlayers.length === 0) {
+      if (activeTab === 'history' && team && legendaryPlayers.length === 0 && !loadingHistory) {
         setLoadingHistory(true);
         try {
           const historical = await getHistoricalPlayers(team.name, team.type, language);
-          if (historical.length > 0) {
+          if (historical && historical.length > 0) {
             setLegendaryPlayers(historical);
           }
         } catch (error) {
@@ -696,104 +696,162 @@ export default function EnhancedTeamResults({
                      'Historia completa de trofeos y principales logros')}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="px-3 py-1 bg-yellow-900/30 text-yellow-300 rounded-full text-sm">
-                  {team.majorAchievements.worldCup?.length || 0} {t('World Cup', 'Copa del Mundo')}
-                </span>
-                <span className="px-3 py-1 bg-blue-900/30 text-blue-300 rounded-full text-sm">
-                  {team.majorAchievements.continental?.length || 0} {t('Continental', 'Continental')}
-                </span>
-                <span className="px-3 py-1 bg-green-900/30 text-green-300 rounded-full text-sm">
-                  {team.majorAchievements.domestic?.length || 0} {t('Domestic', 'Nacional')}
-                </span>
+              <div className="flex items-center gap-2 flex-wrap">
+                {team.majorAchievements.worldCup?.length > 0 && (
+                  <span className="px-3 py-1 bg-yellow-900/30 text-yellow-300 rounded-full text-sm">
+                    {team.majorAchievements.worldCup.reduce((sum, entry) => {
+                      const m = entry.match(/\((\d{1,3})\s*titles?\)|\((\d{1,3})\)/i);
+                      return sum + (m ? parseInt(m[1] || m[2], 10) : 0);
+                    }, 0)} {t('World Cup', 'Copa del Mundo')}
+                  </span>
+                )}
+                {team.majorAchievements.clubWorldCup?.length > 0 && (
+                  <span className="px-3 py-1 bg-red-900/30 text-red-300 rounded-full text-sm">
+                    {team.majorAchievements.clubWorldCup.reduce((sum, entry) => {
+                      const m = entry.match(/\((\d{1,3})\s*titles?\)|\((\d{1,3})\)/i);
+                      return sum + (m ? parseInt(m[1] || m[2], 10) : 0);
+                    }, 0)} {t('Club World', 'Mundo de Clubes')}
+                  </span>
+                )}
+                {team.majorAchievements.continental?.length > 0 && (
+                  <span className="px-3 py-1 bg-blue-900/30 text-blue-300 rounded-full text-sm">
+                    {team.majorAchievements.continental.reduce((sum, entry) => {
+                      const m = entry.match(/\((\d{1,3})\s*titles?\)|\((\d{1,3})\)/i);
+                      return sum + (m ? parseInt(m[1] || m[2], 10) : 0);
+                    }, 0)} {t('Continental', 'Continental')}
+                  </span>
+                )}
+                {team.majorAchievements.domestic?.length > 0 && (
+                  <span className="px-3 py-1 bg-green-900/30 text-green-300 rounded-full text-sm">
+                    {team.majorAchievements.domestic.reduce((sum, entry) => {
+                      const m = entry.match(/\((\d{1,3})\s*titles?\)|\((\d{1,3})\)/i);
+                      return sum + (m ? parseInt(m[1] || m[2], 10) : 0);
+                    }, 0)} {t('Domestic', 'Nacional')}
+                  </span>
+                )}
               </div>
             </div>
 
             {/* Achievement Categories */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* World Cup Achievements */}
-              <div className="bg-gradient-to-br from-yellow-900/20 to-gray-900 border border-yellow-700/30 rounded-xl p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-yellow-900 to-yellow-800 flex items-center justify-center">
-                    <span className="text-2xl">🌍</span>
+            <div className="space-y-6">
+              {/* Club World Cup Achievements */}
+              {team.majorAchievements.clubWorldCup?.length > 0 && (
+                <div className="bg-gradient-to-br from-red-900/20 to-gray-900 border border-red-700/30 rounded-xl p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-red-900 to-red-800 flex items-center justify-center">
+                      <span className="text-2xl">🌍</span>
+                    </div>
+                    <div>
+                      <h4 className="text-lg font-bold text-white">
+                        {t('World Club Competitions', 'Competiciones mundiales de clubes')}
+                      </h4>
+                      <p className="text-red-300 text-sm">
+                        {team.majorAchievements.clubWorldCup.reduce((sum, entry) => {
+                          const m = entry.match(/\((\d{1,3})\s*titles?\)|\((\d{1,3})\)/i);
+                          return sum + (m ? parseInt(m[1] || m[2], 10) : 0);
+                        }, 0)} {t('total titles', 'títulos totales')}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="text-lg font-bold text-white">
-                      {t('World Cup', 'Copa del Mundo')}
-                    </h4>
-                    <p className="text-yellow-300 text-sm">
-                      {team.majorAchievements.worldCup?.length || 0} {t('titles', 'títulos')}
-                    </p>
+                  <div className="space-y-3">
+                    {team.majorAchievements.clubWorldCup.map((achievement, index) => (
+                      <AchievementItem key={index} achievement={achievement} index={index} />
+                    ))}
                   </div>
                 </div>
-                {team.majorAchievements.worldCup?.length > 0 ? (
+              )}
+
+              {/* World Cup Achievements */}
+              {team.majorAchievements.worldCup?.length > 0 && (
+                <div className="bg-gradient-to-br from-yellow-900/20 to-gray-900 border border-yellow-700/30 rounded-xl p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-yellow-900 to-yellow-800 flex items-center justify-center">
+                      <span className="text-2xl">⚽</span>
+                    </div>
+                    <div>
+                      <h4 className="text-lg font-bold text-white">
+                        {t('World Cup', 'Copa del Mundo')}
+                      </h4>
+                      <p className="text-yellow-300 text-sm">
+                        {team.majorAchievements.worldCup.reduce((sum, entry) => {
+                          const m = entry.match(/\((\d{1,3})\s*titles?\)|\((\d{1,3})\)/i);
+                          return sum + (m ? parseInt(m[1] || m[2], 10) : 0);
+                        }, 0)} {t('total titles', 'títulos totales')}
+                      </p>
+                    </div>
+                  </div>
                   <div className="space-y-3">
                     {team.majorAchievements.worldCup.map((achievement, index) => (
                       <AchievementItem key={index} achievement={achievement} index={index} />
                     ))}
                   </div>
-                ) : (
-                  <p className="text-gray-400 text-sm italic">
-                    {t('No World Cup achievements', 'Sin logros en Copa del Mundo')}
-                  </p>
-                )}
-              </div>
+                </div>
+              )}
 
               {/* Continental Achievements */}
-              <div className="bg-gradient-to-br from-blue-900/20 to-gray-900 border border-blue-700/30 rounded-xl p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-900 to-blue-800 flex items-center justify-center">
-                    <span className="text-2xl">🗺️</span>
+              {team.majorAchievements.continental?.length > 0 && (
+                <div className="bg-gradient-to-br from-blue-900/20 to-gray-900 border border-blue-700/30 rounded-xl p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-900 to-blue-800 flex items-center justify-center">
+                      <span className="text-2xl">🗺️</span>
+                    </div>
+                    <div>
+                      <h4 className="text-lg font-bold text-white">
+                        {t('Continental/European Competitions', 'Competiciones continentales/europeas')}
+                      </h4>
+                      <p className="text-blue-300 text-sm">
+                        {team.majorAchievements.continental.reduce((sum, entry) => {
+                          const m = entry.match(/\((\d{1,3})\s*titles?\)|\((\d{1,3})\)/i);
+                          return sum + (m ? parseInt(m[1] || m[2], 10) : 0);
+                        }, 0)} {t('total titles', 'títulos totales')}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="text-lg font-bold text-white">
-                      {t('Continental', 'Continental')}
-                    </h4>
-                    <p className="text-blue-300 text-sm">
-                      {team.majorAchievements.continental?.length || 0} {t('titles', 'títulos')}
-                    </p>
-                  </div>
-                </div>
-                {team.majorAchievements.continental?.length > 0 ? (
                   <div className="space-y-3">
                     {team.majorAchievements.continental.map((achievement, index) => (
                       <AchievementItem key={index} achievement={achievement} index={index} />
                     ))}
                   </div>
-                ) : (
-                  <p className="text-gray-400 text-sm italic">
-                    {t('No continental achievements', 'Sin logros continentales')}
-                  </p>
-                )}
-              </div>
+                </div>
+              )}
 
               {/* Domestic Achievements */}
-              <div className="bg-gradient-to-br from-green-900/20 to-gray-900 border border-green-700/30 rounded-xl p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-900 to-green-800 flex items-center justify-center">
-                    <span className="text-2xl">🏠</span>
+              {team.majorAchievements.domestic?.length > 0 && (
+                <div className="bg-gradient-to-br from-green-900/20 to-gray-900 border border-green-700/30 rounded-xl p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-900 to-green-800 flex items-center justify-center">
+                      <span className="text-2xl">🏠</span>
+                    </div>
+                    <div>
+                      <h4 className="text-lg font-bold text-white">
+                        {t('Domestic Competitions', 'Competiciones nacionales')}
+                      </h4>
+                      <p className="text-green-300 text-sm">
+                        {team.majorAchievements.domestic.reduce((sum, entry) => {
+                          const m = entry.match(/\((\d{1,3})\s*titles?\)|\((\d{1,3})\)/i);
+                          return sum + (m ? parseInt(m[1] || m[2], 10) : 0);
+                        }, 0)} {t('total titles', 'títulos totales')}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="text-lg font-bold text-white">
-                      {t('Domestic', 'Nacional')}
-                    </h4>
-                    <p className="text-green-300 text-sm">
-                      {team.majorAchievements.domestic?.length || 0} {t('titles', 'títulos')}
-                    </p>
-                  </div>
-                </div>
-                {team.majorAchievements.domestic?.length > 0 ? (
                   <div className="space-y-3">
                     {team.majorAchievements.domestic.map((achievement, index) => (
                       <AchievementItem key={index} achievement={achievement} index={index} />
                     ))}
                   </div>
-                ) : (
-                  <p className="text-gray-400 text-sm italic">
-                    {t('No domestic achievements', 'Sin logros nacionales')}
+                </div>
+              )}
+
+              {!team.majorAchievements.worldCup?.length && 
+               !team.majorAchievements.clubWorldCup?.length && 
+               !team.majorAchievements.continental?.length && 
+               !team.majorAchievements.domestic?.length && (
+                <div className="bg-gray-800/30 rounded-xl p-8 text-center">
+                  <p className="text-gray-400 text-lg">
+                    {t('No achievements data available', 'No hay datos de logros disponibles')}
                   </p>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -890,16 +948,20 @@ export default function EnhancedTeamResults({
                   </p>
                   <button
                     onClick={() => {
+                      if (loadingHistory) return; // guard against multiple concurrent requests
                       setLegendaryPlayers([]);
                       setLoadingHistory(true);
-                      const fetchHistorical = async () => {
-                        if (team) {
+                      (async () => {
+                        try {
+                          if (!team) return;
                           const historical = await getHistoricalPlayers(team.name, team.type, language);
-                          setLegendaryPlayers(historical);
+                          setLegendaryPlayers(historical || []);
+                        } catch (err) {
+                          console.error('Error fetching historical players (onRetry):', err);
+                        } finally {
                           setLoadingHistory(false);
                         }
-                      };
-                      fetchHistorical();
+                      })();
                     }}
                     className="mt-4 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-500 text-white rounded-lg hover:opacity-90"
                   >
