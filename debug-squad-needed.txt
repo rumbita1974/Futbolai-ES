@@ -1,0 +1,17 @@
+/**
+ * Debug: What players does Football Data API have for Real Madrid?
+ * Since we can't access the API key in plain Node.js, we'll create
+ * an API endpoint to show this
+ */
+
+// This would need to be called via the Next.js dev server
+// Let me create a test endpoint
+
+console.log(`\nTo debug Football Data API squad data:
+1. Create test endpoint in pages/api/debug-squad.ts
+2. Call it to see Real Madrid's actual player list
+3. Check if "Kylian Mbappé" or variations are present
+
+For now, check the server logs when searching for "Real Madrid squad"
+to see what players are returned.
+`);

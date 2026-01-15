@@ -1,0 +1,79 @@
+{
+  "success": true,
+  "query": "Kylian Mbappe",
+  "timestamp": "2026-01-15T11:02:02.633Z",
+  "type": "club",
+  "playerInfo": {
+    "name": "Kylian Mbappé",
+    "position": "Centre-Forward",
+    "nationality": "France",
+    "currentClub": "Real Madrid CF",
+    "age": 28,
+    "careerStats": {
+      "club": {
+        "totalGoals": 0,
+        "totalAssists": 0,
+        "totalAppearances": 0
+      },
+      "international": {
+        "totalGoals": 0,
+        "totalAppearances": 0
+      }
+    },
+    "achievementsSummary": {
+      "worldCupTitles": 0,
+      "continentalTitles": 0,
+      "clubDomesticTitles": {
+        "leagues": 0,
+        "cups": 0
+      },
+      "individualAwards": []
+    }
+  },
+  "teamInfo": {
+    "name": "Real Madrid CF",
+    "type": "club",
+    "country": "1 Madrid 28036",
+    "stadium": {
+      "name": "Estadio Santiago Bernabéu",
+      "capacity": 0,
+      "location": "1 Madrid 28036"
+    },
+    "currentCoach": "Arbeloa",
+    "players": [
+      {
+        "name": "Kylian Mbappé",
+        "currentTeam": "Real Madrid CF",
+        "position": "Centre-Forward",
+        "nationality": "France",
+        "age": 28,
+        "careerGoals": 0,
+        "careerAssists": 0,
+        "internationalAppearances": 0,
+        "internationalGoals": 0,
+        "majorAchievements": [],
+        "careerSummary": "Kylian Mbappé currently plays for Real Madrid CF",
+        "_source": "Football Data API",
+        "_lastVerified": "2026-01-15T11:02:02.633Z"
+      }
+    ],
+    "achievements": {
+      "worldCup": [],
+      "continental": [],
+      "domestic": []
+    }
+  },
+  "youtubeUrl": "https://www.youtube.com/results?search_query=Kylian%20Mbappe%20highlights%202024%2F2025",
+  "analysis": "Data from verified sources",
+  "confidence": 0.85,
+  "source": "Multiple sources",
+  "language": "en",
+  "isSpanish": false,
+  "_optimization": {
+    "groqCallsAvoided": 1,
+    "dataSourcesTokSavings": 1500,
+    "primarySource": "Football Data API",
+    "fallbackUsed": false
+  },
+  "_metadata": {}
+}

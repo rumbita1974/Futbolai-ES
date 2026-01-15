@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { Groq } from 'groq-sdk';
 import axios from 'axios';
+import { optimizedSearch } from '@/services/groqOptimizer';
 
 // Simple in-memory cache
 const cache = new Map();
@@ -765,104 +766,122 @@ export default async function handler(
   const { action, query } = req.query;
 
   if (action === 'search' && query && typeof query === 'string') {
-    console.log(`\n=== SEARCH: "${query}" ===`);
+    console.log(`\n⚽ [OPTIMIZED SEARCH] Query: "${query}"`);
     
     // Check cache first
     const cacheKey = `search_${query.toLowerCase()}`;
     const cachedResponse = getFromCache(cacheKey);
     if (cachedResponse) {
-      console.log('✅ Returning cached response');
+      console.log('✅ [CACHE] Returning cached response');
       return res.status(200).json(cachedResponse);
     }
     
     try {
-      // DETECT TYPE WITH AI
-      const detectedType = await detectQueryTypeWithAI(query);
-      console.log('🎯 AI detected type:', detectedType);
-      
-      // CHECK IF SPANISH QUERY
+      // Detect language from query
       const isSpanish = isSpanishQuery(query);
-      console.log(`🌐 Language detected: ${isSpanish ? 'Spanish' : 'English'}`);
+      const language = isSpanish ? 'es' : 'en';
+      console.log(`🌐 [LANGUAGE] Detected: ${language === 'es' ? 'Spanish' : 'English'}`);
       
-      // GET WIKIPEDIA DATA IN APPROPRIATE LANGUAGE
-      const wikipediaData = await getWikipediaData(query, detectedType);
-      console.log(`📚 Wikipedia data (${wikipediaData.language}):`, wikipediaData.title || 'Not found');
+      // USE OPTIMIZED SEARCH - This replaces the old Groq-only approach!
+      console.log('🔄 [ROUTER] Routing to optimizedSearch...');
+      const optimizedResult = await optimizedSearch(query, language);
       
-      // Get AI analysis WITH Wikipedia context
-      const aiAnalysis = await analyzeWithPrompt(query, detectedType, wikipediaData);
-      console.log('✅ Got AI analysis with current data');
+      // Extract key data from optimized result
+      const players = optimizedResult.players || [];
+      const teams = optimizedResult.teams || [];
+      const metadata = optimizedResult._metadata || {};
+      const optimizationInfo = optimizedResult._optimizationInfo;
       
-      // Build response based on detected type
-      let responseData: any = {
-        name: query,
-        ...aiAnalysis,
-        wikipedia: wikipediaData,
-        lastUpdated: new Date().toISOString(),
-        currentYear: new Date().getFullYear(),
-        language: wikipediaData.language,
-        isSpanish: wikipediaData.isSpanish
-      };
-      
-      // Ensure consistent structure
-      if (detectedType === 'club') {
-        responseData.type = 'club';
-        // Ensure stadium object exists
-        if (!responseData.stadium) {
-          responseData.stadium = {
-            name: isSpanish ? 'Información no disponible' : 'Information not available',
-            capacity: 0,
-            location: isSpanish ? 'Información no disponible' : 'Information not available'
-          };
-        }
-      } else if (detectedType === 'national') {
-        responseData.type = 'national';
-        // Ensure stadium object exists for national teams
-        if (!responseData.stadium) {
-          responseData.stadium = {
-            name: isSpanish ? 'Estadio Nacional' : 'National Stadium',
-            capacity: 0,
-            location: isSpanish ? 'Información no disponible' : 'Information not available'
-          };
-        }
-      } else if (detectedType === 'worldcup') {
-        responseData.worldCupInfo = { year: new Date().getFullYear(), ...aiAnalysis };
+      console.log(`✅ [RESULT] Received ${players.length} players, ${teams.length} teams`);
+      if (optimizationInfo) {
+        console.log(`🚀 [OPTIMIZATION] Groq calls avoided: ${optimizationInfo.groqCallsAvoided}, Source: ${optimizationInfo.primarySource}`);
       }
       
-      // Get video with appropriate language context
-      const videoSearchTerm = aiAnalysis.videoSearchTerm || 
-        (isSpanish 
-          ? `${query} fútbol highlights ${new Date().getFullYear()}`
-          : `${query} football highlights ${new Date().getFullYear()}`);
+      // Determine type from results
+      let detectedType = 'player';
+      if (teams.length > 0 && players.length > 0) {
+        detectedType = 'club';
+      } else if (teams.length > 0) {
+        detectedType = teams[0].type === 'national' ? 'national' : 'club';
+      }
       
-      const youtubeUrl = await searchYouTube(videoSearchTerm, detectedType, isSpanish);
-      
-      // Build final response
+      // Build response maintaining backward compatibility
       const response = {
         success: true,
         query: query,
         timestamp: new Date().toISOString(),
         type: detectedType,
-        data: responseData,
-        playerInfo: detectedType === 'player' ? responseData : null,
-        teamInfo: (detectedType === 'club' || detectedType === 'national') ? responseData : null,
-        worldCupInfo: detectedType === 'worldcup' ? responseData : null,
-        youtubeUrl: youtubeUrl,
-        analysis: aiAnalysis.analysis || (isSpanish ? `Análisis de ${query}` : `Analysis of ${query}`),
-        confidence: 0.9,
-        source: 'Groq AI + Wikipedia',
-        language: wikipediaData.language,
-        isSpanish: wikipediaData.isSpanish
+        
+        // Player info
+        playerInfo: players.length > 0 ? {
+          name: players[0]?.name || query,
+          position: players[0]?.position || 'Unknown',
+          nationality: players[0]?.nationality || 'Unknown',
+          currentClub: players[0]?.currentTeam || 'Unknown',
+          age: players[0]?.age,
+          careerStats: {
+            club: {
+              totalGoals: players[0]?.careerGoals || 0,
+              totalAssists: players[0]?.careerAssists || 0,
+              totalAppearances: 0,
+            },
+            international: {
+              totalGoals: players[0]?.internationalGoals || 0,
+              totalAppearances: players[0]?.internationalAppearances || 0,
+            }
+          },
+          imageUrl: players[0]?.imageUrl,
+          achievementsSummary: {
+            worldCupTitles: players[0]?.majorAchievements?.filter((a: string) => a.includes('World Cup')).length || 0,
+            continentalTitles: players[0]?.majorAchievements?.filter((a: string) => a.includes('Champions') || a.includes('Europa')).length || 0,
+            clubDomesticTitles: {
+              leagues: players[0]?.majorAchievements?.filter((a: string) => a.includes('League')).length || 0,
+              cups: players[0]?.majorAchievements?.filter((a: string) => a.includes('Cup')).length || 0
+            },
+            individualAwards: players[0]?.majorAchievements || []
+          }
+        } : null,
+        
+        // Team info
+        teamInfo: teams.length > 0 ? {
+          name: teams[0]?.name || query,
+          type: teams[0]?.type || 'club',
+          country: teams[0]?.country || 'Unknown',
+          stadium: {
+            name: teams[0]?.stadium || 'Unknown',
+            capacity: 0,
+            location: teams[0]?.country || 'Unknown'
+          },
+          currentCoach: teams[0]?.currentCoach || 'Unknown',
+          players: players,
+          achievements: {
+            worldCup: teams[0]?.majorAchievements?.worldCup || [],
+            continental: teams[0]?.majorAchievements?.continental || [],
+            domestic: teams[0]?.majorAchievements?.domestic || []
+          }
+        } : null,
+        
+        // Additional metadata
+        youtubeUrl: optimizedResult.youtubeQuery ? `https://www.youtube.com/results?search_query=${encodeURIComponent(optimizedResult.youtubeQuery)}` : '',
+        analysis: metadata.disclaimer || 'Data from verified sources',
+        confidence: metadata.dataCurrency?.confidence === 'very high' ? 0.95 : 0.85,
+        source: metadata.dataSources?.join(', ') || 'Multiple sources',
+        language: language,
+        isSpanish: language === 'es',
+        
+        // Optimization tracking
+        _optimization: optimizationInfo,
+        _metadata: metadata
       };
 
       // Cache the response
       setInCache(cacheKey, response);
       
-      console.log('🚀 Sending response with type:', detectedType, 'Language:', wikipediaData.language);
-      console.log('🎥 YouTube URL:', youtubeUrl);
+      console.log(`🎯 [SUCCESS] Returning ${detectedType} data`);
       return res.status(200).json(response);
       
     } catch (error) {
-      console.error('API error:', error);
+      console.error('[ERROR] Search failed:', error);
       
       const errorResponse = {
         success: false,
@@ -871,7 +890,7 @@ export default async function handler(
         error: 'Service issue',
         timestamp: new Date().toISOString(),
         youtubeUrl: 'https://www.youtube.com/embed/dZqkf1ZnQh4',
-        analysis: `Please try again.`,
+        analysis: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
       };
       
       return res.status(200).json(errorResponse);
