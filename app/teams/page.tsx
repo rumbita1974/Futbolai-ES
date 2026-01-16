@@ -13,6 +13,7 @@ interface SearchResult {
   youtubeQuery: string;
   error?: string;
   message?: string;
+  _metadata?: any;
 }
 
 // Cache interface
@@ -45,6 +46,9 @@ export default function TeamsPage() {
   useEffect(() => {
     const clearCacheOnLoad = () => {
       try {
+        // Only run in browser
+        if (typeof window === 'undefined') return;
+        
         // Clear all team search cache
         const keysToRemove: string[] = [];
         for (let i = 0; i < localStorage.length; i++) {
@@ -63,11 +67,15 @@ export default function TeamsPage() {
     };
     
     // Clear cache when page loads
-    clearCacheOnLoad();
+    if (typeof window !== 'undefined') {
+      clearCacheOnLoad();
+    }
     
     // Also clear cache periodically
     const interval = setInterval(() => {
-      clearCacheOnLoad();
+      if (typeof window !== 'undefined') {
+        clearCacheOnLoad();
+      }
     }, 10 * 60 * 1000); // Clear every 10 minutes
     
     return () => clearInterval(interval);
@@ -86,6 +94,9 @@ export default function TeamsPage() {
     }
     
     try {
+      // Check if we're in browser environment
+      if (typeof window === 'undefined') return null;
+      
       const cacheKey = `teams_search_cache_${query.toLowerCase()}_${language}`;
       const cached = localStorage.getItem(cacheKey);
       if (!cached) return null;
@@ -111,6 +122,9 @@ export default function TeamsPage() {
 
   const setCachedResult = (query: string, data: SearchResult) => {
     try {
+      // Only run in browser
+      if (typeof window === 'undefined') return;
+      
       const cacheKey = `teams_search_cache_${query.toLowerCase()}_${language}`;
       const cacheItem: CacheItem = {
         data,
@@ -126,9 +140,11 @@ export default function TeamsPage() {
   // Clear cache for specific query
   const clearCachedResult = (query: string) => {
     try {
-      const cacheKey = `teams_search_cache_${query.toLowerCase()}_${language}`;
-      localStorage.removeItem(cacheKey);
-      console.log('Cleared cache for:', query);
+      if (typeof window !== 'undefined') {
+        const cacheKey = `teams_search_cache_${query.toLowerCase()}_${language}`;
+        localStorage.removeItem(cacheKey);
+        console.log('Cleared cache for:', query);
+      }
     } catch (err) {
       console.error('Cache clear error:', err);
     }
@@ -138,6 +154,7 @@ export default function TeamsPage() {
   const clearAllCache = () => {
     try {
       // Only clear if cache exists
+      
       let clearedCount = 0;
       for (let i = localStorage.length - 1; i >= 0; i--) {
         const key = localStorage.key(i);

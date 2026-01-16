@@ -12,6 +12,7 @@ interface SearchResult {
   youtubeQuery: string;
   error?: string;
   message?: string;
+  _metadata?: any;
 }
 
 // Cache interface
@@ -51,6 +52,8 @@ export default function HomePage() {
   // Local cache implementation
   const getCachedResult = (query: string): SearchResult | null => {
     try {
+      if (typeof window === 'undefined') return null;
+      
       const cacheKey = `search_cache_${query.toLowerCase()}_${language}`;
       const cached = localStorage.getItem(cacheKey);
       if (!cached) return null;
@@ -72,13 +75,15 @@ export default function HomePage() {
 
   const setCachedResult = (query: string, data: SearchResult) => {
     try {
-      const cacheKey = `search_cache_${query.toLowerCase()}_${language}`;
-      const cacheItem: CacheItem = {
-        data,
-        timestamp: Date.now(),
-        language
-      };
-      localStorage.setItem(cacheKey, JSON.stringify(cacheItem));
+      if (typeof window !== 'undefined') {
+        const cacheKey = `search_cache_${query.toLowerCase()}_${language}`;
+        const cacheItem: CacheItem = {
+          data,
+          timestamp: Date.now(),
+          language
+        };
+        localStorage.setItem(cacheKey, JSON.stringify(cacheItem));
+      }
     } catch (err) {
       console.error('Cache write error:', err);
     }
@@ -93,13 +98,14 @@ export default function HomePage() {
       setComingFromGroup(groupParam);
     }
     
-    // OPTIMIZED: Auto-search if search param is present
-    if (searchParam && !searchQuery) {
+    // FIXED: Check if we should auto-search - only if there's a search param AND we haven't searched yet
+    if (searchParam && !hasAutoSearchedRef.current) {
       const now = Date.now();
       const timeSinceLastAutoSearch = now - lastSearchTimeRef.current;
       
       // Prevent rapid consecutive auto-searches
-      if (timeSinceLastAutoSearch > 5000 && !hasAutoSearchedRef.current) { // 5 second cooldown
+      if (timeSinceLastAutoSearch > 5000) { // 5 second cooldown
+        console.log('Auto-searching for:', searchParam);
         setSearchQuery(searchParam);
         hasAutoSearchedRef.current = true;
         lastSearchTimeRef.current = now;
@@ -120,7 +126,7 @@ export default function HomePage() {
         return () => clearTimeout(timer);
       }
     }
-  }, [searchParams]);
+  }, [searchParams]); // Removed searchQuery from dependencies
 
   // OPTIMIZED: Unified search function with caching
   const handleSearchWithCache = async (query: string, isAutoSearch = false) => {
@@ -172,10 +178,6 @@ export default function HomePage() {
     }
   };
 
-  const handleAutoSearch = async (query: string) => {
-    handleSearchWithCache(query, true);
-  };
-
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchQuery.trim()) {
@@ -213,31 +215,6 @@ export default function HomePage() {
   const handleExampleSearch = (term: string) => {
     setSearchQuery(term);
     handleSearchWithCache(term);
-  };
-
-  // Function to get team flag emoji
-  const getTeamFlag = (teamName: string) => {
-    const flags: Record<string, string> = {
-      'Mexico': '🇲🇽', 'USA': '🇺🇸', 'Canada': '🇨🇦',
-      'Brazil': '🇧🇷', 'Argentina': '🇦🇷', 'Germany': '🇩🇪',
-      'France': '🇫🇷', 'Spain': '🇪🇸', 'England': '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
-      'Portugal': '🇵🇹', 'Italy': '🇮🇹', 'Netherlands': '🇳🇱',
-      'Japan': '🇯🇵', 'South Korea': '🇰🇷', 'Australia': '🇦🇺',
-      'Morocco': '🇲🇦', 'Senegal': '🇸🇳', 'Egypt': '🇪🇬',
-      'Uruguay': '🇺🇾', 'Chile': '🇨🇱', 'Colombia': '🇨🇴',
-      'Belgium': '🇧🇪', 'Croatia': '🇭🇷', 'Switzerland': '🇨🇭',
-      'Denmark': '🇩🇰', 'Sweden': '🇸🇪', 'Norway': '🇳🇴'
-    };
-    
-    // Check for exact match first
-    if (flags[teamName]) return flags[teamName];
-    
-    // Check for partial matches
-    for (const [country, flag] of Object.entries(flags)) {
-      if (teamName.includes(country)) return flag;
-    }
-    
-    return '⚽'; // Default football emoji
   };
 
   return (
@@ -418,6 +395,7 @@ export default function HomePage() {
             teams={searchResults.teams}
             youtubeQuery={searchResults.youtubeQuery}
             searchTerm={searchQuery}
+            _metadata={searchResults._metadata}
           />
         )}
 

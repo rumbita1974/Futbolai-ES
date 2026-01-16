@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { searchYouTubeHighlights, YouTubeVideo } from '@/services/youtubeService';
 import { Team, Player, needsDataVerification, getDataSourceInfo, getHistoricalPlayers } from '@/services/groqService';
-import { getDataCurrencyBadge } from '@/services/dataEnhancerService';
+import { getDataQualityBadge } from '@/services/dataEnhancerService';
 import PlayerCard from '@/components/PlayerCard';
 import { PlayerImageErrorBoundary, PlayerGridErrorBoundary } from '@/components/PlayerImageErrorBoundary';
 import { usePlayerImages } from '@/hooks/usePlayerImages';
@@ -94,6 +94,27 @@ const HistoricalPlayerCard = ({ player, index }: { player: Player; index: number
       </div>
     </div>
   );
+};
+
+// Helper for counting titles from achievement strings
+const countTitles = (achievements: string[] | undefined): number => {
+  if (!achievements || achievements.length === 0) return 0;
+  return achievements.reduce((sum, entry) => {
+    // Match "(15 titles)" or "(15 wins)"
+    const explicitMatch = entry.match(/\((\d+)\s*(?:titles?|wins?|trophies?)\)/i);
+    if (explicitMatch) {
+      return sum + parseInt(explicitMatch[1], 10);
+    }
+    
+    // Count years if no explicit count (e.g. "FIFA Club World Cup (2014, 2016, 2017, 2018)")
+    const yearMatches = entry.match(/\b(19|20)\d{2}\b/g);
+    if (yearMatches && yearMatches.length > 0) {
+      return sum + yearMatches.length;
+    }
+    
+    // Default to 1
+    return sum + 1;
+  }, 0);
 };
 
 export default function EnhancedTeamResults({
@@ -233,18 +254,37 @@ export default function EnhancedTeamResults({
   const teamColor = team.type === 'national' ? 'from-blue-500 to-green-500' : 'from-purple-500 to-pink-500';
 
   // Most successful squad data
+  const hasLegendary = legendaryPlayers.length > 0;
   const successfulSquad = {
     era: team.type === 'club' 
-      ? t('Golden Generation', 'Generación Dorada') 
+      ? t('Most Successful Era', 'Era más exitosa') 
       : t('World Cup Winning Era', 'Era de Campeones del Mundo'),
-    years: team.type === 'club' 
-      ? "2014-2022" 
-      : new Date().getFullYear() - 10 + "-" + new Date().getFullYear(),
+    years: hasLegendary && legendaryPlayers[0]._era 
+      ? legendaryPlayers[0]._era 
+      : (team.type === 'club' ? "Historic" : "Golden Generation"),
     achievements: allAchievements.slice(0, 3),
-    keyPlayers: displayPlayers.length > 0 
-      ? displayPlayers.slice(0, 4).map(p => p.name)
+    keyPlayers: hasLegendary
+      ? legendaryPlayers.slice(0, 4).map(p => p.name)
+      : displayPlayers.length > 0 
+        ? displayPlayers.slice(0, 4).map(p => p.name)
       : [t('Legendary players would appear here', 'Jugadores legendarios aparecerían aquí')]
   };
+
+  // Generate timeline events from achievements
+  const timelineEvents = [
+    ...(team.majorAchievements.worldCup || []),
+    ...(team.majorAchievements.clubWorldCup || []),
+    ...(team.majorAchievements.continental || []),
+    ...(team.majorAchievements.domestic || [])
+  ].flatMap(achievement => {
+    const years = achievement.match(/\b(18|19|20)\d{2}\b/g);
+    if (!years) return [];
+    const title = achievement.split('(')[0].trim();
+    return years.map(year => ({
+      year: parseInt(year, 10),
+      event: `${title}`
+    }));
+  }).sort((a, b) => b.year - a.year);
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 animate-fadeIn">
@@ -317,7 +357,7 @@ export default function EnhancedTeamResults({
                 <div className="text-xs text-gray-400 mb-1">
                   {t('Total Achievements', 'Logros totales')}
                 </div>
-                <div className="font-medium text-green-400">{allAchievements.length}+ {t('Trophies', 'Trofeos')}</div>
+                <div className="font-medium text-green-400">{countTitles(allAchievements)}+ {t('Trophies', 'Trofeos')}</div>
               </div>
             </div>
 
@@ -433,36 +473,36 @@ export default function EnhancedTeamResults({
                     <div>
                       <div className="flex justify-between mb-1">
                         <span className="text-gray-400">{t('World Cup Titles:', 'Copas del Mundo:')}</span>
-                        <span className="text-yellow-400 font-medium">{team.majorAchievements.worldCup?.length || 0}</span>
+                        <span className="text-yellow-400 font-medium">{countTitles(team.majorAchievements.worldCup)}</span>
                       </div>
                       <div className="w-full bg-gray-700 rounded-full h-2">
                         <div 
                           className="bg-yellow-500 h-2 rounded-full" 
-                          style={{ width: `${Math.min(100, (team.majorAchievements.worldCup?.length || 0) * 20)}%` }}
+                          style={{ width: `${Math.min(100, countTitles(team.majorAchievements.worldCup) * 20)}%` }}
                         ></div>
                       </div>
                     </div>
                     <div>
                       <div className="flex justify-between mb-1">
                         <span className="text-gray-400">{t('Continental Titles:', 'Títulos continentales:')}</span>
-                        <span className="text-blue-400 font-medium">{team.majorAchievements.continental?.length || 0}</span>
+                        <span className="text-blue-400 font-medium">{countTitles(team.majorAchievements.continental)}</span>
                       </div>
                       <div className="w-full bg-gray-700 rounded-full h-2">
                         <div 
                           className="bg-blue-500 h-2 rounded-full" 
-                          style={{ width: `${Math.min(100, (team.majorAchievements.continental?.length || 0) * 10)}%` }}
+                          style={{ width: `${Math.min(100, countTitles(team.majorAchievements.continental) * 10)}%` }}
                         ></div>
                       </div>
                     </div>
                     <div>
                       <div className="flex justify-between mb-1">
                         <span className="text-gray-400">{t('Domestic Titles:', 'Títulos nacionales:')}</span>
-                        <span className="text-green-400 font-medium">{team.majorAchievements.domestic?.length || 0}</span>
+                        <span className="text-green-400 font-medium">{countTitles(team.majorAchievements.domestic)}</span>
                       </div>
                       <div className="w-full bg-gray-700 rounded-full h-2">
                         <div 
                           className="bg-green-500 h-2 rounded-full" 
-                          style={{ width: `${Math.min(100, (team.majorAchievements.domestic?.length || 0) * 5)}%` }}
+                          style={{ width: `${Math.min(100, countTitles(team.majorAchievements.domestic) * 5)}%` }}
                         ></div>
                       </div>
                     </div>
@@ -699,34 +739,22 @@ export default function EnhancedTeamResults({
               <div className="flex items-center gap-2 flex-wrap">
                 {team.majorAchievements.worldCup?.length > 0 && (
                   <span className="px-3 py-1 bg-yellow-900/30 text-yellow-300 rounded-full text-sm">
-                    {team.majorAchievements.worldCup.reduce((sum, entry) => {
-                      const m = entry.match(/\((\d{1,3})\s*titles?\)|\((\d{1,3})\)/i);
-                      return sum + (m ? parseInt(m[1] || m[2], 10) : 0);
-                    }, 0)} {t('World Cup', 'Copa del Mundo')}
+                    {countTitles(team.majorAchievements.worldCup)} {t('World Cup', 'Copa del Mundo')}
                   </span>
                 )}
                 {team.majorAchievements.clubWorldCup?.length > 0 && (
                   <span className="px-3 py-1 bg-red-900/30 text-red-300 rounded-full text-sm">
-                    {team.majorAchievements.clubWorldCup.reduce((sum, entry) => {
-                      const m = entry.match(/\((\d{1,3})\s*titles?\)|\((\d{1,3})\)/i);
-                      return sum + (m ? parseInt(m[1] || m[2], 10) : 0);
-                    }, 0)} {t('Club World', 'Mundo de Clubes')}
+                    {countTitles(team.majorAchievements.clubWorldCup)} {t('Club World', 'Mundo de Clubes')}
                   </span>
                 )}
                 {team.majorAchievements.continental?.length > 0 && (
                   <span className="px-3 py-1 bg-blue-900/30 text-blue-300 rounded-full text-sm">
-                    {team.majorAchievements.continental.reduce((sum, entry) => {
-                      const m = entry.match(/\((\d{1,3})\s*titles?\)|\((\d{1,3})\)/i);
-                      return sum + (m ? parseInt(m[1] || m[2], 10) : 0);
-                    }, 0)} {t('Continental', 'Continental')}
+                    {countTitles(team.majorAchievements.continental)} {t('Continental', 'Continental')}
                   </span>
                 )}
                 {team.majorAchievements.domestic?.length > 0 && (
                   <span className="px-3 py-1 bg-green-900/30 text-green-300 rounded-full text-sm">
-                    {team.majorAchievements.domestic.reduce((sum, entry) => {
-                      const m = entry.match(/\((\d{1,3})\s*titles?\)|\((\d{1,3})\)/i);
-                      return sum + (m ? parseInt(m[1] || m[2], 10) : 0);
-                    }, 0)} {t('Domestic', 'Nacional')}
+                    {countTitles(team.majorAchievements.domestic)} {t('Domestic', 'Nacional')}
                   </span>
                 )}
               </div>
@@ -746,10 +774,7 @@ export default function EnhancedTeamResults({
                         {t('World Club Competitions', 'Competiciones mundiales de clubes')}
                       </h4>
                       <p className="text-red-300 text-sm">
-                        {team.majorAchievements.clubWorldCup.reduce((sum, entry) => {
-                          const m = entry.match(/\((\d{1,3})\s*titles?\)|\((\d{1,3})\)/i);
-                          return sum + (m ? parseInt(m[1] || m[2], 10) : 0);
-                        }, 0)} {t('total titles', 'títulos totales')}
+                        {countTitles(team.majorAchievements.clubWorldCup)} {t('total titles', 'títulos totales')}
                       </p>
                     </div>
                   </div>
@@ -770,13 +795,10 @@ export default function EnhancedTeamResults({
                     </div>
                     <div>
                       <h4 className="text-lg font-bold text-white">
-                        {t('World Cup', 'Copa del Mundo')}
+                        {team.type === 'national' ? t('Global Competitions', 'Competiciones Globales') : t('World Cup', 'Copa del Mundo')}
                       </h4>
                       <p className="text-yellow-300 text-sm">
-                        {team.majorAchievements.worldCup.reduce((sum, entry) => {
-                          const m = entry.match(/\((\d{1,3})\s*titles?\)|\((\d{1,3})\)/i);
-                          return sum + (m ? parseInt(m[1] || m[2], 10) : 0);
-                        }, 0)} {t('total titles', 'títulos totales')}
+                        {countTitles(team.majorAchievements.worldCup)} {t('total titles', 'títulos totales')}
                       </p>
                     </div>
                   </div>
@@ -797,13 +819,10 @@ export default function EnhancedTeamResults({
                     </div>
                     <div>
                       <h4 className="text-lg font-bold text-white">
-                        {t('Continental/European Competitions', 'Competiciones continentales/europeas')}
+                        {t('Continental Competitions', 'Competiciones continentales')}
                       </h4>
                       <p className="text-blue-300 text-sm">
-                        {team.majorAchievements.continental.reduce((sum, entry) => {
-                          const m = entry.match(/\((\d{1,3})\s*titles?\)|\((\d{1,3})\)/i);
-                          return sum + (m ? parseInt(m[1] || m[2], 10) : 0);
-                        }, 0)} {t('total titles', 'títulos totales')}
+                        {countTitles(team.majorAchievements.continental)} {t('total titles', 'títulos totales')}
                       </p>
                     </div>
                   </div>
@@ -827,10 +846,7 @@ export default function EnhancedTeamResults({
                         {t('Domestic Competitions', 'Competiciones nacionales')}
                       </h4>
                       <p className="text-green-300 text-sm">
-                        {team.majorAchievements.domestic.reduce((sum, entry) => {
-                          const m = entry.match(/\((\d{1,3})\s*titles?\)|\((\d{1,3})\)/i);
-                          return sum + (m ? parseInt(m[1] || m[2], 10) : 0);
-                        }, 0)} {t('total titles', 'títulos totales')}
+                        {countTitles(team.majorAchievements.domestic)} {t('total titles', 'títulos totales')}
                       </p>
                     </div>
                   </div>
@@ -976,16 +992,38 @@ export default function EnhancedTeamResults({
               <h4 className="text-xl font-bold text-white mb-6">
                 {t('Historical Timeline', 'Línea de tiempo histórica')}
               </h4>
-              <div className="bg-gray-800/30 rounded-xl p-6 text-center">
-                <div className="text-5xl mb-4">📅</div>
-                <h5 className="text-lg font-semibold text-white mb-2">
-                  {t('Interactive Timeline', 'Línea de tiempo interactiva')}
-                </h5>
-                <p className="text-gray-400 max-w-md mx-auto">
-                  {t(`Showing key moments in ${team.name}'s history from ${team.foundedYear || 'early'} to present.`,
-                     `Mostrando momentos clave en la historia de ${team.name} desde ${team.foundedYear || 'sus inicios'} hasta la actualidad.`)}
-                </p>
-              </div>
+              {timelineEvents.length > 0 ? (
+                <div className="bg-gray-800/30 rounded-xl p-6">
+                  <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-gray-600 before:to-transparent">
+                    {timelineEvents.slice(0, 10).map((event, index) => (
+                      <div key={index} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                        <div className="flex items-center justify-center w-10 h-10 rounded-full border border-gray-600 bg-gray-900 group-[.is-active]:border-blue-500 shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 shadow text-xs font-bold text-gray-300">
+                          {event.year}
+                        </div>
+                        <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-4 rounded-xl border border-gray-700 bg-gray-800/50 shadow">
+                          <div className="font-bold text-white">{event.event}</div>
+                        </div>
+                      </div>
+                    ))}
+                    {timelineEvents.length > 10 && (
+                      <div className="text-center pt-4">
+                        <span className="text-gray-500 text-sm">{t(`And ${timelineEvents.length - 10} more events...`, `Y ${timelineEvents.length - 10} eventos más...`)}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-gray-800/30 rounded-xl p-6 text-center">
+                  <div className="text-5xl mb-4">📅</div>
+                  <h5 className="text-lg font-semibold text-white mb-2">
+                    {t('Timeline Unavailable', 'Línea de tiempo no disponible')}
+                  </h5>
+                  <p className="text-gray-400 max-w-md mx-auto">
+                    {t(`Could not generate a timeline from the available data.`,
+                       `No se pudo generar una línea de tiempo a partir de los datos disponibles.`)}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         )}

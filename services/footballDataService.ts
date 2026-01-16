@@ -3,6 +3,23 @@
 const FOOTBALL_DATA_API_KEY = process.env.NEXT_PUBLIC_FOOTBALL_DATA_API_KEY;
 const FOOTBALL_DATA_BASE_URL = 'https://api.football-data.org/v4';
 
+export interface Player {
+  name: string;
+  currentTeam: string;
+  position: string;
+  age?: number;
+  nationality: string;
+  careerGoals?: number;
+  careerAssists?: number;
+  internationalAppearances?: number;
+  internationalGoals?: number;
+  majorAchievements: string[];
+  careerSummary: string;
+  imageUrl?: string;
+  _source?: string;
+  _lastVerified?: string;
+}
+
 interface FootballDataPlayer {
   id: number;
   name: string;
@@ -31,6 +48,20 @@ interface FootballDataTeam {
   squad: FootballDataPlayer[];
 }
 
+// Helper to fetch data (Server vs Client handling)
+const fetchFromApi = async (endpoint: string) => {
+  // If server-side, fetch directly
+  if (typeof window === 'undefined') {
+    return fetch(`${FOOTBALL_DATA_BASE_URL}${endpoint}`, {
+      headers: { 'X-Auth-Token': FOOTBALL_DATA_API_KEY || '' },
+    });
+  } 
+  // If client-side, use proxy to avoid CORS
+  else {
+    return fetch(`/api/football-data?endpoint=${encodeURIComponent(endpoint)}`);
+  }
+};
+
 export const fetchTeamFromFootballData = async (teamName: string): Promise<FootballDataTeam | null> => {
   if (!FOOTBALL_DATA_API_KEY) {
     console.error('[Football Data] API key not configured');
@@ -39,14 +70,7 @@ export const fetchTeamFromFootballData = async (teamName: string): Promise<Footb
 
   try {
     // First search for team ID
-    const searchResponse = await fetch(
-      `${FOOTBALL_DATA_BASE_URL}/teams?name=${encodeURIComponent(teamName)}`,
-      {
-        headers: {
-          'X-Auth-Token': FOOTBALL_DATA_API_KEY,
-        },
-      }
-    );
+    const searchResponse = await fetchFromApi(`/teams?name=${encodeURIComponent(teamName)}`);
 
     if (!searchResponse.ok) {
       console.error('[Football Data] Search failed:', searchResponse.status);
@@ -64,14 +88,7 @@ export const fetchTeamFromFootballData = async (teamName: string): Promise<Footb
     const teamId = searchData.teams[0].id;
     
     // Fetch detailed team data with squad
-    const teamResponse = await fetch(
-      `${FOOTBALL_DATA_BASE_URL}/teams/${teamId}`,
-      {
-        headers: {
-          'X-Auth-Token': FOOTBALL_DATA_API_KEY,
-        },
-      }
-    );
+    const teamResponse = await fetchFromApi(`/teams/${teamId}`);
 
     if (!teamResponse.ok) {
       console.error('[Football Data] Team fetch failed:', teamResponse.status);

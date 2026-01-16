@@ -110,7 +110,7 @@ export const analyzeDataQuality = (groqResponse: any): {
       const achievements = JSON.stringify(team.majorAchievements).toLowerCase();
       if (!achievements.includes('champions league')) {
         result.dataIssues.push('Missing Champions League achievements');
-
+      }
     }
   }
 
@@ -174,10 +174,7 @@ const fixCommonDataIssues = (groqResponse: any): any => {
 /**
  * Main enhancement function
  */
-export const enhanceGROQResponse = async (
-  groqResponse: any,
-  originalQuery: string
-): Promise<any> => {
+export const enhanceGROQResponse = async (groqResponse: any, originalQuery: string): Promise<any> => {
   const enhancedResponse = fixCommonDataIssues(groqResponse);
   
   try {
@@ -318,10 +315,3 @@ export const fetchFromWikipedia = async (query: string): Promise<any> => {
   }
 };
 
-export default {
-  enhanceGROQResponse,
-  getDataQualityBadge,
-  isFootballDataConfigured,
-  fetchFromWikipedia,
-  analyzeDataQuality
-};

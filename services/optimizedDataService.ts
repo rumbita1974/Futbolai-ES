@@ -94,6 +94,20 @@ interface FootballDataTeam {
   }>;
 }
 
+// Helper to fetch data (Server vs Client handling)
+const fetchFootballData = async (url: string) => {
+  if (typeof window !== 'undefined') {
+    // Client-side: use proxy to avoid CORS
+    const endpoint = url.replace('https://api.football-data.org/v4', '');
+    return fetch(`/api/football-data?endpoint=${encodeURIComponent(endpoint)}`);
+  } else {
+    // Server-side: fetch directly
+    return fetch(url, {
+      headers: { 'X-Auth-Token': FOOTBALL_DATA_API_KEY || '' },
+    });
+  }
+};
+
 /**
  * Fetch verified squad data from Football Data API
  * Returns ACCURATE current squad info, no hallucinations
@@ -123,9 +137,7 @@ export const fetchVerifiedSquad = async (teamName: string): Promise<FootballData
     if (!teamId) {
       console.log(`[Football Data] Team ID not found in mapping, searching...`);
       const searchUrl = `${FOOTBALL_DATA_BASE_URL}/teams?name=${encodeURIComponent(teamName)}`;
-      const searchResponse = await fetch(searchUrl, {
-        headers: { 'X-Auth-Token': FOOTBALL_DATA_API_KEY },
-      });
+      const searchResponse = await fetchFootballData(searchUrl);
 
       if (!searchResponse.ok) {
         console.error(`[Football Data] Search failed: ${searchResponse.status}`);
@@ -145,12 +157,13 @@ export const fetchVerifiedSquad = async (teamName: string): Promise<FootballData
 
     // Fetch detailed team data with squad
     const teamUrl = `${FOOTBALL_DATA_BASE_URL}/teams/${teamId}`;
-    const teamResponse = await fetch(teamUrl, {
-      headers: { 'X-Auth-Token': FOOTBALL_DATA_API_KEY },
-    });
+    const teamResponse = await fetchFootballData(teamUrl);
 
     if (!teamResponse.ok) {
       console.error(`[FD_API] [${teamName}] HTTP ${teamResponse.status} error`);
+      if (teamResponse.status === 404) {
+        console.warn(`[FD_API] ⚠️ 404 Error: The API route might be missing. Please restart the server.`);
+      }
       return null;
     }
 
@@ -382,6 +395,119 @@ function extractStadiumInfo(text: string): string | undefined {
 }
 
 // ============================================================================
+// WIKIDATA VERIFICATION (Structured Data for Managers & Teams)
+// ============================================================================
+
+/**
+ * Fetch current manager/coach from Wikidata
+ * Uses P286 (head coach) property with DATE VALIDATION
+ */
+export const getCoachFromWikidata = async (teamName: string): Promise<string | null> => {
+  try {
+    console.log(`[Wikidata] Searching manager for: ${teamName}`);
+    // 1. Search for team entity
+    const searchUrl = `https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(teamName + ' football team')}&language=en&format=json&origin=*&type=item&limit=1`;
+    const searchRes = await fetch(searchUrl);
+    const searchData = await searchRes.json();
+    
+    if (!searchData.search || searchData.search.length === 0) return null;
+    const teamId = searchData.search[0].id;
+    
+    // 2. Get claims for P286 (head coach)
+    const claimsUrl = `https://www.wikidata.org/w/api.php?action=wbgetclaims&entity=${teamId}&property=P286&format=json&origin=*`;
+    const claimsRes = await fetch(claimsUrl);
+    const claimsData = await claimsRes.json();
+    
+    const claims = claimsData.claims?.P286;
+    if (!claims || claims.length === 0) return null;
+    
+    // 3. Filter and Sort Claims
+    // We want the coach with a start date (P580) but NO end date (P582)
+    // Or the one with the most recent start date if multiple exist
+    
+    const activeCoaches = claims.filter((c: any) => {
+      // Check if there is an end date qualifier (P582)
+      const endDates = c.qualifiers?.P582;
+      if (endDates && endDates.length > 0) return false; // Has ended
+      return true;
+    });
+
+    // If we have active coaches, sort by start date (P580)
+    const sortedCoaches = activeCoaches.sort((a: any, b: any) => {
+      const startA = a.qualifiers?.P580?.[0]?.datavalue?.value?.time;
+      const startB = b.qualifiers?.P580?.[0]?.datavalue?.value?.time;
+      
+      if (!startA) return 1;
+      if (!startB) return -1;
+      
+      return startB.localeCompare(startA); // Descending (newest first)
+    });
+
+    // Select the most recent active coach, or fallback to preferred/last
+    let currentCoachClaim = sortedCoaches.length > 0 ? sortedCoaches[0] : (claims.find((c: any) => c.rank === 'preferred') || claims[claims.length - 1]);
+    
+    if (!currentCoachClaim?.mainsnak?.datavalue?.value?.id) return null;
+    
+    const coachId = currentCoachClaim.mainsnak.datavalue.value.id;
+    
+    // 4. Get coach name label
+    const entityUrl = `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${coachId}&props=labels&languages=en&format=json&origin=*`;
+    const entityRes = await fetch(entityUrl);
+    const entityData = await entityRes.json();
+    
+    const coachName = entityData.entities?.[coachId]?.labels?.en?.value;
+    if (coachName) {
+        console.log(`[Wikidata] Found coach: ${coachName}`);
+        return coachName;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('[Wikidata] Error fetching coach:', error);
+    return null;
+  }
+};
+
+/**
+ * Fetch current team for a player from Wikidata
+ * Uses P54 (member of sports team)
+ */
+export const getCurrentTeamFromWikidata = async (playerName: string): Promise<string | null> => {
+  try {
+    const searchUrl = `https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(playerName)}&language=en&format=json&origin=*&type=item&limit=1`;
+    const searchRes = await fetch(searchUrl);
+    const searchData = await searchRes.json();
+    
+    if (!searchData.search || searchData.search.length === 0) return null;
+    const playerId = searchData.search[0].id;
+    
+    // P54 is "member of sports team"
+    const claimsUrl = `https://www.wikidata.org/w/api.php?action=wbgetclaims&entity=${playerId}&property=P54&format=json&origin=*`;
+    const claimsRes = await fetch(claimsUrl);
+    const claimsData = await claimsRes.json();
+    
+    const claims = claimsData.claims?.P54;
+    if (!claims || claims.length === 0) return null;
+    
+    // Find preferred rank (current team)
+    let currentTeamClaim = claims.find((c: any) => c.rank === 'preferred');
+    if (!currentTeamClaim) currentTeamClaim = claims[claims.length - 1];
+    
+    if (!currentTeamClaim?.mainsnak?.datavalue?.value?.id) return null;
+    
+    const teamId = currentTeamClaim.mainsnak.datavalue.value.id;
+    
+    const entityUrl = `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${teamId}&props=labels&languages=en&format=json&origin=*`;
+    const entityRes = await fetch(entityUrl);
+    const entityData = await entityRes.json();
+    
+    return entityData.entities?.[teamId]?.labels?.en?.value || null;
+  } catch (e) {
+    return null;
+  }
+};
+
+// ============================================================================
 // LIVE SCORE DATA FOR HIGHLIGHTS PAGE
 // ============================================================================
 
@@ -422,6 +548,30 @@ export const getCacheStats = () => {
   };
 };
 
+export const convertFootballDataToPlayers = (footballData: FootballDataTeam): Player[] => {
+  if (!footballData.squad) return [];
+  
+  return footballData.squad.map(p => {
+    const age = p.dateOfBirth ? new Date().getFullYear() - new Date(p.dateOfBirth).getFullYear() : undefined;
+    return {
+      name: p.name,
+      currentTeam: footballData.name,
+      position: p.position || 'Unknown',
+      age: age,
+      nationality: p.nationality || 'Unknown',
+      careerGoals: 0,
+      careerAssists: 0,
+      internationalAppearances: 0,
+      internationalGoals: 0,
+      majorAchievements: [],
+      careerSummary: `${p.name} plays for ${footballData.name}.`,
+      _source: 'Football Data API',
+      _lastVerified: new Date().toISOString(),
+      _priority: 'high'
+    } as Player;
+  });
+};
+
 export default {
   fetchVerifiedSquad,
   fetchWikimediaPlayerImage,
@@ -429,4 +579,5 @@ export default {
   translateTerm,
   clearAllCaches,
   getCacheStats,
+  convertFootballDataToPlayers,
 };
