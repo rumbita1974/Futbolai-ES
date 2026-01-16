@@ -117,6 +117,10 @@ export const translateTeamData = (data: any, language: string): any => {
       achievements.worldCup = translateAchievements(achievements.worldCup);
     }
     
+    if (achievements.international) {
+      achievements.international = translateAchievements(achievements.international);
+    }
+    
     if (achievements.continental) {
       achievements.continental = translateAchievements(achievements.continental);
     }

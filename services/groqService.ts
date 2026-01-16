@@ -48,8 +48,8 @@ export interface Team {
   foundedYear?: number;
   majorAchievements: {
     worldCup?: string[];
-    clubWorldCup?: string[];
-    continental: string[];
+    international?: string[];
+    continental?: string[];
     domestic: string[];
   };
   _source?: string;
@@ -108,19 +108,19 @@ const HISTORICAL_TEAM_DATA: Record<string, any> = {
     stadium: 'Santiago Bernabéu',
     country: 'Spain',
     type: 'club',
+    currentCoach: 'Álvaro Arbeloa',
+    legendaryPlayers: ['Alfredo Di Stéfano', 'Cristiano Ronaldo', 'Raúl', 'Zinedine Zidane', 'Ferenc Puskás', 'Paco Gento', 'Iker Casillas', 'Sergio Ramos'],
     keyPlayers: [
       'Kylian Mbappé', 'Vinícius Júnior', 'Jude Bellingham', 'Rodrygo', 
       'Eduardo Camavinga', 'Aurélien Tchouaméni', 'Federico Valverde',
       'Thibaut Courtois', 'Éder Militão', 'David Alaba', 'Antonio Rüdiger'
     ],
     historicalAchievements: {
-      clubWorldCup: [
+      international: [
+        "UEFA Champions League (15 titles: 1956, 1957, 1958, 1959, 1960, 1966, 1998, 2000, 2002, 2014, 2016, 2017, 2018, 2022, 2024)",
         "FIFA Club World Cup (5 titles: 2014, 2016, 2017, 2018, 2022)",
         "Intercontinental Cup (3 titles: 1960, 1998, 2002)",
-        "FIFA Intercontinental Cup (1 title: 2024)"
-      ],
-      continental: [
-        "UEFA Champions League (15 titles: 1956, 1957, 1958, 1959, 1960, 1966, 1998, 2000, 2002, 2014, 2016, 2017, 2018, 2022, 2024)",
+        "FIFA Intercontinental Cup (1 title: 2024)",
         "UEFA Cup (2 titles: 1985, 1986)",
         "UEFA Super Cup (6 titles: 2002, 2014, 2016, 2017, 2022, 2024)"
       ],
@@ -136,16 +136,16 @@ const HISTORICAL_TEAM_DATA: Record<string, any> = {
     stadium: 'Spotify Camp Nou',
     country: 'Spain',
     type: 'club',
+    currentCoach: 'Hansi Flick',
+    legendaryPlayers: ['Lionel Messi', 'Xavi', 'Andrés Iniesta', 'Johan Cruyff', 'Ronaldinho', 'Carles Puyol', 'Pep Guardiola', 'Rivaldo'],
     keyPlayers: [
       'Robert Lewandowski', 'Pedri', 'Gavi', 'Frenkie de Jong', 
       'Lamine Yamal', 'Ronald Araújo', 'Marc-André ter Stegen',
       'Jules Koundé', 'İlkay Gündoğan', 'João Félix', 'Raphinha'
     ],
     historicalAchievements: {
-      clubWorldCup: [
-        "FIFA Club World Cup (2009, 2011, 2015)"
-      ],
-      continental: [
+      international: [
+        "FIFA Club World Cup (2009, 2011, 2015)",
         "UEFA Champions League (5 titles: 1992, 2006, 2009, 2011, 2015)"
       ],
       domestic: [
@@ -160,16 +160,16 @@ const HISTORICAL_TEAM_DATA: Record<string, any> = {
     stadium: 'San Siro',
     country: 'Italy',
     type: 'club',
+    currentCoach: 'Paulo Fonseca',
+    legendaryPlayers: ['Paolo Maldini', 'Franco Baresi', 'Marco van Basten', 'Ruud Gullit', 'Kaka', 'Andriy Shevchenko', 'Andrea Pirlo', 'Clarence Seedorf'],
     keyPlayers: [
       'Rafael Leão', 'Theo Hernández', 'Mike Maignan', 'Christian Pulisic',
       'Olivier Giroud', 'Fikayo Tomori', 'Sandro Tonali', 'Ismaël Bennacer',
       'Davide Calabria', 'Alessandro Florenzi', 'Simon Kjær'
     ],
     historicalAchievements: {
-      clubWorldCup: [
-        "FIFA Club World Cup (2007)"
-      ],
-      continental: [
+      international: [
+        "FIFA Club World Cup (2007)",
         "UEFA Champions League (7 titles: 1963, 1969, 1989, 1990, 1994, 2003, 2007)",
         "UEFA Cup Winners' Cup (2 titles)",
         "UEFA Super Cup (5 titles)"
@@ -186,16 +186,16 @@ const HISTORICAL_TEAM_DATA: Record<string, any> = {
     stadium: 'San Siro',
     country: 'Italy',
     type: 'club',
+    currentCoach: 'Simone Inzaghi',
+    legendaryPlayers: ['Javier Zanetti', 'Giuseppe Meazza', 'Giacinto Facchetti', 'Ronaldo', 'Lothar Matthäus', 'Sandro Mazzola', 'Luis Suárez', 'Walter Zenga'],
     keyPlayers: [
       'Lautaro Martínez', 'Nicolò Barella', 'Alessandro Bastoni', 'Hakan Çalhanoğlu',
       'Marcus Thuram', 'Benjamin Pavard', 'Stefan de Vrij', 'Henrikh Mkhitaryan',
       'Matteo Darmian', 'Federico Dimarco', 'Yann Sommer'
     ],
     historicalAchievements: {
-      clubWorldCup: [
-        "FIFA Club World Cup (2010)"
-      ],
-      continental: [
+      international: [
+        "FIFA Club World Cup (2010)",
         "UEFA Champions League (3 titles: 1964, 1965, 2010)",
         "UEFA Cup/Europa League (3 titles)",
         "UEFA Super Cup (1 title)"
@@ -212,16 +212,16 @@ const HISTORICAL_TEAM_DATA: Record<string, any> = {
     stadium: 'Allianz Stadium',
     country: 'Italy',
     type: 'club',
+    currentCoach: 'Thiago Motta',
+    legendaryPlayers: ['Alessandro Del Piero', 'Gianluigi Buffon', 'Michel Platini', 'Roberto Baggio', 'Zinedine Zidane', 'Gaetano Scirea', 'Dino Zoff', 'Pavel Nedvěd'],
     keyPlayers: [
       'Dušan Vlahović', 'Federico Chiesa', 'Gleison Bremer', 'Wojciech Szczęsny',
       'Adrien Rabiot', 'Manuel Locatelli', 'Weston McKennie', 'Danilo',
       'Alex Sandro', 'Federico Gatti', 'Timothy Weah'
     ],
     historicalAchievements: {
-      clubWorldCup: [
-        "FIFA Club World Cup (1985, 1996)"
-      ],
-      continental: [
+      international: [
+        "FIFA Club World Cup (1985, 1996)",
         "UEFA Champions League (2 titles: 1985, 1996)",
         "UEFA Cup/Europa League (3 titles)",
         "UEFA Cup Winners' Cup (1 title)",
@@ -239,16 +239,16 @@ const HISTORICAL_TEAM_DATA: Record<string, any> = {
     stadium: 'Etihad Stadium',
     country: 'England',
     type: 'club',
+    currentCoach: 'Pep Guardiola',
+    legendaryPlayers: ['Sergio Agüero', 'David Silva', 'Vincent Kompany', 'Yaya Touré', 'Colin Bell', 'Joe Hart', 'Fernandinho', 'Francis Lee'],
     keyPlayers: [
       'Erling Haaland', 'Kevin De Bruyne', 'Phil Foden', 'Rodri',
       'Bernardo Silva', 'Kyle Walker', 'Rúben Dias', 'Ederson',
       'Jack Grealish', 'John Stones', 'Jérémy Doku'
     ],
     historicalAchievements: {
-      clubWorldCup: [
-        "FIFA Club World Cup (2023)"
-      ],
-      continental: [
+      international: [
+        "FIFA Club World Cup (2023)",
         "UEFA Champions League (2023)",
         "UEFA Cup Winners' Cup (1970)"
       ],
@@ -265,16 +265,16 @@ const HISTORICAL_TEAM_DATA: Record<string, any> = {
     stadium: 'Anfield',
     country: 'England',
     type: 'club',
+    currentCoach: 'Arne Slot',
+    legendaryPlayers: ['Steven Gerrard', 'Kenny Dalglish', 'Ian Rush', 'Robbie Fowler', 'Jamie Carragher', 'John Barnes', 'Graeme Souness', 'Kevin Keegan'],
     keyPlayers: [
       'Mohamed Salah', 'Virgil van Dijk', 'Trent Alexander-Arnold', 'Darwin Núñez',
       'Alexis Mac Allister', 'Alisson Becker', 'Andrew Robertson', 'Ibrahima Konaté',
       'Diogo Jota', 'Cody Gakpo', 'Dominik Szoboszlai'
     ],
     historicalAchievements: {
-      clubWorldCup: [
-        "FIFA Club World Cup (2019)"
-      ],
-      continental: [
+      international: [
+        "FIFA Club World Cup (2019)",
         "UEFA Champions League (6 titles: 1977, 1978, 1981, 1984, 2005, 2019)"
       ],
       domestic: [
@@ -290,16 +290,16 @@ const HISTORICAL_TEAM_DATA: Record<string, any> = {
     stadium: 'Allianz Arena',
     country: 'Germany',
     type: 'club',
+    currentCoach: 'Vincent Kompany',
+    legendaryPlayers: ['Franz Beckenbauer', 'Gerd Müller', 'Lothar Matthäus', 'Oliver Kahn', 'Philipp Lahm', 'Bastian Schweinsteiger', 'Karl-Heinz Rummenigge', 'Sepp Maier'],
     keyPlayers: [
       'Harry Kane', 'Jamal Musiala', 'Leroy Sané', 'Joshua Kimmich',
       'Manuel Neuer', 'Thomas Müller', 'Serge Gnabry', 'Dayot Upamecano',
       'Kingsley Coman', 'Leon Goretzka', 'Matthijs de Ligt'
     ],
     historicalAchievements: {
-      clubWorldCup: [
-        "FIFA Club World Cup (2013, 2020)"
-      ],
-      continental: [
+      international: [
+        "FIFA Club World Cup (2013, 2020)",
         "UEFA Champions League (6 titles: 1974, 1975, 1976, 2001, 2013, 2020)"
       ],
       domestic: [
@@ -315,14 +315,15 @@ const HISTORICAL_TEAM_DATA: Record<string, any> = {
     stadium: 'Parc des Princes',
     country: 'France',
     type: 'club',
+    currentCoach: 'Luis Enrique',
+    legendaryPlayers: ['Pauleta', 'Zlatan Ibrahimović', 'Thiago Silva', 'Edinson Cavani', 'Safet Sušić', 'Mustapha Dahleb', 'Raí', 'George Weah'],
     keyPlayers: [
       'Gianluigi Donnarumma', 'Achraf Hakimi', 'Marquinhos', 'Vitinha',
       'Warren Zaïre-Emery', 'Nuno Mendes', 'Lucas Hernández',
       'Presnel Kimpembe', 'Ousmane Dembélé', 'Randal Kolo Muani', 'Kang-in Lee'
     ],
     historicalAchievements: {
-      clubWorldCup: [],
-      continental: [],
+      international: [],
       domestic: [
         "Ligue 1 (11 titles)",
         "Coupe de France (14 titles)",
@@ -336,14 +337,15 @@ const HISTORICAL_TEAM_DATA: Record<string, any> = {
     stadium: 'Emirates Stadium',
     country: 'England',
     type: 'club',
+    currentCoach: 'Mikel Arteta',
+    legendaryPlayers: ['Thierry Henry', 'Dennis Bergkamp', 'Tony Adams', 'Patrick Vieira', 'Ian Wright', 'Robert Pirès', 'David Seaman', 'Liam Brady'],
     keyPlayers: [
       'Bukayo Saka', 'Martin Ødegaard', 'Declan Rice', 'William Saliba',
       'Gabriel Jesus', 'Gabriel Martinelli', 'Ben White', 'Aaron Ramsdale',
       'Kai Havertz', 'Oleksandr Zinchenko', 'Thomas Partey'
     ],
     historicalAchievements: {
-      clubWorldCup: [],
-      continental: [
+      international: [
         "UEFA Cup Winners' Cup (1994)"
       ],
       domestic: [
@@ -359,16 +361,16 @@ const HISTORICAL_TEAM_DATA: Record<string, any> = {
     stadium: 'Stamford Bridge',
     country: 'England',
     type: 'club',
+    currentCoach: 'Enzo Maresca',
+    legendaryPlayers: ['Frank Lampard', 'John Terry', 'Didier Drogba', 'Gianfranco Zola', 'Peter Osgood', 'Petr Čech', 'Eden Hazard', 'Ashley Cole'],
     keyPlayers: [
       'Cole Palmer', 'Moisés Caicedo', 'Christopher Nkunku', 'Reece James',
       'Thiago Silva', 'Raheem Sterling', 'Enzo Fernández', 'Mykhailo Mudryk',
       'Nicolas Jackson', 'Axel Disasi', 'Robert Sánchez'
     ],
     historicalAchievements: {
-      clubWorldCup: [
-        "FIFA Club World Cup (2021)"
-      ],
-      continental: [
+      international: [
+        "FIFA Club World Cup (2021)",
         "UEFA Champions League (2 titles: 2012, 2021)",
         "UEFA Europa League (2 titles)",
         "UEFA Cup Winners' Cup (2 titles)",
@@ -387,16 +389,16 @@ const HISTORICAL_TEAM_DATA: Record<string, any> = {
     stadium: 'Old Trafford',
     country: 'England',
     type: 'club',
+    currentCoach: 'Rúben Amorim',
+    legendaryPlayers: ['Bobby Charlton', 'George Best', 'Eric Cantona', 'Ryan Giggs', 'Paul Scholes', 'Wayne Rooney', 'Roy Keane', 'Peter Schmeichel'],
     keyPlayers: [
       'Bruno Fernandes', 'Marcus Rashford', 'Rasmus Højlund', 'Kobbie Mainoo',
       'Harry Maguire', 'Luke Shaw', 'André Onana', 'Mason Mount',
       'Antony', 'Jadon Sancho', 'Casemiro'
     ],
     historicalAchievements: {
-      clubWorldCup: [
-        "FIFA Club World Cup (2008)"
-      ],
-      continental: [
+      international: [
+        "FIFA Club World Cup (2008)",
         "UEFA Champions League (3 titles: 1968, 1999, 2008)",
         "UEFA Europa League (1 title)",
         "UEFA Cup Winners' Cup (1 title)",
@@ -415,14 +417,15 @@ const HISTORICAL_TEAM_DATA: Record<string, any> = {
     stadium: 'Tottenham Hotspur Stadium',
     country: 'England',
     type: 'club',
+    currentCoach: 'Ange Postecoglou',
+    legendaryPlayers: ['Jimmy Greaves', 'Glenn Hoddle', 'Paul Gascoigne', 'Dave Mackay', 'Ledley King', 'Steve Perryman', 'Cliff Jones', 'Harry Kane'],
     keyPlayers: [
       'Son Heung-min', 'James Maddison', 'Cristian Romero', 'Guglielmo Vicario',
       'Dejan Kulusevski', 'Richarlison', 'Pedro Porro', 'Micky van de Ven',
       'Yves Bissouma', 'Pape Matar Sarr', 'Brennan Johnson'
     ],
     historicalAchievements: {
-      clubWorldCup: [],
-      continental: [
+      international: [
         "UEFA Cup Winners' Cup (1963)",
         "UEFA Cup (2 titles)"
       ],
@@ -439,7 +442,8 @@ const HISTORICAL_TEAM_DATA: Record<string, any> = {
     stadium: 'Maracanã',
     country: 'Brazil',
     type: 'national',
-    currentCoach: 'Dorival Júnior',
+    currentCoach: 'Carlo Ancelotti',
+    legendaryPlayers: ['Pelé', 'Ronaldo', 'Romário', 'Ronaldinho', 'Cafu', 'Roberto Carlos', 'Zico', 'Garrincha', 'Jairzinho', 'Rivaldo'],
     keyPlayers: [
       'Vinícius Júnior', 'Rodrygo', 'Alisson Becker', 'Ederson',
       'Marquinhos', 'Gabriel Magalhães', 'Bruno Guimarães', 'Lucas Paquetá',
@@ -464,6 +468,7 @@ const HISTORICAL_TEAM_DATA: Record<string, any> = {
     country: 'Argentina',
     type: 'national',
     currentCoach: 'Lionel Scaloni',
+    legendaryPlayers: ['Diego Maradona', 'Gabriel Batistuta', 'Mario Kempes', 'Javier Zanetti', 'Daniel Passarella', 'Juan Román Riquelme', 'Alfredo Di Stéfano', 'Ubaldo Fillol'],
     keyPlayers: [
       'Lionel Messi', 'Julián Álvarez', 'Lautaro Martínez', 'Enzo Fernández',
       'Alexis Mac Allister', 'Rodrigo De Paul', 'Emiliano Martínez',
@@ -487,6 +492,7 @@ const HISTORICAL_TEAM_DATA: Record<string, any> = {
     country: 'France',
     type: 'national',
     currentCoach: 'Didier Deschamps',
+    legendaryPlayers: ['Zinedine Zidane', 'Michel Platini', 'Thierry Henry', 'Just Fontaine', 'Patrick Vieira', 'Lilian Thuram', 'Marcel Desailly', 'Raymond Kopa'],
     keyPlayers: [
       'Kylian Mbappé', 'Antoine Griezmann', 'Ousmane Dembélé', 'Aurélien Tchouaméni',
       'Eduardo Camavinga', 'William Saliba', 'Mike Maignan', 'Theo Hernández',
@@ -510,6 +516,7 @@ const HISTORICAL_TEAM_DATA: Record<string, any> = {
     country: 'Germany',
     type: 'national',
     currentCoach: 'Julian Nagelsmann',
+    legendaryPlayers: ['Franz Beckenbauer', 'Gerd Müller', 'Lothar Matthäus', 'Miroslav Klose', 'Jürgen Klinsmann', 'Oliver Kahn', 'Fritz Walter', 'Uwe Seeler'],
     keyPlayers: [
       'Jamal Musiala', 'Florian Wirtz', 'Joshua Kimmich', 'Manuel Neuer',
       'Antonio Rüdiger', 'Kai Havertz', 'Leroy Sané', 'Ilkay Gündogan',
@@ -532,6 +539,7 @@ const HISTORICAL_TEAM_DATA: Record<string, any> = {
     country: 'Italy',
     type: 'national',
     currentCoach: 'Luciano Spalletti',
+    legendaryPlayers: ['Paolo Maldini', 'Roberto Baggio', 'Alessandro Del Piero', 'Francesco Totti', 'Gianluigi Buffon', 'Franco Baresi', 'Andrea Pirlo', 'Giuseppe Meazza'],
     keyPlayers: [
       'Gianluigi Donnarumma', 'Nicolò Barella', 'Federico Chiesa', 'Alessandro Bastoni',
       'Federico Dimarco', 'Lorenzo Pellegrini', 'Davide Frattesi', 'Gianluca Scamacca',
@@ -579,8 +587,8 @@ const enhanceWithHistoricalData = async (result: GROQSearchResponse, query: stri
         if (!enhanced.teams[0].majorAchievements) {
           enhanced.teams[0].majorAchievements = {
             worldCup: [],
-            clubWorldCup: [],
             continental: [],
+            international: [],
             domestic: []
           };
         }
@@ -588,20 +596,18 @@ const enhanceWithHistoricalData = async (result: GROQSearchResponse, query: stri
         // Enhance achievements with historical data (these don't change seasonally)
         const currentAchievements = enhanced.teams[0].majorAchievements;
         
-        // For clubs: add clubWorldCup if not present
+        // For clubs: add international if not present
         if (data.type === 'club') {
-          if (data.historicalAchievements.clubWorldCup) {
-            currentAchievements.clubWorldCup = data.historicalAchievements.clubWorldCup;
+          if (data.historicalAchievements.international) {
+            currentAchievements.international = data.historicalAchievements.international;
           }
         } else {
           if (data.historicalAchievements.worldCup) {
             currentAchievements.worldCup = data.historicalAchievements.worldCup;
           }
-        }
-        
-        // Add continental and domestic achievements if missing
-        if (data.historicalAchievements.continental) {
-          currentAchievements.continental = data.historicalAchievements.continental;
+          if (data.historicalAchievements.continental) {
+            currentAchievements.continental = data.historicalAchievements.continental;
+          }
         }
         
         if (data.historicalAchievements.domestic) {
@@ -687,8 +693,8 @@ const createDefaultTeam = (name: string): Team => {
   
   const defaultAchievements = {
     worldCup: type === 'national' ? [] : undefined,
-    clubWorldCup: type === 'club' ? [] : undefined,
-    continental: [],
+    international: type === 'club' ? [] : undefined,
+    continental: type === 'national' ? [] : undefined,
     domestic: type === 'club' ? [] : []
   };
   
@@ -783,11 +789,11 @@ const getEnhancedSystemPrompt = (query: string, language: string = 'en'): string
   
   const achievementStructure = isNationalTeam ? 
     `"worldCup": ["FIFA World Cup (year)"],` :
-    `"clubWorldCup": ["FIFA Club World Cup (year)"],`;
+    `"international": ["UEFA Champions League (15 titles)", "FIFA Club World Cup (5 titles)"],`;
   
   const continentalExample = isNationalTeam ?
     `"continental": ["Copa América (2019, 2024)", "UEFA Euro (2024)"],` :
-    `"continental": ["UEFA Champions League (15 titles)..."],`;
+    ``;
 
   // Knowledge Injection for 2026 Season
   let specificContext = "";
@@ -1045,8 +1051,8 @@ CRITICAL RULES:
               foundedYear: teamData.foundedYear || undefined,
               majorAchievements: {
                 worldCup: isNationalTeam ? (teamData.majorAchievements?.worldCup || []) : undefined,
-                clubWorldCup: !isNationalTeam ? (teamData.majorAchievements?.clubWorldCup || []) : undefined,
-                continental: teamData.majorAchievements?.continental || [],
+                international: !isNationalTeam ? (teamData.majorAchievements?.international || []) : undefined,
+                continental: isNationalTeam ? (teamData.majorAchievements?.continental || []) : undefined,
                 domestic: !isNationalTeam ? (teamData.majorAchievements?.domestic || []) : []
               },
               _source: 'GROQ AI',
@@ -1294,8 +1300,8 @@ CRITICAL RULES:
 
     const achievementCounts = {
       worldCup: enhancedTeam.type === 'national' ? parseTitleCount(teamAchievements.worldCup) : 0,
-      clubWorldCup: enhancedTeam.type === 'club' ? parseTitleCount(teamAchievements.clubWorldCup) : 0,
-      continental: parseTitleCount(teamAchievements.continental),
+      international: enhancedTeam.type === 'club' ? parseTitleCount(teamAchievements.international) : 0,
+      continental: enhancedTeam.type === 'national' ? parseTitleCount(teamAchievements.continental) : 0,
       domestic: enhancedTeam.type === 'club' ? parseTitleCount(teamAchievements.domestic) : 0
     };
 
@@ -1335,7 +1341,7 @@ CRITICAL RULES:
     };
     
     console.log(`[SUCCESS] ${finalResult.players.length} players, Coach: ${enhancedTeam.currentCoach}, Achievements: ${totalAchievements}`);
-    console.log(`[Achievements] World Cup: ${achievementCounts.worldCup}, Club World Cup: ${achievementCounts.clubWorldCup}, Continental: ${achievementCounts.continental}, Domestic: ${achievementCounts.domestic}`);
+    console.log(`[Achievements] World Cup: ${achievementCounts.worldCup}, International: ${achievementCounts.international}, Continental: ${achievementCounts.continental}, Domestic: ${achievementCounts.domestic}`);
     
     // Cache the result
     if (!bustCache) {
@@ -1476,6 +1482,32 @@ export const getHistoricalPlayers = async (teamName: string, teamType: 'club' | 
     return legendaryPlayers;
   } catch (err) {
     console.error('[History] getHistoricalPlayers error for', teamName, err);
+    
+    // Fallback to historical data if API fails
+    const lowerName = teamName.toLowerCase();
+    for (const [k, data] of Object.entries(HISTORICAL_TEAM_DATA)) {
+      if (lowerName.includes(k) && data.legendaryPlayers) {
+        console.log(`[History] Using fallback legendary players for ${teamName}`);
+        const fallbackLegends = data.legendaryPlayers.map((name: string) => ({
+          name,
+          currentTeam: 'Legend',
+          position: 'Legend',
+          nationality: data.country,
+          careerGoals: 0,
+          careerAssists: 0,
+          internationalAppearances: 0,
+          internationalGoals: 0,
+          majorAchievements: ['Club Legend'],
+          careerSummary: `${name} is a legendary player for ${teamName}.`,
+          _source: 'Historical Fallback',
+          _lastVerified: new Date().toISOString(),
+          _priority: 'high'
+        }));
+        historicalPlayersCache.set(key, fallbackLegends);
+        return fallbackLegends;
+      }
+    }
+    
     return [];
   }
 };

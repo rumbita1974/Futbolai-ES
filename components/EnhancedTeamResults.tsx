@@ -242,6 +242,7 @@ export default function EnhancedTeamResults({
   // Format achievements
   const allAchievements = [
     ...(team.majorAchievements?.worldCup || []),
+    ...(team.majorAchievements?.international || []),
     ...(team.majorAchievements?.continental || []),
     ...(team.majorAchievements?.domestic || [])
   ];
@@ -273,7 +274,7 @@ export default function EnhancedTeamResults({
   // Generate timeline events from achievements
   const timelineEvents = [
     ...(team.majorAchievements.worldCup || []),
-    ...(team.majorAchievements.clubWorldCup || []),
+    ...(team.majorAchievements.international || []),
     ...(team.majorAchievements.continental || []),
     ...(team.majorAchievements.domestic || [])
   ].flatMap(achievement => {
@@ -742,18 +743,18 @@ export default function EnhancedTeamResults({
                     {countTitles(team.majorAchievements.worldCup)} {t('World Cup', 'Copa del Mundo')}
                   </span>
                 )}
-                {team.majorAchievements.clubWorldCup?.length > 0 && (
-                  <span className="px-3 py-1 bg-red-900/30 text-red-300 rounded-full text-sm">
-                    {countTitles(team.majorAchievements.clubWorldCup)} {t('Club World', 'Mundo de Clubes')}
+                {team.majorAchievements.international?.length > 0 && (
+                  <span className="px-3 py-1 bg-blue-900/30 text-blue-300 rounded-full text-sm">
+                    {countTitles(team.majorAchievements.international)} {t('International', 'Internacional')}
                   </span>
                 )}
                 {team.majorAchievements.continental?.length > 0 && (
-                  <span className="px-3 py-1 bg-blue-900/30 text-blue-300 rounded-full text-sm">
+                  <span className="px-3 py-1 bg-green-900/30 text-green-300 rounded-full text-sm">
                     {countTitles(team.majorAchievements.continental)} {t('Continental', 'Continental')}
                   </span>
                 )}
                 {team.majorAchievements.domestic?.length > 0 && (
-                  <span className="px-3 py-1 bg-green-900/30 text-green-300 rounded-full text-sm">
+                  <span className="px-3 py-1 bg-yellow-900/30 text-yellow-300 rounded-full text-sm">
                     {countTitles(team.majorAchievements.domestic)} {t('Domestic', 'Nacional')}
                   </span>
                 )}
@@ -762,24 +763,24 @@ export default function EnhancedTeamResults({
 
             {/* Achievement Categories */}
             <div className="space-y-6">
-              {/* Club World Cup Achievements */}
-              {team.majorAchievements.clubWorldCup?.length > 0 && (
-                <div className="bg-gradient-to-br from-red-900/20 to-gray-900 border border-red-700/30 rounded-xl p-6">
+              {/* International Achievements (Clubs) */}
+              {team.majorAchievements.international?.length > 0 && (
+                <div className="bg-gradient-to-br from-blue-900/20 to-gray-900 border border-blue-700/30 rounded-xl p-6">
                   <div className="flex items-center gap-3 mb-4">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-red-900 to-red-800 flex items-center justify-center">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-900 to-blue-800 flex items-center justify-center">
                       <span className="text-2xl">🌍</span>
                     </div>
                     <div>
                       <h4 className="text-lg font-bold text-white">
-                        {t('World Club Competitions', 'Competiciones mundiales de clubes')}
+                        {t('International Competitions', 'Competiciones Internacionales')}
                       </h4>
-                      <p className="text-red-300 text-sm">
-                        {countTitles(team.majorAchievements.clubWorldCup)} {t('total titles', 'títulos totales')}
+                      <p className="text-blue-300 text-sm">
+                        {countTitles(team.majorAchievements.international)} {t('total titles', 'títulos totales')}
                       </p>
                     </div>
                   </div>
                   <div className="space-y-3">
-                    {team.majorAchievements.clubWorldCup.map((achievement, index) => (
+                    {team.majorAchievements.international.map((achievement, index) => (
                       <AchievementItem key={index} achievement={achievement} index={index} />
                     ))}
                   </div>
@@ -795,7 +796,7 @@ export default function EnhancedTeamResults({
                     </div>
                     <div>
                       <h4 className="text-lg font-bold text-white">
-                        {team.type === 'national' ? t('Global Competitions', 'Competiciones Globales') : t('World Cup', 'Copa del Mundo')}
+                        {t('World Cup', 'Copa del Mundo')}
                       </h4>
                       <p className="text-yellow-300 text-sm">
                         {countTitles(team.majorAchievements.worldCup)} {t('total titles', 'títulos totales')}
@@ -810,18 +811,18 @@ export default function EnhancedTeamResults({
                 </div>
               )}
 
-              {/* Continental Achievements */}
+              {/* Continental Achievements (National) */}
               {team.majorAchievements.continental?.length > 0 && (
-                <div className="bg-gradient-to-br from-blue-900/20 to-gray-900 border border-blue-700/30 rounded-xl p-6">
+                <div className="bg-gradient-to-br from-green-900/20 to-gray-900 border border-green-700/30 rounded-xl p-6">
                   <div className="flex items-center gap-3 mb-4">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-900 to-blue-800 flex items-center justify-center">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-900 to-green-800 flex items-center justify-center">
                       <span className="text-2xl">🗺️</span>
                     </div>
                     <div>
                       <h4 className="text-lg font-bold text-white">
                         {t('Continental Competitions', 'Competiciones continentales')}
                       </h4>
-                      <p className="text-blue-300 text-sm">
+                      <p className="text-green-300 text-sm">
                         {countTitles(team.majorAchievements.continental)} {t('total titles', 'títulos totales')}
                       </p>
                     </div>
@@ -836,16 +837,16 @@ export default function EnhancedTeamResults({
 
               {/* Domestic Achievements */}
               {team.majorAchievements.domestic?.length > 0 && (
-                <div className="bg-gradient-to-br from-green-900/20 to-gray-900 border border-green-700/30 rounded-xl p-6">
+                <div className="bg-gradient-to-br from-yellow-900/20 to-gray-900 border border-yellow-700/30 rounded-xl p-6">
                   <div className="flex items-center gap-3 mb-4">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-900 to-green-800 flex items-center justify-center">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-yellow-900 to-yellow-800 flex items-center justify-center">
                       <span className="text-2xl">🏠</span>
                     </div>
                     <div>
                       <h4 className="text-lg font-bold text-white">
                         {t('Domestic Competitions', 'Competiciones nacionales')}
                       </h4>
-                      <p className="text-green-300 text-sm">
+                      <p className="text-yellow-300 text-sm">
                         {countTitles(team.majorAchievements.domestic)} {t('total titles', 'títulos totales')}
                       </p>
                     </div>
@@ -859,7 +860,7 @@ export default function EnhancedTeamResults({
               )}
 
               {!team.majorAchievements.worldCup?.length && 
-               !team.majorAchievements.clubWorldCup?.length && 
+               !team.majorAchievements.international?.length && 
                !team.majorAchievements.continental?.length && 
                !team.majorAchievements.domestic?.length && (
                 <div className="bg-gray-800/30 rounded-xl p-8 text-center">
