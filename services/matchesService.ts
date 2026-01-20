@@ -1,6 +1,6 @@
-// services/matchesservice.ts - FINAL FIXED VERSION
+// services/matchesservice.ts - SHOW API ERROR WHEN NO KEY
 /**
- * REAL DATA MATCHES SERVICE
+ * REAL DATA MATCHES SERVICE - NO FALLBACK
  */
 
 // TYPES
@@ -106,18 +106,31 @@ const fetchFromFootballData = async (
   if (cached) return cached.data;
   
   try {
+    console.log(`[FootballData] Fetching ${matchStatus} for ${competitionId}`);
+    
     const response = await fetch(
       `/api/football-data?endpoint=/competitions/${competitionId}/matches?status=${matchStatus}&limit=${limit}`,
-      { signal: AbortSignal.timeout(8000) }
+      { 
+        signal: AbortSignal.timeout(10000),
+        cache: 'no-store' // Don't cache on server
+      }
     );
     
     if (!response.ok) {
+      console.error(`[FootballData] ${competitionId} failed: ${response.status}`);
       return [];
     }
     
     const data = await response.json();
     
+    // Check if API key is missing (based on your API route response)
+    if (data.fallback && data.error === 'API key not configured') {
+      console.error(`[FootballData] API key not configured for ${competitionId}`);
+      throw new Error('API_KEY_MISSING');
+    }
+    
     if (data.fallback || !data.matches) {
+      console.warn(`[FootballData] ${competitionId} returned fallback data`);
       return [];
     }
     
@@ -141,9 +154,15 @@ const fetchFromFootballData = async (
     }));
     
     setCachedData(cacheKey, matches);
+    console.log(`[FootballData] Got ${matches.length} matches for ${competitionId}`);
+    
     return matches;
     
-  } catch (error) {
+  } catch (error: any) {
+    if (error.message === 'API_KEY_MISSING') {
+      throw error; // Re-throw so parent function can handle it
+    }
+    console.error(`[FootballData] Error for ${competitionId}:`, error);
     return [];
   }
 };
@@ -195,20 +214,28 @@ const getLeagueIdFromCompetition = (competitionName: string): string => {
 
 // MAIN FUNCTIONS
 
-// 1. Recent results functions (unchanged)
 export const getLatestResults = async (limit: number = 100): Promise<MatchResult[]> => {
   const cacheKey = `latest_${limit}`;
   const cached = getCachedData<MatchResult[]>(cacheKey);
   if (cached) return cached.data.slice(0, limit);
   
+  console.log('[Matches] Fetching latest results...');
+  
   const allMatches: MatchResult[] = [];
   const competitions = ['PD', 'PL', 'SA', 'BL1', 'FL1', 'CL'];
   
   for (const compId of competitions) {
-    const matches = await fetchFromFootballData(compId, 'FINISHED', 20);
-    if (matches.length > 0) {
-      allMatches.push(...matches);
+    try {
+      const matches = await fetchFromFootballData(compId, 'FINISHED', 20);
+      if (matches.length > 0) {
+        allMatches.push(...matches);
+      }
+    } catch (error: any) {
+      if (error.message === 'API_KEY_MISSING') {
+        throw new Error('API_KEY_MISSING');
+      }
     }
+    await new Promise(resolve => setTimeout(resolve, 100));
   }
   
   const sorted = allMatches
@@ -224,7 +251,17 @@ export const getLatestResultsByLeague = async (): Promise<LeagueGroupedMatches> 
   const cached = getCachedData<LeagueGroupedMatches>(cacheKey);
   if (cached) return cached.data;
   
-  const allMatches = await getLatestResults(150);
+  console.log('[Matches] Grouping results by league...');
+  
+  let allMatches: MatchResult[] = [];
+  try {
+    allMatches = await getLatestResults(150);
+  } catch (error: any) {
+    if (error.message === 'API_KEY_MISSING') {
+      throw error;
+    }
+  }
+  
   const grouped: LeagueGroupedMatches = {};
   
   allMatches.forEach(match => {
@@ -251,20 +288,28 @@ export const getLatestResultsByLeague = async (): Promise<LeagueGroupedMatches> 
   return grouped;
 };
 
-// 2. Upcoming matches functions
 export const getUpcomingMatches = async (days: number = 30): Promise<MatchResult[]> => {
   const cacheKey = `upcoming_flat_${days}`;
   const cached = getCachedData<MatchResult[]>(cacheKey);
   if (cached) return cached.data;
   
+  console.log('[Matches] Fetching upcoming matches...');
+  
   const allMatches: MatchResult[] = [];
   const competitions = ['PD', 'PL', 'SA', 'BL1', 'FL1', 'CL'];
   
   for (const compId of competitions) {
-    const matches = await fetchFromFootballData(compId, 'SCHEDULED', 15);
-    if (matches.length > 0) {
-      allMatches.push(...matches);
+    try {
+      const matches = await fetchFromFootballData(compId, 'SCHEDULED', 15);
+      if (matches.length > 0) {
+        allMatches.push(...matches);
+      }
+    } catch (error: any) {
+      if (error.message === 'API_KEY_MISSING') {
+        throw new Error('API_KEY_MISSING');
+      }
     }
+    await new Promise(resolve => setTimeout(resolve, 100));
   }
   
   const now = new Date();
@@ -281,13 +326,22 @@ export const getUpcomingMatches = async (days: number = 30): Promise<MatchResult
   return filtered;
 };
 
-// 3. NEW FUNCTION: Get upcoming matches GROUPED by competition (ONE BIG TITLE PER COMPETITION)
 export const getUpcomingMatchesGrouped = async (days: number = 7): Promise<LeagueGroupedMatches> => {
   const cacheKey = `upcoming_grouped_${days}`;
   const cached = getCachedData<LeagueGroupedMatches>(cacheKey);
   if (cached) return cached.data;
   
-  const upcomingMatches = await getUpcomingMatches(days);
+  console.log('[Matches] Grouping upcoming matches...');
+  
+  let upcomingMatches: MatchResult[] = [];
+  try {
+    upcomingMatches = await getUpcomingMatches(days);
+  } catch (error: any) {
+    if (error.message === 'API_KEY_MISSING') {
+      throw error;
+    }
+  }
+  
   const grouped: LeagueGroupedMatches = {};
   
   upcomingMatches.forEach(match => {
@@ -306,7 +360,6 @@ export const getUpcomingMatchesGrouped = async (days: number = 7): Promise<Leagu
     grouped[leagueId].totalMatches++;
   });
   
-  // Sort matches within each group
   Object.values(grouped).forEach(group => {
     group.matches.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   });
@@ -315,7 +368,6 @@ export const getUpcomingMatchesGrouped = async (days: number = 7): Promise<Leagu
   return grouped;
 };
 
-// 4. Keep old function for compatibility
 export const getUpcomingMatchesByWeek = async (): Promise<MatchResult[]> => {
   return getUpcomingMatches(7);
 };
@@ -331,9 +383,9 @@ const groq = new Groq({
 export const getDailyFootballFact = async (): Promise<any> => {
   return {
     title: 'Football Fact',
-    description: 'Interesting football trivia.',
-    category: 'trivia',
-    _source: 'static'
+    description: 'Football Data API key is required to load live matches.',
+    category: 'info',
+    _source: 'api'
   };
 };
 
@@ -346,7 +398,7 @@ export default {
   getLatestResults,
   getLatestResultsByLeague,
   getUpcomingMatches,
-  getUpcomingMatchesGrouped, // NEW: This gives ONE BIG TITLE PER COMPETITION
+  getUpcomingMatchesGrouped,
   getUpcomingMatchesByWeek,
   getDailyFootballFact,
   fetchTransferNews,

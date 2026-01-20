@@ -5,7 +5,7 @@ import { useTranslation } from '@/hooks/useTranslation';
 import type { MatchResult, FootballFunFact } from '@/services/matchesService';
 import { 
   getLatestResultsByLeague, 
-  getUpcomingMatchesGrouped, // CHANGED: Use grouped function
+  getUpcomingMatchesGrouped,
   getDailyFootballFact,
   clearMatchCache,
   LeagueGroupedMatches
@@ -15,7 +15,7 @@ import {
   EnhancedTransferNews 
 } from '@/services/transferService';
 
-// League order: Spain first, then Europe, then Latin America
+// League order: Spain first, then Europe
 const LEAGUE_PRIORITY_ORDER = [
   // Europe (Spain first)
   'PD',  // Spain - La Liga
@@ -24,16 +24,6 @@ const LEAGUE_PRIORITY_ORDER = [
   'BL1', // Germany - Bundesliga
   'FL1', // France - Ligue 1
   'CL',  // Europe - Champions League
-  
-  // Latin America
-  'BSA', // Brazil - Brasileirão
-  'ARG', // Argentina - Liga Profesional
-  'MEX', // Mexico - Liga MX
-  'COL', // Colombia - Primera A
-  'VEN', // Venezuela - Primera División
-  'CHI', // Chile - Primera División
-  'PER', // Peru - Liga 1
-  'CLI'  // South America - Copa Libertadores
 ];
 
 // League names mapping with proper display names
@@ -44,14 +34,6 @@ const LEAGUE_DISPLAY_NAMES: Record<string, string> = {
   'BL1': 'Bundesliga',
   'FL1': 'Ligue 1',
   'CL': 'Champions League',
-  'BSA': 'Brasileirão Série A',
-  'ARG': 'Liga Profesional Argentina',
-  'MEX': 'Liga MX',
-  'COL': 'Primera A Colombia',
-  'VEN': 'Primera División Venezuela',
-  'CHI': 'Primera División Chile',
-  'PER': 'Liga 1 Perú',
-  'CLI': 'Copa Libertadores'
 };
 
 // Source indicator component
@@ -85,14 +67,15 @@ const SourceIndicator = ({ source, confidence }: { source: string; confidence: s
 export default function HighlightsPage() {
   const { language } = useTranslation();
   const [groupedResults, setGroupedResults] = useState<LeagueGroupedMatches>({});
-  const [upcomingMatchesGrouped, setUpcomingMatchesGrouped] = useState<LeagueGroupedMatches>({}); // CHANGED: Now grouped
+  const [upcomingMatchesGrouped, setUpcomingMatchesGrouped] = useState<LeagueGroupedMatches>({});
   const [transferNews, setTransferNews] = useState<EnhancedTransferNews[]>([]);
   const [funFact, setFunFact] = useState<FootballFunFact | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'results' | 'upcoming' | 'transfers'>('results');
-  const [dataStatus, setDataStatus] = useState<'loading' | 'live' | 'fallback'>('loading');
+  const [dataStatus, setDataStatus] = useState<'loading' | 'live' | 'api-error' | 'error'>('loading');
   const [userTimezone, setUserTimezone] = useState<string>('Europe/Paris');
   const [currentWeekDates, setCurrentWeekDates] = useState<{start: string, end: string}>({start: '', end: ''});
+  const [errorMessage, setErrorMessage] = useState<string>('');
 
   // Get user timezone and calculate current week dates on component mount
   useEffect(() => {
@@ -121,14 +104,15 @@ export default function HighlightsPage() {
   const loadRealData = useCallback(async () => {
     setLoading(true);
     setDataStatus('loading');
+    setErrorMessage('');
     
     console.log('[Highlights] Loading verified football data...');
     
     try {
-      // CHANGED: Use getUpcomingMatchesGrouped instead of getUpcomingMatchesByWeek
+      // Load all data in parallel
       const [groupedResultsData, upcomingGroupedData, transfers, fact] = await Promise.all([
         getLatestResultsByLeague(),
-        getUpcomingMatchesGrouped(7), // This gives ONE BIG TITLE PER COMPETITION
+        getUpcomingMatchesGrouped(7),
         fetchEnhancedTransferNews(12),
         getDailyFootballFact()
       ]);
@@ -164,27 +148,51 @@ export default function HighlightsPage() {
       });
       
       setGroupedResults(sortedGroupedResults);
-      setUpcomingMatchesGrouped(sortedUpcomingGrouped); // CHANGED: Set grouped data
+      setUpcomingMatchesGrouped(sortedUpcomingGrouped);
       setTransferNews(transfers);
       setFunFact(fact);
       
-      // Determine data status based on sources
-      const hasFootballData = Object.values(sortedGroupedResults).some(league => 
-        league.matches.some(match => match._source === 'football-data')
+      // Check if we have any match data
+      const hasMatchData = Object.values(sortedGroupedResults).some(league => league.matches.length > 0) ||
+                          Object.values(sortedUpcomingGrouped).some(league => league.matches.length > 0);
+      
+      // Check if API key is the issue
+      const totalMatches = Object.values(sortedGroupedResults).reduce(
+        (sum, league) => sum + league.matches.length, 0
       );
-      
-      setDataStatus(hasFootballData ? 'live' : 'fallback');
-      
-      // Calculate total upcoming matches
       const totalUpcoming = Object.values(sortedUpcomingGrouped).reduce(
         (sum, league) => sum + league.matches.length, 0
       );
       
-      console.log(`[Highlights] Loaded: grouped results, ${totalUpcoming} upcoming matches grouped by competition`);
+      console.log(`[Highlights] Loaded: ${totalMatches} results, ${totalUpcoming} upcoming matches`);
       
-    } catch (error) {
+      if (hasMatchData) {
+        setDataStatus('live');
+      } else if (transfers.length > 0) {
+        // We have transfers but no matches - likely API key issue
+        setDataStatus('api-error');
+        setErrorMessage('Football Data API key is not configured. Matches data unavailable.');
+      } else {
+        setDataStatus('error');
+        setErrorMessage('Failed to load data. Please check your internet connection and try again.');
+      }
+      
+    } catch (error: any) {
       console.error('[Highlights] Failed to load data:', error);
-      setDataStatus('fallback');
+      
+      if (error.message === 'API_KEY_MISSING') {
+        setDataStatus('api-error');
+        setErrorMessage('Football Data API key is not configured. Please add FOOTBALL_DATA_API_KEY to your Vercel environment variables.');
+      } else {
+        setDataStatus('error');
+        setErrorMessage(`Error loading data: ${error.message || 'Unknown error'}`);
+      }
+      
+      // Set empty states
+      setGroupedResults({});
+      setUpcomingMatchesGrouped({});
+      setTransferNews([]);
+      
     } finally {
       setLoading(false);
     }
@@ -379,7 +387,7 @@ export default function HighlightsPage() {
     );
   };
 
-  // NEW: League Section Component for UPCOMING matches
+  // League Section Component for UPCOMING matches
   const UpcomingLeagueSection = ({ 
     leagueId, 
     leagueData 
@@ -522,10 +530,103 @@ export default function HighlightsPage() {
     );
   }
 
-  // Calculate total upcoming matches for display
+  // Calculate totals for display
+  const totalResults = Object.values(groupedResults).reduce(
+    (sum, league) => sum + league.matches.length, 0
+  );
   const totalUpcomingMatches = Object.values(upcomingMatchesGrouped).reduce(
     (sum, league) => sum + league.matches.length, 0
   );
+
+  // API Error Display
+  if (dataStatus === 'api-error') {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-black text-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          {/* Header */}
+          <div className="mb-8">
+            <h1 className="text-4xl md:text-6xl font-bold mb-4">
+              <span className="bg-gradient-to-r from-blue-400 to-green-400 bg-clip-text text-transparent">
+                Football Highlights
+              </span>
+            </h1>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <p className="text-xl text-gray-300">
+                Latest results and upcoming matches from major leagues
+              </p>
+              <div className="px-3 py-1 rounded-full text-sm font-medium bg-orange-900/30 text-orange-400">
+                ⚠️ API Key Required
+              </div>
+            </div>
+          </div>
+
+          {/* Error Message */}
+          <div className="mb-8 bg-gradient-to-r from-orange-900/20 to-red-900/20 border border-orange-700/30 rounded-lg p-6">
+            <h2 className="text-2xl font-bold text-orange-400 mb-4">Configuration Required</h2>
+            <p className="text-gray-300 mb-4">{errorMessage}</p>
+            
+            <div className="bg-gray-900/50 rounded-lg p-4 mb-4">
+              <h3 className="text-lg font-bold text-gray-200 mb-2">To fix this issue:</h3>
+              <ol className="list-decimal pl-5 space-y-2 text-gray-300">
+                <li>Go to your Vercel project dashboard</li>
+                <li>Navigate to Settings → Environment Variables</li>
+                <li>Add the following environment variable:
+                  <code className="block bg-gray-800 p-2 rounded mt-2 font-mono text-sm">
+                    FOOTBALL_DATA_API_KEY=your_api_key_here
+                  </code>
+                </li>
+                <li>Redeploy your application</li>
+              </ol>
+            </div>
+            
+            <div className="bg-blue-900/20 rounded-lg p-4">
+              <h3 className="text-lg font-bold text-blue-400 mb-2">How to get an API key:</h3>
+              <ul className="list-disc pl-5 space-y-1 text-gray-300">
+                <li>Visit <a href="https://www.football-data.org/" target="_blank" className="text-blue-400 hover:text-blue-300">football-data.org</a></li>
+                <li>Sign up for a free account</li>
+                <li>Get your API key from the dashboard</li>
+                <li>Free tier includes 10 requests per minute</li>
+              </ul>
+            </div>
+          </div>
+
+          {/* Transfers still work without API key */}
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold mb-6">Transfer News (Working)</h2>
+            {transferNews.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {transferNews.map((transfer, idx) => (
+                  <EnhancedTransferCard key={idx} transfer={transfer} />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 bg-gray-800/20 rounded-lg">
+                <p className="text-gray-400">No transfer data available</p>
+              </div>
+            )}
+          </div>
+
+          {/* Refresh Button */}
+          <div className="mt-12 pt-8 border-t border-gray-800 text-center">
+            <button
+              onClick={() => {
+                clearMatchCache();
+                localStorage.removeItem('real_transfers_12');
+                setLoading(true);
+                loadRealData();
+              }}
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold transition-colors"
+            >
+              Retry Loading Data
+            </button>
+            <p className="text-gray-500 text-sm mt-2">
+              After adding API key, retry loading data
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-black text-white">
@@ -543,13 +644,27 @@ export default function HighlightsPage() {
             </p>
             <div className={`px-3 py-1 rounded-full text-sm font-medium ${
               dataStatus === 'live' ? 'bg-green-900/30 text-green-400' :
-              dataStatus === 'fallback' ? 'bg-orange-900/30 text-orange-400' :
+              dataStatus === 'error' ? 'bg-red-900/30 text-red-400' :
               'bg-gray-700 text-gray-300'
             }`}>
-              {dataStatus === 'live' ? '✓ Live Data' : '📊 Verified Data'}
+              {dataStatus === 'live' ? '✓ Live Data' : 
+               dataStatus === 'error' ? '⚠️ Error' : '📊 Loading'}
             </div>
           </div>
         </div>
+
+        {/* Error Message Banner */}
+        {errorMessage && dataStatus === 'error' && (
+          <div className="mb-8 bg-gradient-to-r from-red-900/20 to-orange-900/20 border border-red-700/30 rounded-lg p-6">
+            <div className="flex items-start gap-3">
+              <div className="text-red-400 text-2xl">⚠️</div>
+              <div>
+                <h3 className="text-lg font-bold text-red-400 mb-2">Error Loading Data</h3>
+                <p className="text-gray-300">{errorMessage}</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Fun Fact Banner */}
         {funFact && (
@@ -566,7 +681,7 @@ export default function HighlightsPage() {
         )}
 
         {/* Current Week Info Banner */}
-        {currentWeekDates.start && activeTab === 'upcoming' && (
+        {currentWeekDates.start && activeTab === 'upcoming' && totalUpcomingMatches > 0 && (
           <div className="mb-6 bg-gradient-to-r from-blue-900/20 to-indigo-900/20 border border-blue-700/30 rounded-lg p-4">
             <div className="flex items-center justify-between">
               <div>
@@ -624,13 +739,11 @@ export default function HighlightsPage() {
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold">Latest Results by League</h2>
                 <div className="text-sm text-gray-400">
-                  {Object.keys(groupedResults).length} leagues • {
-                    Object.values(groupedResults).reduce((sum, league) => sum + league.matches.length, 0)
-                  } matches
+                  {Object.keys(groupedResults).length} leagues • {totalResults} matches
                 </div>
               </div>
               
-              {Object.keys(groupedResults).length > 0 ? (
+              {totalResults > 0 ? (
                 <div className="space-y-8">
                   {/* European Leagues Section */}
                   <div>
@@ -653,13 +766,16 @@ export default function HighlightsPage() {
                 </div>
               ) : (
                 <div className="text-center py-12 bg-gray-800/20 rounded-lg">
-                  <p className="text-gray-400">No results available</p>
+                  <p className="text-gray-400">No match results available</p>
+                  <p className="text-sm text-gray-500 mt-2">
+                    {dataStatus === 'error' ? 'Failed to load match data' : 'Check back later for updated results'}
+                  </p>
                 </div>
               )}
             </>
           )}
 
-          {/* Upcoming Matches Tab - NOW WITH ONE BIG TITLE PER COMPETITION */}
+          {/* Upcoming Matches Tab - WITH ONE BIG TITLE PER COMPETITION */}
           {activeTab === 'upcoming' && (
             <>
               <div className="flex justify-between items-center mb-6">
@@ -681,7 +797,7 @@ export default function HighlightsPage() {
                 </div>
               </div>
               
-              {Object.keys(upcomingMatchesGrouped).length > 0 ? (
+              {totalUpcomingMatches > 0 ? (
                 <div>
                   {/* Render each competition with ONE BIG TITLE */}
                   {Object.entries(upcomingMatchesGrouped).map(([leagueId, leagueData]) => (
@@ -695,7 +811,9 @@ export default function HighlightsPage() {
               ) : (
                 <div className="text-center py-12 bg-gray-800/20 rounded-lg">
                   <p className="text-gray-400">No upcoming matches scheduled this week</p>
-                  <p className="text-sm text-gray-500 mt-2">Check back later for updated fixtures</p>
+                  <p className="text-sm text-gray-500 mt-2">
+                    {dataStatus === 'error' ? 'Failed to load upcoming matches' : 'Check back later for updated fixtures'}
+                  </p>
                 </div>
               )}
             </>
@@ -760,6 +878,7 @@ export default function HighlightsPage() {
               clearMatchCache();
               localStorage.removeItem('real_transfers_12');
               setLoading(true);
+              setErrorMessage('');
               loadRealData();
             }}
             className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold transition-colors"
@@ -769,9 +888,9 @@ export default function HighlightsPage() {
           <p className="text-gray-500 text-sm mt-2">
             Data updates every 15 minutes • Real verified sources only
           </p>
-          {dataStatus === 'fallback' && (
+          {dataStatus === 'error' && (
             <p className="text-orange-400 text-sm mt-2">
-              Using verified historical data. Configure API keys for live updates.
+              Error loading match data. Check your Football Data API configuration.
             </p>
           )}
         </div>
