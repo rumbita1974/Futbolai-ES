@@ -1,6 +1,6 @@
-// services/matchesservice.ts - SHOW API ERROR WHEN NO KEY
+// services/matchesservice.ts - FIXED DATE FILTERING
 /**
- * REAL DATA MATCHES SERVICE - NO FALLBACK
+ * REAL DATA MATCHES SERVICE
  */
 
 // TYPES
@@ -97,7 +97,7 @@ const delayRequest = async () => {
 const fetchFromFootballData = async (
   competitionId: string, 
   matchStatus: 'FINISHED' | 'SCHEDULED',
-  limit: number = 25
+  limit: number = 50
 ): Promise<MatchResult[]> => {
   await delayRequest();
   
@@ -110,24 +110,15 @@ const fetchFromFootballData = async (
     
     const response = await fetch(
       `/api/football-data?endpoint=/competitions/${competitionId}/matches?status=${matchStatus}&limit=${limit}`,
-      { 
-        signal: AbortSignal.timeout(10000),
-        cache: 'no-store' // Don't cache on server
-      }
+      { signal: AbortSignal.timeout(10000) }
     );
     
     if (!response.ok) {
-      console.error(`[FootballData] ${competitionId} failed: ${response.status}`);
+      console.warn(`[FootballData] ${competitionId} failed: ${response.status}`);
       return [];
     }
     
     const data = await response.json();
-    
-    // Check if API key is missing (based on your API route response)
-    if (data.fallback && data.error === 'API key not configured') {
-      console.error(`[FootballData] API key not configured for ${competitionId}`);
-      throw new Error('API_KEY_MISSING');
-    }
     
     if (data.fallback || !data.matches) {
       console.warn(`[FootballData] ${competitionId} returned fallback data`);
@@ -158,10 +149,7 @@ const fetchFromFootballData = async (
     
     return matches;
     
-  } catch (error: any) {
-    if (error.message === 'API_KEY_MISSING') {
-      throw error; // Re-throw so parent function can handle it
-    }
+  } catch (error) {
     console.error(`[FootballData] Error for ${competitionId}:`, error);
     return [];
   }
@@ -170,24 +158,24 @@ const fetchFromFootballData = async (
 // HELPER FUNCTIONS
 const getLeagueName = (leagueId: string, fallback: string): string => {
   const names: Record<string, string> = {
-    'PD': 'La Liga',
+    'CL': 'UEFA Champions League',
+    'PD': 'La Liga Primera División',
     'PL': 'Premier League',
     'SA': 'Serie A',
     'BL1': 'Bundesliga',
-    'FL1': 'Ligue 1',
-    'CL': 'Champions League'
+    'FL1': 'Ligue 1'
   };
   return names[leagueId] || fallback;
 };
 
 const getLeagueCountry = (leagueId: string): string => {
   const countries: Record<string, string> = {
+    'CL': 'Europe',
     'PD': 'Spain',
     'PL': 'England',
     'SA': 'Italy',
     'BL1': 'Germany',
-    'FL1': 'France',
-    'CL': 'Europe'
+    'FL1': 'France'
   };
   return countries[leagueId] || 'International';
 };
@@ -195,7 +183,9 @@ const getLeagueCountry = (leagueId: string): string => {
 const getLeagueIdFromCompetition = (competitionName: string): string => {
   const compName = competitionName.toLowerCase();
   
-  if (compName.includes('la liga') || compName.includes('primera')) {
+  if (compName.includes('champions league') || compName.includes('uefa champions')) {
+    return 'CL';
+  } else if (compName.includes('la liga') || compName.includes('primera')) {
     return 'PD';
   } else if (compName.includes('premier')) {
     return 'PL';
@@ -205,63 +195,113 @@ const getLeagueIdFromCompetition = (competitionName: string): string => {
     return 'BL1';
   } else if (compName.includes('ligue 1')) {
     return 'FL1';
-  } else if (compName.includes('champions league')) {
-    return 'CL';
   } else {
     return 'other';
   }
 };
 
+// Competition priority: Champions League first, then others
+const COMPETITION_PRIORITY: Record<string, number> = {
+  'CL': 1,  // Champions League FIRST
+  'PD': 2,  // La Liga SECOND
+  'PL': 3,  // Premier League
+  'SA': 4,  // Serie A
+  'BL1': 5, // Bundesliga
+  'FL1': 6  // Ligue 1
+};
+
+// DATE UTILITY FUNCTIONS
+const getCurrentWeekDates = () => {
+  const now = new Date();
+  const dayOfWeek = now.getDay();
+  const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  
+  // Get previous Monday (for Recent Results: Monday to Today)
+  const previousMonday = new Date(now);
+  previousMonday.setDate(now.getDate() + diffToMonday - 7); // Go back one week
+  previousMonday.setHours(0, 0, 0, 0);
+  
+  // Get next Monday (for Upcoming Matches: Today to next Monday)
+  const nextMonday = new Date(now);
+  nextMonday.setDate(now.getDate() + diffToMonday + 7); // Go forward one week
+  nextMonday.setHours(0, 0, 0, 0);
+  
+  return {
+    previousMonday, // For Recent Results: previous Monday to today
+    nextMonday      // For Upcoming Matches: today to next Monday
+  };
+};
+
+// Filter matches for RECENT RESULTS (previous Monday to today)
+const filterMatchesForRecentResults = (matches: MatchResult[]): MatchResult[] => {
+  const { previousMonday } = getCurrentWeekDates();
+  const today = new Date();
+  today.setHours(23, 59, 59, 999); // End of today
+  
+  return matches.filter(match => {
+    const matchDate = new Date(match.date);
+    return matchDate >= previousMonday && matchDate <= today;
+  });
+};
+
+// Filter matches for UPCOMING MATCHES (today to next Monday)
+const filterMatchesForUpcomingMatches = (matches: MatchResult[]): MatchResult[] => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); // Start of today
+  
+  const { nextMonday } = getCurrentWeekDates();
+  
+  return matches.filter(match => {
+    const matchDate = new Date(match.date);
+    return matchDate >= today && matchDate < nextMonday;
+  });
+};
+
 // MAIN FUNCTIONS
 
-export const getLatestResults = async (limit: number = 100): Promise<MatchResult[]> => {
-  const cacheKey = `latest_${limit}`;
+// Get recent results (previous Monday to today)
+export const getLatestResults = async (): Promise<MatchResult[]> => {
+  const cacheKey = 'latest_results_current_week';
   const cached = getCachedData<MatchResult[]>(cacheKey);
-  if (cached) return cached.data.slice(0, limit);
+  if (cached) return cached.data;
   
-  console.log('[Matches] Fetching latest results...');
+  console.log('[Matches] Fetching recent results (previous Monday to today)...');
   
   const allMatches: MatchResult[] = [];
-  const competitions = ['PD', 'PL', 'SA', 'BL1', 'FL1', 'CL'];
+  // Champions League first, then other leagues
+  const competitions = ['CL', 'PD', 'PL', 'SA', 'BL1', 'FL1'];
   
   for (const compId of competitions) {
-    try {
-      const matches = await fetchFromFootballData(compId, 'FINISHED', 20);
-      if (matches.length > 0) {
-        allMatches.push(...matches);
-      }
-    } catch (error: any) {
-      if (error.message === 'API_KEY_MISSING') {
-        throw new Error('API_KEY_MISSING');
-      }
+    const matches = await fetchFromFootballData(compId, 'FINISHED', 50);
+    if (matches.length > 0) {
+      allMatches.push(...matches);
+      console.log(`[Matches] Raw ${compId} matches: ${matches.length}`);
     }
     await new Promise(resolve => setTimeout(resolve, 100));
   }
   
-  const sorted = allMatches
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, limit);
+  // Filter for recent results (previous Monday to today)
+  const recentMatches = filterMatchesForRecentResults(allMatches);
+  
+  // Sort by date (newest first)
+  const sorted = recentMatches.sort((a, b) => 
+    new Date(b.date).getTime() - new Date(a.date).getTime()
+  );
+  
+  console.log(`[Matches] Recent results (previous Monday to today): ${sorted.length} matches`);
   
   setCachedData(cacheKey, sorted);
   return sorted;
 };
 
 export const getLatestResultsByLeague = async (): Promise<LeagueGroupedMatches> => {
-  const cacheKey = 'latest_by_league';
+  const cacheKey = 'latest_by_league_current_week';
   const cached = getCachedData<LeagueGroupedMatches>(cacheKey);
   if (cached) return cached.data;
   
-  console.log('[Matches] Grouping results by league...');
+  console.log('[Matches] Grouping recent results by league...');
   
-  let allMatches: MatchResult[] = [];
-  try {
-    allMatches = await getLatestResults(150);
-  } catch (error: any) {
-    if (error.message === 'API_KEY_MISSING') {
-      throw error;
-    }
-  }
-  
+  const allMatches = await getLatestResults();
   const grouped: LeagueGroupedMatches = {};
   
   allMatches.forEach(match => {
@@ -280,68 +320,71 @@ export const getLatestResultsByLeague = async (): Promise<LeagueGroupedMatches> 
     grouped[leagueId].totalMatches++;
   });
   
-  Object.values(grouped).forEach(group => {
-    group.matches.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  // Sort by priority (Champions League first, then La Liga, etc.)
+  const sortedGroups: LeagueGroupedMatches = {};
+  const priorityOrder = Object.entries(COMPETITION_PRIORITY)
+    .sort(([, a], [, b]) => a - b)
+    .map(([id]) => id);
+  
+  priorityOrder.forEach(leagueId => {
+    if (grouped[leagueId]) {
+      sortedGroups[leagueId] = grouped[leagueId];
+      // Sort matches by date within each league (newest first)
+      sortedGroups[leagueId].matches.sort((a, b) => 
+        new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
+    }
   });
   
-  setCachedData(cacheKey, grouped);
-  return grouped;
+  console.log(`[Matches] Grouped into ${Object.keys(sortedGroups).length} leagues`);
+  
+  setCachedData(cacheKey, sortedGroups);
+  return sortedGroups;
 };
 
-export const getUpcomingMatches = async (days: number = 30): Promise<MatchResult[]> => {
-  const cacheKey = `upcoming_flat_${days}`;
+// UPCOMING MATCHES FUNCTIONS
+export const getUpcomingMatches = async (): Promise<MatchResult[]> => {
+  const cacheKey = 'upcoming_current_week';
   const cached = getCachedData<MatchResult[]>(cacheKey);
   if (cached) return cached.data;
   
-  console.log('[Matches] Fetching upcoming matches...');
+  console.log('[Matches] Fetching upcoming matches (today to next Monday)...');
   
   const allMatches: MatchResult[] = [];
-  const competitions = ['PD', 'PL', 'SA', 'BL1', 'FL1', 'CL'];
+  // Champions League first, then other leagues
+  const competitions = ['CL', 'PD', 'PL', 'SA', 'BL1', 'FL1'];
   
   for (const compId of competitions) {
-    try {
-      const matches = await fetchFromFootballData(compId, 'SCHEDULED', 15);
-      if (matches.length > 0) {
-        allMatches.push(...matches);
-      }
-    } catch (error: any) {
-      if (error.message === 'API_KEY_MISSING') {
-        throw new Error('API_KEY_MISSING');
-      }
+    const matches = await fetchFromFootballData(compId, 'SCHEDULED', 50);
+    if (matches.length > 0) {
+      allMatches.push(...matches);
+      console.log(`[Matches] Raw upcoming ${compId} matches: ${matches.length}`);
     }
     await new Promise(resolve => setTimeout(resolve, 100));
   }
   
-  const now = new Date();
-  const deadline = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+  // Filter for upcoming matches (today to next Monday)
+  const upcomingMatches = filterMatchesForUpcomingMatches(allMatches);
   
-  const filtered = allMatches
-    .filter(m => {
-      const matchDate = new Date(m.date);
-      return matchDate > now && matchDate <= deadline;
-    })
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  // Sort by date (soonest first)
+  const sorted = upcomingMatches.sort((a, b) => 
+    new Date(a.date).getTime() - new Date(b.date).getTime()
+  );
   
-  setCachedData(cacheKey, filtered);
-  return filtered;
+  console.log(`[Matches] Upcoming matches (today to next Monday): ${sorted.length} matches`);
+  
+  setCachedData(cacheKey, sorted);
+  return sorted;
 };
 
-export const getUpcomingMatchesGrouped = async (days: number = 7): Promise<LeagueGroupedMatches> => {
-  const cacheKey = `upcoming_grouped_${days}`;
+export const getUpcomingMatchesGrouped = async (): Promise<LeagueGroupedMatches> => {
+  const cacheKey = 'upcoming_grouped_current_week';
   const cached = getCachedData<LeagueGroupedMatches>(cacheKey);
   if (cached) return cached.data;
   
   console.log('[Matches] Grouping upcoming matches...');
   
-  let upcomingMatches: MatchResult[] = [];
-  try {
-    upcomingMatches = await getUpcomingMatches(days);
-  } catch (error: any) {
-    if (error.message === 'API_KEY_MISSING') {
-      throw error;
-    }
-  }
-  
+  const upcomingMatches = await getUpcomingMatches();
   const grouped: LeagueGroupedMatches = {};
   
   upcomingMatches.forEach(match => {
@@ -360,16 +403,31 @@ export const getUpcomingMatchesGrouped = async (days: number = 7): Promise<Leagu
     grouped[leagueId].totalMatches++;
   });
   
-  Object.values(grouped).forEach(group => {
-    group.matches.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  // Sort by priority (Champions League first, then La Liga, etc.)
+  const sortedGroups: LeagueGroupedMatches = {};
+  const priorityOrder = Object.entries(COMPETITION_PRIORITY)
+    .sort(([, a], [, b]) => a - b)
+    .map(([id]) => id);
+  
+  priorityOrder.forEach(leagueId => {
+    if (grouped[leagueId]) {
+      sortedGroups[leagueId] = grouped[leagueId];
+      // Sort matches by date within each league (soonest first)
+      sortedGroups[leagueId].matches.sort((a, b) => 
+        new Date(a.date).getTime() - new Date(b.date).getTime()
+      );
+    }
   });
   
-  setCachedData(cacheKey, grouped);
-  return grouped;
+  console.log(`[Matches] Upcoming matches grouped into ${Object.keys(sortedGroups).length} competitions`);
+  
+  setCachedData(cacheKey, sortedGroups);
+  return sortedGroups;
 };
 
+// Keep old function for compatibility
 export const getUpcomingMatchesByWeek = async (): Promise<MatchResult[]> => {
-  return getUpcomingMatches(7);
+  return getUpcomingMatches();
 };
 
 // Other exports
@@ -383,9 +441,9 @@ const groq = new Groq({
 export const getDailyFootballFact = async (): Promise<any> => {
   return {
     title: 'Football Fact',
-    description: 'Football Data API key is required to load live matches.',
-    category: 'info',
-    _source: 'api'
+    description: 'UEFA Champions League is the most prestigious club competition in European football.',
+    category: 'champions-league',
+    _source: 'static'
   };
 };
 

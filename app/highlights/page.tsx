@@ -15,25 +15,24 @@ import {
   EnhancedTransferNews 
 } from '@/services/transferService';
 
-// League order: Spain first, then Europe
+// League order: Champions League FIRST, then others
 const LEAGUE_PRIORITY_ORDER = [
-  // Europe (Spain first)
-  'PD',  // Spain - La Liga
+  'CL',  // Europe - Champions League FIRST
+  'PD',  // Spain - La Liga SECOND
   'PL',  // England - Premier League
   'SA',  // Italy - Serie A
   'BL1', // Germany - Bundesliga
   'FL1', // France - Ligue 1
-  'CL',  // Europe - Champions League
 ];
 
 // League names mapping with proper display names
 const LEAGUE_DISPLAY_NAMES: Record<string, string> = {
+  'CL': 'UEFA Champions League',
   'PD': 'La Liga Primera División',
   'PL': 'Premier League',
   'SA': 'Serie A',
   'BL1': 'Bundesliga',
   'FL1': 'Ligue 1',
-  'CL': 'Champions League',
 };
 
 // Source indicator component
@@ -49,9 +48,7 @@ const SourceIndicator = ({ source, confidence }: { source: string; confidence: s
   
   const getLabel = () => {
     switch (source) {
-      case 'football-data': return 'Live Data';
-      case 'thesportsdb': return 'Verified DB';
-      case 'static-fallback': return 'Historical Data';
+      case 'football-data': return '✓ Live Data';
       default: return source;
     }
   };
@@ -74,30 +71,15 @@ export default function HighlightsPage() {
   const [activeTab, setActiveTab] = useState<'results' | 'upcoming' | 'transfers'>('results');
   const [dataStatus, setDataStatus] = useState<'loading' | 'live' | 'api-error' | 'error'>('loading');
   const [userTimezone, setUserTimezone] = useState<string>('Europe/Paris');
-  const [currentWeekDates, setCurrentWeekDates] = useState<{start: string, end: string}>({start: '', end: ''});
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [expandedLeaguesResults, setExpandedLeaguesResults] = useState<Record<string, boolean>>({});
+  const [expandedLeaguesUpcoming, setExpandedLeaguesUpcoming] = useState<Record<string, boolean>>({});
 
-  // Get user timezone and calculate current week dates on component mount
+  // Get user timezone on component mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
       setUserTimezone(tz);
-      
-      // Calculate current week (Monday to Sunday)
-      const now = new Date();
-      const dayOfWeek = now.getDay();
-      const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // Sunday = 0, Monday = 1
-      const monday = new Date(now);
-      monday.setDate(now.getDate() + diffToMonday);
-      monday.setHours(0, 0, 0, 0);
-      
-      const nextMonday = new Date(monday);
-      nextMonday.setDate(monday.getDate() + 7);
-      
-      setCurrentWeekDates({
-        start: monday.toISOString(),
-        end: nextMonday.toISOString()
-      });
     }
   }, []);
 
@@ -112,7 +94,7 @@ export default function HighlightsPage() {
       // Load all data in parallel
       const [groupedResultsData, upcomingGroupedData, transfers, fact] = await Promise.all([
         getLatestResultsByLeague(),
-        getUpcomingMatchesGrouped(7),
+        getUpcomingMatchesGrouped(),
         fetchEnhancedTransferNews(12),
         getDailyFootballFact()
       ]);
@@ -152,24 +134,38 @@ export default function HighlightsPage() {
       setTransferNews(transfers);
       setFunFact(fact);
       
+      // Initialize expanded state for leagues with matches
+      const expandedResults: Record<string, boolean> = {};
+      const expandedUpcoming: Record<string, boolean> = {};
+      
+      Object.keys(sortedGroupedResults).forEach(leagueId => {
+        expandedResults[leagueId] = true; // Show ALL matches by default
+      });
+      
+      Object.keys(sortedUpcomingGrouped).forEach(leagueId => {
+        expandedUpcoming[leagueId] = true; // Show ALL matches by default
+      });
+      
+      setExpandedLeaguesResults(expandedResults);
+      setExpandedLeaguesUpcoming(expandedUpcoming);
+      
       // Check if we have any match data
       const hasMatchData = Object.values(sortedGroupedResults).some(league => league.matches.length > 0) ||
                           Object.values(sortedUpcomingGrouped).some(league => league.matches.length > 0);
       
-      // Check if API key is the issue
-      const totalMatches = Object.values(sortedGroupedResults).reduce(
+      // Calculate totals
+      const totalResults = Object.values(sortedGroupedResults).reduce(
         (sum, league) => sum + league.matches.length, 0
       );
       const totalUpcoming = Object.values(sortedUpcomingGrouped).reduce(
         (sum, league) => sum + league.matches.length, 0
       );
       
-      console.log(`[Highlights] Loaded: ${totalMatches} results, ${totalUpcoming} upcoming matches`);
+      console.log(`[Highlights] Loaded: ${totalResults} results, ${totalUpcoming} upcoming matches`);
       
       if (hasMatchData) {
         setDataStatus('live');
       } else if (transfers.length > 0) {
-        // We have transfers but no matches - likely API key issue
         setDataStatus('api-error');
         setErrorMessage('Football Data API key is not configured. Matches data unavailable.');
       } else {
@@ -207,13 +203,13 @@ export default function HighlightsPage() {
     try {
       const date = new Date(dateString);
       
-      // Format for upcoming matches
       const options: Intl.DateTimeFormatOptions = {
         weekday: 'short',
         month: 'short',
         day: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
+        hour12: true,
         timeZone: userTimezone
       };
       
@@ -240,56 +236,51 @@ export default function HighlightsPage() {
     }
   };
 
-  const formatRelativeTime = (dateString: string): string => {
-    try {
-      const date = new Date(dateString);
-      const now = new Date();
-      const diffHours = Math.abs(now.getTime() - date.getTime()) / (1000 * 60 * 60);
-      
-      if (diffHours < 24) {
-        return 'Today';
-      } else if (diffHours < 48) {
-        return 'Yesterday';
-      } else if (diffHours < 168) {
-        const days = Math.floor(diffHours / 24);
-        return `${days} days ago`;
-      } else {
-        return formatMatchDate(dateString);
-      }
-    } catch (err) {
-      return dateString;
-    }
+  // Get current week date range for display
+  const getCurrentWeekRange = () => {
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    
+    // Previous Monday (for Recent Results)
+    const previousMonday = new Date(now);
+    previousMonday.setDate(now.getDate() + diffToMonday - 7);
+    
+    // Next Monday (for Upcoming Matches)
+    const nextMonday = new Date(now);
+    nextMonday.setDate(now.getDate() + diffToMonday + 7);
+    
+    return {
+      recentFrom: formatMatchDate(previousMonday.toISOString()),
+      recentTo: formatMatchDate(now.toISOString()),
+      upcomingFrom: formatMatchDate(now.toISOString()),
+      upcomingTo: formatMatchDate(nextMonday.toISOString())
+    };
   };
 
-  // Match Card Component for results
+  const weekRange = getCurrentWeekRange();
+
+  // Match Card Component for results - COMPACT VERSION
   const MatchCard = ({ match }: { match: MatchResult }) => (
-    <div className="bg-gray-800/40 rounded-lg p-4 border border-gray-700 hover:border-blue-500/30 transition-all group">
-      <div className="flex justify-between items-start mb-2">
-        <div className="text-xs text-gray-400">
-          {formatRelativeTime(match.date)}
-        </div>
-        <SourceIndicator source={match._source} confidence={match._confidence} />
-      </div>
-      
+    <div className="bg-gray-800/40 rounded-lg p-3 border border-gray-700 hover:border-blue-500/30 transition-all group">
       <div className="flex items-center justify-between gap-4">
         <div className="flex-1 text-right">
           <div className="font-bold text-white group-hover:text-blue-300 transition-colors">
             {match.homeTeam.name}
           </div>
-          {match.venue && <div className="text-xs text-gray-400 mt-1">{match.venue}</div>}
         </div>
 
-        <div className="flex items-center justify-center min-w-[80px]">
+        <div className="flex flex-col items-center justify-center min-w-[80px]">
           {match.status === 'FINISHED' ? (
-            <div className="text-center">
-              <div className="text-2xl font-bold text-white">
+            <>
+              <div className="text-xl font-bold text-white">
                 {match.homeTeam.goals} - {match.awayTeam.goals}
               </div>
-              <div className="text-xs text-green-400 font-medium">FT</div>
-            </div>
+              <div className="text-xs text-green-400 font-medium mt-1">FT</div>
+            </>
           ) : (
             <div className="text-center">
-              <div className="text-2xl font-bold text-gray-400">VS</div>
+              <div className="text-xl font-bold text-gray-400">VS</div>
               <div className="text-xs text-gray-500">{formatMatchDateTime(match.date)}</div>
             </div>
           )}
@@ -299,23 +290,29 @@ export default function HighlightsPage() {
           <div className="font-bold text-white group-hover:text-blue-300 transition-colors">
             {match.awayTeam.name}
           </div>
-          <div className="text-xs text-gray-400 mt-1">{match.competition}</div>
         </div>
+      </div>
+      
+      <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-700/50">
+        <div className="text-xs text-gray-400">
+          {formatMatchDate(match.date)} • {match.competition}
+        </div>
+        <SourceIndicator source={match._source} confidence={match._confidence} />
       </div>
     </div>
   );
 
-  // Upcoming Match Card Component
+  // Upcoming Match Card Component - COMPACT VERSION
   const UpcomingMatchCard = ({ match }: { match: MatchResult }) => (
-    <div className="bg-gray-800/40 rounded-lg p-4 border border-gray-700 hover:border-green-500/30 transition-all">
+    <div className="bg-gray-800/40 rounded-lg p-3 border border-gray-700 hover:border-green-500/30 transition-all">
       <div className="flex items-center justify-between gap-4">
         <div className="flex-1 text-right">
           <div className="font-bold text-white">{match.homeTeam.name}</div>
         </div>
 
-        <div className="flex flex-col items-center justify-center min-w-[100px]">
-          <div className="text-2xl font-bold text-gray-400">VS</div>
-          <div className="text-sm text-gray-500 mt-1">
+        <div className="flex flex-col items-center justify-center min-w-[80px]">
+          <div className="text-xl font-bold text-gray-400">VS</div>
+          <div className="text-xs text-gray-500 mt-1">
             {formatMatchDateTime(match.date)}
           </div>
         </div>
@@ -325,22 +322,18 @@ export default function HighlightsPage() {
         </div>
       </div>
       
-      <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-700/50">
-        {match.venue && (
-          <div className="text-xs text-gray-500">📍 {match.venue}</div>
-        )}
-        <div className="flex items-center gap-2">
-          <SourceIndicator source={match._source} confidence={match._confidence} />
-          <span className="text-xs text-gray-400">
-            {userTimezone.replace('_', ' ')}
-          </span>
+      <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-700/50">
+        <div className="text-xs text-gray-400">
+          {match.competition}
+          {match.venue && ` • 📍 ${match.venue}`}
         </div>
+        <SourceIndicator source={match._source} confidence={match._confidence} />
       </div>
     </div>
   );
 
-  // League Section Component for results
-  const LeagueSection = ({ 
+  // League Section Component for RESULTS
+  const LeagueSectionResults = ({ 
     leagueId, 
     leagueData 
   }: { 
@@ -348,39 +341,56 @@ export default function HighlightsPage() {
     leagueData: { leagueName: string; country: string; matches: MatchResult[] } 
   }) => {
     const leagueColors: Record<string, string> = {
+      'CL': 'bg-indigo-500',
       'PD': 'bg-red-500',
       'PL': 'bg-purple-500',
       'SA': 'bg-green-500',
       'BL1': 'bg-red-600',
-      'FL1': 'bg-blue-500',
-      'CL': 'bg-indigo-500'
+      'FL1': 'bg-blue-500'
     };
 
+    const isExpanded = expandedLeaguesResults[leagueId] || false;
+
     return (
-      <div className="mb-8">
-        <div className="flex items-center gap-3 mb-4">
-          <div className={`w-3 h-8 rounded ${leagueColors[leagueId] || 'bg-gray-600'}`} />
-          <div>
-            <h3 className="text-xl font-bold text-white">
-              {LEAGUE_DISPLAY_NAMES[leagueId] || leagueData.leagueName}
-            </h3>
-            <p className="text-sm text-gray-400">
-              {leagueData.country} • {leagueData.matches.length} match{leagueData.matches.length !== 1 ? 'es' : ''}
-            </p>
+      <div className="mb-6">
+        {/* League Header */}
+        <div className="mb-4 p-3 bg-gray-800/50 rounded-lg border border-gray-700">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={`w-3 h-8 rounded ${leagueColors[leagueId] || 'bg-gray-600'}`} />
+              <div>
+                <h3 className="text-lg font-bold text-white">
+                  {LEAGUE_DISPLAY_NAMES[leagueId] || leagueData.leagueName}
+                </h3>
+                <p className="text-sm text-gray-400">
+                  {leagueData.country} • {leagueData.matches.length} match{leagueData.matches.length !== 1 ? 'es' : ''}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setExpandedLeaguesResults(prev => ({
+                ...prev,
+                [leagueId]: !prev[leagueId]
+              }))}
+              className="text-sm text-gray-400 hover:text-white transition-colors px-3 py-1 bg-gray-700/50 rounded"
+            >
+              {isExpanded ? '▲ Collapse' : '▼ Expand'}
+            </button>
           </div>
         </div>
         
-        <div className="space-y-3">
-          {leagueData.matches.slice(0, 5).map(match => (
-            <MatchCard key={match.id} match={match} />
-          ))}
-        </div>
+        {/* ALL MATCHES */}
+        {isExpanded && leagueData.matches.length > 0 && (
+          <div className="space-y-2">
+            {leagueData.matches.map(match => (
+              <MatchCard key={match.id} match={match} />
+            ))}
+          </div>
+        )}
         
-        {leagueData.matches.length > 5 && (
-          <div className="text-center mt-3">
-            <button className="text-sm text-gray-400 hover:text-white transition-colors">
-              + {leagueData.matches.length - 5} more matches
-            </button>
+        {isExpanded && leagueData.matches.length === 0 && (
+          <div className="text-center py-4 bg-gray-800/20 rounded-lg">
+            <p className="text-gray-400 text-sm">No matches in this date range</p>
           </div>
         )}
       </div>
@@ -388,7 +398,7 @@ export default function HighlightsPage() {
   };
 
   // League Section Component for UPCOMING matches
-  const UpcomingLeagueSection = ({ 
+  const LeagueSectionUpcoming = ({ 
     leagueId, 
     leagueData 
   }: { 
@@ -396,37 +406,58 @@ export default function HighlightsPage() {
     leagueData: { leagueName: string; country: string; matches: MatchResult[] } 
   }) => {
     const leagueColors: Record<string, string> = {
+      'CL': 'bg-indigo-500',
       'PD': 'bg-red-500',
       'PL': 'bg-purple-500',
       'SA': 'bg-green-500',
       'BL1': 'bg-red-600',
-      'FL1': 'bg-blue-500',
-      'CL': 'bg-indigo-500'
+      'FL1': 'bg-blue-500'
     };
 
+    const isExpanded = expandedLeaguesUpcoming[leagueId] || false;
+
     return (
-      <div className="mb-10">
-        {/* ONE BIG TITLE PER COMPETITION */}
-        <div className="mb-6">
-          <div className="flex items-center gap-3 mb-2">
-            <div className={`w-3 h-10 rounded ${leagueColors[leagueId] || 'bg-gray-600'}`} />
-            <div>
-              <h3 className="text-2xl font-bold text-white">
-                {LEAGUE_DISPLAY_NAMES[leagueId] || leagueData.leagueName}
-              </h3>
-              <p className="text-lg text-gray-400">
-                {leagueData.country} • {leagueData.matches.length} match{leagueData.matches.length !== 1 ? 'es' : ''}
-              </p>
+      <div className="mb-8">
+        {/* League Header - COMPACT */}
+        <div className="mb-4 p-3 bg-gray-800/50 rounded-lg border border-gray-700">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={`w-3 h-8 rounded ${leagueColors[leagueId] || 'bg-gray-600'}`} />
+              <div>
+                <h3 className="text-lg font-bold text-white">
+                  {LEAGUE_DISPLAY_NAMES[leagueId] || leagueData.leagueName}
+                </h3>
+                <p className="text-sm text-gray-400">
+                  {leagueData.country} • {leagueData.matches.length} match{leagueData.matches.length !== 1 ? 'es' : ''}
+                </p>
+              </div>
             </div>
+            <button
+              onClick={() => setExpandedLeaguesUpcoming(prev => ({
+                ...prev,
+                [leagueId]: !prev[leagueId]
+              }))}
+              className="text-sm text-gray-400 hover:text-white transition-colors px-3 py-1 bg-gray-700/50 rounded"
+            >
+              {isExpanded ? '▲ Collapse' : '▼ Expand'}
+            </button>
           </div>
         </div>
         
         {/* ALL MATCHES FOR THIS COMPETITION */}
-        <div className="space-y-4">
-          {leagueData.matches.map(match => (
-            <UpcomingMatchCard key={match.id} match={match} />
-          ))}
-        </div>
+        {isExpanded && leagueData.matches.length > 0 && (
+          <div className="space-y-2">
+            {leagueData.matches.map(match => (
+              <UpcomingMatchCard key={match.id} match={match} />
+            ))}
+          </div>
+        )}
+        
+        {isExpanded && leagueData.matches.length === 0 && (
+          <div className="text-center py-4 bg-gray-800/20 rounded-lg">
+            <p className="text-gray-400 text-sm">No upcoming matches in this date range</p>
+          </div>
+        )}
       </div>
     );
   };
@@ -680,23 +711,6 @@ export default function HighlightsPage() {
           </div>
         )}
 
-        {/* Current Week Info Banner */}
-        {currentWeekDates.start && activeTab === 'upcoming' && totalUpcomingMatches > 0 && (
-          <div className="mb-6 bg-gradient-to-r from-blue-900/20 to-indigo-900/20 border border-blue-700/30 rounded-lg p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-bold text-blue-400">📅 Current Week Fixtures</h3>
-                <p className="text-sm text-gray-300">
-                  Showing matches from {formatMatchDate(currentWeekDates.start)} to {formatMatchDate(currentWeekDates.end)}
-                </p>
-              </div>
-              <div className="text-sm text-gray-400">
-                {totalUpcomingMatches} matches scheduled
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Tabs */}
         <div className="flex gap-2 mb-8 border-b border-gray-700 pb-2">
           <button
@@ -737,24 +751,34 @@ export default function HighlightsPage() {
           {activeTab === 'results' && (
             <>
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold">Latest Results by League</h2>
-                <div className="text-sm text-gray-400">
-                  {Object.keys(groupedResults).length} leagues • {totalResults} matches
+                <div>
+                  <h2 className="text-2xl font-bold">Latest Results</h2>
+                  <p className="text-gray-400 text-sm">
+                    Showing matches from {weekRange.recentFrom} to {weekRange.recentTo}
+                  </p>
+                </div>
+                <div className="flex flex-col items-end">
+                  <div className="text-sm text-gray-400">
+                    {Object.keys(groupedResults).length} leagues • {totalResults} matches
+                  </div>
+                  <span className="text-xs text-gray-400">
+                    Times in {userTimezone.replace('_', ' ')}
+                  </span>
                 </div>
               </div>
               
               {totalResults > 0 ? (
-                <div className="space-y-8">
+                <div className="space-y-6">
                   {/* European Leagues Section */}
                   <div>
                     <h3 className="text-lg font-bold text-blue-400 mb-4 flex items-center gap-2">
                       <span>🇪🇺</span> European Leagues
                     </h3>
                     {LEAGUE_PRIORITY_ORDER
-                      .filter(id => ['PD', 'PL', 'SA', 'BL1', 'FL1', 'CL'].includes(id))
+                      .filter(id => ['CL', 'PD', 'PL', 'SA', 'BL1', 'FL1'].includes(id))
                       .map(leagueId => 
                         groupedResults[leagueId] && (
-                          <LeagueSection 
+                          <LeagueSectionResults 
                             key={leagueId} 
                             leagueId={leagueId} 
                             leagueData={groupedResults[leagueId]} 
@@ -766,7 +790,7 @@ export default function HighlightsPage() {
                 </div>
               ) : (
                 <div className="text-center py-12 bg-gray-800/20 rounded-lg">
-                  <p className="text-gray-400">No match results available</p>
+                  <p className="text-gray-400">No match results available for this week</p>
                   <p className="text-sm text-gray-500 mt-2">
                     {dataStatus === 'error' ? 'Failed to load match data' : 'Check back later for updated results'}
                   </p>
@@ -775,33 +799,31 @@ export default function HighlightsPage() {
             </>
           )}
 
-          {/* Upcoming Matches Tab - WITH ONE BIG TITLE PER COMPETITION */}
+          {/* Upcoming Matches Tab */}
           {activeTab === 'upcoming' && (
             <>
               <div className="flex justify-between items-center mb-6">
                 <div>
                   <h2 className="text-2xl font-bold">Upcoming Matches This Week</h2>
                   <p className="text-gray-400 text-sm">
-                    Times shown in {userTimezone.replace('_', ' ')} • {totalUpcomingMatches} matches
+                    Showing matches from {weekRange.upcomingFrom} to {weekRange.upcomingTo}
                   </p>
                 </div>
                 <div className="flex flex-col items-end">
-                  <span className="px-2 py-1 bg-gray-700/50 rounded text-gray-300 text-sm mb-1">
-                    Local Timezone
+                  <div className="text-sm text-gray-400">
+                    {Object.keys(upcomingMatchesGrouped).length} leagues • {totalUpcomingMatches} matches
+                  </div>
+                  <span className="text-xs text-gray-400">
+                    Times in {userTimezone.replace('_', ' ')}
                   </span>
-                  {currentWeekDates.start && (
-                    <span className="text-xs text-gray-400">
-                      Week of {formatMatchDate(currentWeekDates.start)}
-                    </span>
-                  )}
                 </div>
               </div>
               
               {totalUpcomingMatches > 0 ? (
                 <div>
-                  {/* Render each competition with ONE BIG TITLE */}
+                  {/* Render each competition - Champions League FIRST */}
                   {Object.entries(upcomingMatchesGrouped).map(([leagueId, leagueData]) => (
-                    <UpcomingLeagueSection 
+                    <LeagueSectionUpcoming 
                       key={leagueId} 
                       leagueId={leagueId} 
                       leagueData={leagueData} 
