@@ -183,7 +183,8 @@ export default function EnhancedSearchResults({
     );
   };
 
-  // Data Currency Warning Component
+  // Data Currency Warning Component - COMPLETELY REMOVED
+  /*
   const DataCurrencyWarning = () => {
     if (!_metadata) return null;
     
@@ -261,6 +262,7 @@ export default function EnhancedSearchResults({
       </div>
     );
   };
+  */
 
   // Format date for YouTube videos
   const formatDate = (dateString: string) => {
@@ -309,9 +311,6 @@ export default function EnhancedSearchResults({
       {/* Data Source Indicator */}
       <DataSourceIndicator />
       
-      {/* Data Currency Warning */}
-      <DataCurrencyWarning />
-
       {/* Player Results */}
       {players.length > 0 && players.map((player, idx) => (
         <div key={idx} className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
@@ -391,127 +390,128 @@ export default function EnhancedSearchResults({
         </div>
       ))}
 
-      {/* Team Results */}
-      {teams.length > 0 && teams.map((team, idx) => {
-        // Safely extract achievements with defaults - FIXED: Properly handle Team interface structure
-        const achievements = team.majorAchievements || {};
-        
-        return (
-          <div key={idx} className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
-            <div className="p-6 sm:p-8">
-              {/* Team Header */}
-              <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-3">
-                    <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">{team.name}</h2>
-                    {needsVerification && (
-                      <span className="text-xs px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full">
-                        Verify Coach
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2 mb-4">
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                      team.type === 'national' 
-                        ? 'bg-red-100 text-red-700' 
-                        : 'bg-blue-100 text-blue-700'
-                    }`}>
-                      {team.type === 'national' ? 'National Team' : 'Football Club'}
-                    </span>
-                    <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm font-medium">
-                      {team.country}
-                    </span>
-                    {team.stadium && (
-                      <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
-                        🏟️ {team.stadium}
-                      </span>
-                    )}
-                    <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium">
-                      👨‍🏫 {team.currentCoach}
-                    </span>
-                    {team.foundedYear && (
-                      <span className="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-sm font-medium">
-                        📅 {team.foundedYear}
-                      </span>
-                    )}
-                  </div>
-                  <WikipediaSourceBadge team={team} />
-                  
-                  {team._dataCurrency?.disclaimer && (
-                    <p className="text-xs text-gray-500 mt-2">{team._dataCurrency.disclaimer}</p>
-                  )}
-                </div>
-              </div>
+{/* Team Results - Only show for actual teams, not player names */}
+{teams.length > 0 && 
+ !players.some(p => p.name.toLowerCase() === teams[0].name.toLowerCase()) &&
+ teams.map((team, idx) => {
+   // Safely extract achievements with defaults
+   const achievements = team.majorAchievements || {};
+   
+   return (
+     <div key={idx} className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
+       <div className="p-6 sm:p-8">
+         {/* Team Header */}
+         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8">
+           <div className="flex-1">
+             <div className="flex items-center gap-3 mb-3">
+               <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">{team.name}</h2>
+               {needsVerification && (
+                 <span className="text-xs px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full">
+                   Verify Coach
+                 </span>
+               )}
+             </div>
+             <div className="flex flex-wrap items-center gap-2 mb-4">
+               <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                 team.type === 'national' 
+                   ? 'bg-red-100 text-red-700' 
+                   : 'bg-blue-100 text-blue-700'
+               }`}>
+                 {team.type === 'national' ? 'National Team' : 'Football Club'}
+               </span>
+               <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm font-medium">
+                 {team.country}
+               </span>
+               {team.stadium && (
+                 <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
+                   🏟️ {team.stadium}
+                 </span>
+               )}
+               <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium">
+                 👨‍🏫 {team.currentCoach}
+               </span>
+               {team.foundedYear && (
+                 <span className="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-sm font-medium">
+                   📅 {team.foundedYear}
+                 </span>
+               )}
+             </div>
+             <WikipediaSourceBadge team={team} />
+             
+             {team._dataCurrency?.disclaimer && (
+               <p className="text-xs text-gray-500 mt-2">{team._dataCurrency.disclaimer}</p>
+             )}
+           </div>
+         </div>
 
-              {/* Achievements Grid */}
-              <div className="mb-8">
-                <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
-                  <span className="mr-2">🏅</span> Trophy Cabinet
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
-                  {/* FIXED: Safely access achievement arrays with proper null checks */}
-                  <AchievementSection 
-                    title="World Cup" 
-                    achievements={team.type === 'national' ? achievements.worldCup : undefined} 
-                    color="yellow" 
-                  />
-                  <AchievementSection 
-                    title="Club World Cup" 
-                    achievements={team.type === 'club' ? achievements.clubWorldCup : undefined} 
-                    color="purple" 
-                  />
-                  <AchievementSection 
-                    title="Continental" 
-                    achievements={achievements.continental} 
-                    color="blue" 
-                  />
-                  <AchievementSection 
-                    title="Domestic" 
-                    achievements={team.type === 'club' ? achievements.domestic : undefined} 
-                    color="green" 
-                  />
-                </div>
-              </div>
-              
-              {/* Data Currency Info */}
-              {team._dataCurrency && (
-                <div className="bg-gray-50 rounded-xl p-4 mt-6">
-                  <h4 className="font-semibold text-gray-700 mb-2">Data Information</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-gray-500">Last trained data:</span>
-                      <span className="ml-2 font-medium">{team._dataCurrency.lastTrained || '2024'}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-500">Enhanced:</span>
-                      <span className="ml-2 font-medium">
-                        {team._dataCurrency.enhanced ? 
-                          new Date(team._dataCurrency.enhanced).toLocaleDateString() : 
-                          'No'
-                        }
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-gray-500">Updates applied:</span>
-                      <span className="ml-2 font-medium">{team._dataCurrency.updatesApplied?.length || 0}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-500">Confidence:</span>
-                      <span className={`ml-2 font-medium ${
-                        team._dataCurrency.verification?.confidence === 'high' ? 'text-green-600' :
-                        team._dataCurrency.verification?.confidence === 'medium' ? 'text-yellow-600' :
-                        'text-red-600'
-                      }`}>
-                        {team._dataCurrency.verification?.confidence || 'medium'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })}
+         {/* Achievements Grid */}
+         <div className="mb-8">
+           <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
+             <span className="mr-2">🏅</span> Trophy Cabinet
+           </h3>
+           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+             <AchievementSection 
+               title="World Cup" 
+               achievements={team.type === 'national' ? achievements.worldCup : undefined} 
+               color="yellow" 
+             />
+             <AchievementSection 
+               title="Club World Cup" 
+               achievements={team.type === 'club' ? achievements.clubWorldCup : undefined} 
+               color="purple" 
+             />
+             <AchievementSection 
+               title="Continental" 
+               achievements={achievements.continental} 
+               color="blue" 
+             />
+             <AchievementSection 
+               title="Domestic" 
+               achievements={team.type === 'club' ? achievements.domestic : undefined} 
+               color="green" 
+             />
+           </div>
+         </div>
+         
+         {/* Data Currency Info */}
+         {team._dataCurrency && (
+           <div className="bg-gray-50 rounded-xl p-4 mt-6">
+             <h4 className="font-semibold text-gray-700 mb-2">Data Information</h4>
+             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+               <div>
+                 <span className="text-gray-500">Last trained data:</span>
+                 <span className="ml-2 font-medium">{team._dataCurrency.lastTrained || '2024'}</span>
+               </div>
+               <div>
+                 <span className="text-gray-500">Enhanced:</span>
+                 <span className="ml-2 font-medium">
+                   {team._dataCurrency.enhanced ? 
+                     new Date(team._dataCurrency.enhanced).toLocaleDateString() : 
+                     'No'
+                   }
+                 </span>
+               </div>
+               <div>
+                 <span className="text-gray-500">Updates applied:</span>
+                 <span className="ml-2 font-medium">{team._dataCurrency.updatesApplied?.length || 0}</span>
+               </div>
+               <div>
+                 <span className="text-gray-500">Confidence:</span>
+                 <span className={`ml-2 font-medium ${
+                   team._dataCurrency.verification?.confidence === 'high' ? 'text-green-600' :
+                   team._dataCurrency.verification?.confidence === 'medium' ? 'text-yellow-600' :
+                   'text-red-600'
+                 }`}>
+                   {team._dataCurrency.verification?.confidence || 'medium'}
+                 </span>
+               </div>
+             </div>
+           </div>
+         )}
+       </div>
+     </div>
+   );
+ })}
 
       {/* YouTube Highlights Section */}
       <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
@@ -624,17 +624,7 @@ export default function EnhancedSearchResults({
         </div>
       )}
       
-      {/* Metadata Debug (remove in production) */}
-      {process.env.NODE_ENV === 'development' && _metadata && (
-        <div className="mt-8 p-4 bg-gray-900 text-gray-300 rounded-lg text-sm">
-          <details>
-            <summary className="cursor-pointer font-mono">Debug Metadata</summary>
-            <pre className="mt-2 overflow-auto p-2 bg-gray-800 rounded">
-              {JSON.stringify(_metadata, null, 2)}
-            </pre>
-          </details>
-        </div>
-      )}
+
     </div>
   );
 }

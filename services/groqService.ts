@@ -1,4 +1,4 @@
-// services/groqService.ts - COMPLETE FIXED VERSION
+// services/groqService.ts - COMPLETE FIXED VERSION WITH ACHIEVEMENT FIXES
 import Groq from 'groq-sdk';
 import { validatePlayer } from './dataValidationService';
 import { getPlayerImage } from './playerImageService';
@@ -101,6 +101,88 @@ const clearStaleCache = () => {
 // Cache for historical players to avoid repeated work and concurrent fetches
 const historicalPlayersCache: Map<string, Player[]> = new Map();
 
+// Helper function to extract achievements from text
+const extractAchievementsFromText = (text: string): string[] => {
+  const achievements: string[] = [];
+  if (!text) return achievements;
+  
+  const textLower = text.toLowerCase();
+  
+  // Common achievement patterns
+  const patterns = [
+    // Ballon d'Or
+    { regex: /(\d+)\s*(?:x|times?)\s*ballon\s*d'?or/gi, format: (count: string) => `${count}x Ballon d'Or` },
+    { regex: /ballon\s*d'?or.*?(\d+)/gi, format: (count: string) => `${count}x Ballon d'Or` },
+    
+    // World Cup
+    { regex: /(\d+)\s*(?:x|times?)\s*fifa\s*world\s*cup/gi, format: (count: string) => `${count}x FIFA World Cup` },
+    { regex: /fifa\s*world\s*cup.*?winner.*?(\d{4})/gi, format: (year: string) => `FIFA World Cup (${year})` },
+    { regex: /world\s*cup.*?champion.*?(\d{4})/gi, format: (year: string) => `FIFA World Cup (${year})` },
+    
+    // Champions League
+    { regex: /(\d+)\s*(?:x|times?)\s*uefa\s*champions\s*league/gi, format: (count: string) => `${count}x UEFA Champions League` },
+    { regex: /champions\s*league.*?winner.*?(\d{4})/gi, format: (year: string) => `UEFA Champions League (${year})` },
+    
+    // League titles
+    { regex: /(\d+)\s*(?:x|times?)\s*la\s*liga/gi, format: (count: string) => `${count}x La Liga` },
+    { regex: /(\d+)\s*(?:x|times?)\s*premier\s*league/gi, format: (count: string) => `${count}x Premier League` },
+    { regex: /(\d+)\s*(?:x|times?)\s*ligue\s*1/gi, format: (count: string) => `${count}x Ligue 1` },
+    { regex: /(\d+)\s*(?:x|times?)\s*serie\s*a/gi, format: (count: string) => `${count}x Serie A` },
+    { regex: /(\d+)\s*(?:x|times?)\s*bundesliga/gi, format: (count: string) => `${count}x Bundesliga` },
+    
+    // Domestic Cups
+    { regex: /(\d+)\s*(?:x|times?)\s*copa\s*del\s*rey/gi, format: (count: string) => `${count}x Copa del Rey` },
+    { regex: /(\d+)\s*(?:x|times?)\s*fa\s*cup/gi, format: (count: string) => `${count}x FA Cup` },
+    { regex: /(\d+)\s*(?:x|times?)\s*dfb.*pokal/gi, format: (count: string) => `${count}x DFB-Pokal` },
+    { regex: /(\d+)\s*(?:x|times?)\s*coppa\s*italia/gi, format: (count: string) => `${count}x Coppa Italia` },
+    
+    // International tournaments
+    { regex: /(\d+)\s*(?:x|times?)\s*copa\s*am[eé]rica/gi, format: (count: string) => `${count}x Copa América` },
+    { regex: /(\d+)\s*(?:x|times?)\s*uefa\s*euro/gi, format: (count: string) => `${count}x UEFA European Championship` },
+    
+    // Club World Cup
+    { regex: /(\d+)\s*(?:x|times?)\s*fifa\s*club\s*world\s*cup/gi, format: (count: string) => `${count}x FIFA Club World Cup` },
+    
+    // Golden Boot/Ballon
+    { regex: /(\d+)\s*(?:x|times?)\s*golden\s*boot/gi, format: (count: string) => `${count}x Golden Boot` },
+    { regex: /(\d+)\s*(?:x|times?)\s*european\s*golden\s*shoe/gi, format: (count: string) => `${count}x European Golden Shoe` },
+  ];
+  
+  // Extract achievements using patterns
+  patterns.forEach(({ regex, format }) => {
+    const matches = textLower.match(regex);
+    if (matches) {
+      matches.forEach(match => {
+        const countMatch = match.match(/\d+/);
+        if (countMatch) {
+          const achievement = format(countMatch[0]);
+          if (!achievements.includes(achievement)) {
+            achievements.push(achievement);
+          }
+        }
+      });
+    }
+  });
+  
+  // Look for achievement mentions without counts
+  const achievementKeywords = [
+    { keyword: 'ballon d\'or', format: 'Ballon d\'Or winner' },
+    { keyword: 'world cup', format: 'FIFA World Cup winner' },
+    { keyword: 'champions league', format: 'UEFA Champions League winner' },
+    { keyword: 'golden boot', format: 'Golden Boot winner' },
+    { keyword: 'copa américa', format: 'Copa América winner' },
+    { keyword: 'uefa euro', format: 'UEFA European Championship winner' },
+  ];
+  
+  achievementKeywords.forEach(({ keyword, format }) => {
+    if (textLower.includes(keyword) && !achievements.some(a => a.toLowerCase().includes(keyword))) {
+      achievements.push(format);
+    }
+  });
+  
+  return achievements.slice(0, 10); // Limit to 10 achievements max
+};
+
 // Historical team data with key players for fallback
 const HISTORICAL_TEAM_DATA: Record<string, any> = {
   'real madrid': {
@@ -117,17 +199,17 @@ const HISTORICAL_TEAM_DATA: Record<string, any> = {
     ],
     historicalAchievements: {
       international: [
-        "UEFA Champions League (15 titles: 1956, 1957, 1958, 1959, 1960, 1966, 1998, 2000, 2002, 2014, 2016, 2017, 2018, 2022, 2024)",
-        "FIFA Club World Cup (5 titles: 2014, 2016, 2017, 2018, 2022)",
-        "Intercontinental Cup (3 titles: 1960, 1998, 2002)",
-        "FIFA Intercontinental Cup (1 title: 2024)",
-        "UEFA Cup (2 titles: 1985, 1986)",
-        "UEFA Super Cup (6 titles: 2002, 2014, 2016, 2017, 2022, 2024)"
+        "15x UEFA Champions League (1956, 1957, 1958, 1959, 1960, 1966, 1998, 2000, 2002, 2014, 2016, 2017, 2018, 2022, 2024)",
+        "5x FIFA Club World Cup (2014, 2016, 2017, 2018, 2022)",
+        "3x Intercontinental Cup (1960, 1998, 2002)",
+        "1x FIFA Intercontinental Cup (2024)",
+        "2x UEFA Cup (1985, 1986)",
+        "6x UEFA Super Cup (2002, 2014, 2016, 2017, 2022, 2024)"
       ],
       domestic: [
-        "La Liga (36 titles)",
-        "Copa del Rey (20 titles)",
-        "Supercopa de España (13 titles)"
+        "36x La Liga",
+        "20x Copa del Rey",
+        "13x Supercopa de España"
       ]
     }
   },
@@ -145,13 +227,13 @@ const HISTORICAL_TEAM_DATA: Record<string, any> = {
     ],
     historicalAchievements: {
       international: [
-        "FIFA Club World Cup (2009, 2011, 2015)",
-        "UEFA Champions League (5 titles: 1992, 2006, 2009, 2011, 2015)"
+        "3x FIFA Club World Cup (2009, 2011, 2015)",
+        "5x UEFA Champions League (1992, 2006, 2009, 2011, 2015)"
       ],
       domestic: [
-        "La Liga (27 titles)",
-        "Copa del Rey (31 titles)",
-        "Supercopa de España (14 titles)"
+        "27x La Liga",
+        "31x Copa del Rey",
+        "14x Supercopa de España"
       ]
     }
   },
@@ -169,15 +251,15 @@ const HISTORICAL_TEAM_DATA: Record<string, any> = {
     ],
     historicalAchievements: {
       international: [
-        "FIFA Club World Cup (2007)",
-        "UEFA Champions League (7 titles: 1963, 1969, 1989, 1990, 1994, 2003, 2007)",
-        "UEFA Cup Winners' Cup (2 titles)",
-        "UEFA Super Cup (5 titles)"
+        "1x FIFA Club World Cup (2007)",
+        "7x UEFA Champions League (1963, 1969, 1989, 1990, 1994, 2003, 2007)",
+        "2x UEFA Cup Winners' Cup",
+        "5x UEFA Super Cup"
       ],
       domestic: [
-        "Serie A (19 titles)",
-        "Coppa Italia (5 titles)",
-        "Supercoppa Italiana (7 titles)"
+        "19x Serie A",
+        "5x Coppa Italia",
+        "7x Supercoppa Italiana"
       ]
     }
   },
@@ -195,15 +277,15 @@ const HISTORICAL_TEAM_DATA: Record<string, any> = {
     ],
     historicalAchievements: {
       international: [
-        "FIFA Club World Cup (2010)",
-        "UEFA Champions League (3 titles: 1964, 1965, 2010)",
-        "UEFA Cup/Europa League (3 titles)",
-        "UEFA Super Cup (1 title)"
+        "1x FIFA Club World Cup (2010)",
+        "3x UEFA Champions League (1964, 1965, 2010)",
+        "3x UEFA Cup/Europa League",
+        "1x UEFA Super Cup"
       ],
       domestic: [
-        "Serie A (20 titles)",
-        "Coppa Italia (9 titles)",
-        "Supercoppa Italiana (8 titles)"
+        "20x Serie A",
+        "9x Coppa Italia",
+        "8x Supercoppa Italiana"
       ]
     }
   },
@@ -221,16 +303,16 @@ const HISTORICAL_TEAM_DATA: Record<string, any> = {
     ],
     historicalAchievements: {
       international: [
-        "FIFA Club World Cup (1985, 1996)",
-        "UEFA Champions League (2 titles: 1985, 1996)",
-        "UEFA Cup/Europa League (3 titles)",
-        "UEFA Cup Winners' Cup (1 title)",
-        "UEFA Super Cup (2 titles)"
+        "2x FIFA Club World Cup (1985, 1996)",
+        "2x UEFA Champions League (1985, 1996)",
+        "3x UEFA Cup/Europa League",
+        "1x UEFA Cup Winners' Cup",
+        "2x UEFA Super Cup"
       ],
       domestic: [
-        "Serie A (36 titles)",
-        "Coppa Italia (14 titles)",
-        "Supercoppa Italiana (9 titles)"
+        "36x Serie A",
+        "14x Coppa Italia",
+        "9x Supercoppa Italiana"
       ]
     }
   },
@@ -248,15 +330,15 @@ const HISTORICAL_TEAM_DATA: Record<string, any> = {
     ],
     historicalAchievements: {
       international: [
-        "FIFA Club World Cup (2023)",
-        "UEFA Champions League (2023)",
-        "UEFA Cup Winners' Cup (1970)"
+        "1x FIFA Club World Cup (2023)",
+        "1x UEFA Champions League (2023)",
+        "1x UEFA Cup Winners' Cup (1970)"
       ],
       domestic: [
-        "Premier League (9 titles)",
-        "FA Cup (7 titles)",
-        "EFL Cup (8 titles)",
-        "FA Community Shield (6 titles)"
+        "9x Premier League",
+        "7x FA Cup",
+        "8x EFL Cup",
+        "6x FA Community Shield"
       ]
     }
   },
@@ -274,14 +356,14 @@ const HISTORICAL_TEAM_DATA: Record<string, any> = {
     ],
     historicalAchievements: {
       international: [
-        "FIFA Club World Cup (2019)",
-        "UEFA Champions League (6 titles: 1977, 1978, 1981, 1984, 2005, 2019)"
+        "1x FIFA Club World Cup (2019)",
+        "6x UEFA Champions League (1977, 1978, 1981, 1984, 2005, 2019)"
       ],
       domestic: [
-        "First Division/Premier League (19 titles)",
-        "FA Cup (8 titles)",
-        "EFL Cup (10 titles)",
-        "FA Community Shield (16 titles)"
+        "19x First Division/Premier League",
+        "8x FA Cup",
+        "10x EFL Cup",
+        "16x FA Community Shield"
       ]
     }
   },
@@ -299,14 +381,14 @@ const HISTORICAL_TEAM_DATA: Record<string, any> = {
     ],
     historicalAchievements: {
       international: [
-        "FIFA Club World Cup (2013, 2020)",
-        "UEFA Champions League (6 titles: 1974, 1975, 1976, 2001, 2013, 2020)"
+        "2x FIFA Club World Cup (2013, 2020)",
+        "6x UEFA Champions League (1974, 1975, 1976, 2001, 2013, 2020)"
       ],
       domestic: [
-        "Bundesliga (33 titles)",
-        "DFB-Pokal (20 titles)",
-        "DFL-Supercup (10 titles)",
-        "DFL-Ligapokal (6 titles)"
+        "33x Bundesliga",
+        "20x DFB-Pokal",
+        "10x DFL-Supercup",
+        "6x DFL-Ligapokal"
       ]
     }
   },
@@ -325,10 +407,10 @@ const HISTORICAL_TEAM_DATA: Record<string, any> = {
     historicalAchievements: {
       international: [],
       domestic: [
-        "Ligue 1 (11 titles)",
-        "Coupe de France (14 titles)",
-        "Coupe de la Ligue (9 titles)",
-        "Trophée des Champions (11 titles)"
+        "11x Ligue 1",
+        "14x Coupe de France",
+        "9x Coupe de la Ligue",
+        "11x Trophée des Champions"
       ]
     }
   },
@@ -346,13 +428,13 @@ const HISTORICAL_TEAM_DATA: Record<string, any> = {
     ],
     historicalAchievements: {
       international: [
-        "UEFA Cup Winners' Cup (1994)"
+        "1x UEFA Cup Winners' Cup (1994)"
       ],
       domestic: [
-        "First Division/Premier League (13 titles)",
-        "FA Cup (14 titles)",
-        "EFL Cup (2 titles)",
-        "FA Community Shield (17 titles)"
+        "13x First Division/Premier League",
+        "14x FA Cup",
+        "2x EFL Cup",
+        "17x FA Community Shield"
       ]
     }
   },
@@ -370,17 +452,17 @@ const HISTORICAL_TEAM_DATA: Record<string, any> = {
     ],
     historicalAchievements: {
       international: [
-        "FIFA Club World Cup (2021)",
-        "UEFA Champions League (2 titles: 2012, 2021)",
-        "UEFA Europa League (2 titles)",
-        "UEFA Cup Winners' Cup (2 titles)",
-        "UEFA Super Cup (2 titles)"
+        "1x FIFA Club World Cup (2021)",
+        "2x UEFA Champions League (2012, 2021)",
+        "2x UEFA Europa League",
+        "2x UEFA Cup Winners' Cup",
+        "2x UEFA Super Cup"
       ],
       domestic: [
-        "First Division/Premier League (6 titles)",
-        "FA Cup (8 titles)",
-        "EFL Cup (5 titles)",
-        "FA Community Shield (4 titles)"
+        "6x First Division/Premier League",
+        "8x FA Cup",
+        "5x EFL Cup",
+        "4x FA Community Shield"
       ]
     }
   },
@@ -398,17 +480,17 @@ const HISTORICAL_TEAM_DATA: Record<string, any> = {
     ],
     historicalAchievements: {
       international: [
-        "FIFA Club World Cup (2008)",
-        "UEFA Champions League (3 titles: 1968, 1999, 2008)",
-        "UEFA Europa League (1 title)",
-        "UEFA Cup Winners' Cup (1 title)",
-        "UEFA Super Cup (1 title)"
+        "1x FIFA Club World Cup (2008)",
+        "3x UEFA Champions League (1968, 1999, 2008)",
+        "1x UEFA Europa League",
+        "1x UEFA Cup Winners' Cup",
+        "1x UEFA Super Cup"
       ],
       domestic: [
-        "First Division/Premier League (20 titles)",
-        "FA Cup (12 titles)",
-        "EFL Cup (6 titles)",
-        "FA Community Shield (21 titles)"
+        "20x First Division/Premier League",
+        "12x FA Cup",
+        "6x EFL Cup",
+        "21x FA Community Shield"
       ]
     }
   },
@@ -426,14 +508,14 @@ const HISTORICAL_TEAM_DATA: Record<string, any> = {
     ],
     historicalAchievements: {
       international: [
-        "UEFA Cup Winners' Cup (1963)",
-        "UEFA Cup (2 titles)"
+        "1x UEFA Cup Winners' Cup (1963)",
+        "2x UEFA Cup"
       ],
       domestic: [
-        "First Division (2 titles)",
-        "FA Cup (8 titles)",
-        "EFL Cup (4 titles)",
-        "FA Community Shield (7 titles)"
+        "2x First Division",
+        "8x FA Cup",
+        "4x EFL Cup",
+        "7x FA Community Shield"
       ]
     }
   },
@@ -451,13 +533,13 @@ const HISTORICAL_TEAM_DATA: Record<string, any> = {
     ],
     historicalAchievements: {
       worldCup: [
-        "FIFA World Cup (5 titles: 1958, 1962, 1970, 1994, 2002)",
-        "FIFA Confederations Cup (4 titles: 1997, 2005, 2009, 2013)",
-        "Olympic Gold Medal (2 titles: 2016, 2020)"
+        "5x FIFA World Cup (1958, 1962, 1970, 1994, 2002)",
+        "4x FIFA Confederations Cup (1997, 2005, 2009, 2013)",
+        "2x Olympic Gold Medal (2016, 2020)"
       ],
       continental: [
-        "Copa América (9 titles: 1919, 1922, 1949, 1989, 1997, 1999, 2004, 2007, 2019)",
-        "Panamerican Championship (2 titles: 1952, 1956)"
+        "9x Copa América (1919, 1922, 1949, 1989, 1997, 1999, 2004, 2007, 2019)",
+        "2x Panamerican Championship (1952, 1956)"
       ],
       domestic: []
     }
@@ -476,12 +558,12 @@ const HISTORICAL_TEAM_DATA: Record<string, any> = {
     ],
     historicalAchievements: {
       worldCup: [
-        "FIFA World Cup (3 titles: 1978, 1986, 2022)",
-        "FIFA Confederations Cup (1 title: 1992)",
-        "CONMEBOL–UEFA Cup of Champions (2 titles: 1993, 2022)"
+        "3x FIFA World Cup (1978, 1986, 2022)",
+        "1x FIFA Confederations Cup (1992)",
+        "2x CONMEBOL–UEFA Cup of Champions (1993, 2022)"
       ],
       continental: [
-        "Copa América (16 titles)"
+        "16x Copa América"
       ],
       domestic: []
     }
@@ -500,12 +582,12 @@ const HISTORICAL_TEAM_DATA: Record<string, any> = {
     ],
     historicalAchievements: {
       worldCup: [
-        "FIFA World Cup (2 titles: 1998, 2018)",
-        "FIFA Confederations Cup (2 titles: 2001, 2003)"
+        "2x FIFA World Cup (1998, 2018)",
+        "2x FIFA Confederations Cup (2001, 2003)"
       ],
       continental: [
-        "UEFA European Championship (2 titles: 1984, 2000)",
-        "UEFA Nations League (1 title: 2021)"
+        "2x UEFA European Championship (1984, 2000)",
+        "1x UEFA Nations League (2021)"
       ],
       domestic: []
     }
@@ -524,11 +606,11 @@ const HISTORICAL_TEAM_DATA: Record<string, any> = {
     ],
     historicalAchievements: {
       worldCup: [
-        "FIFA World Cup (4 titles: 1954, 1974, 1990, 2014)",
-        "FIFA Confederations Cup (1 title: 2017)"
+        "4x FIFA World Cup (1954, 1974, 1990, 2014)",
+        "1x FIFA Confederations Cup (2017)"
       ],
       continental: [
-        "UEFA European Championship (3 titles: 1972, 1980, 1996)"
+        "3x UEFA European Championship (1972, 1980, 1996)"
       ],
       domestic: []
     }
@@ -547,10 +629,10 @@ const HISTORICAL_TEAM_DATA: Record<string, any> = {
     ],
     historicalAchievements: {
       worldCup: [
-        "FIFA World Cup (4 titles: 1934, 1938, 1982, 2006)"
+        "4x FIFA World Cup (1934, 1938, 1982, 2006)"
       ],
       continental: [
-        "UEFA European Championship (2 titles: 1968, 2020)"
+        "2x UEFA European Championship (1968, 2020)"
       ],
       domestic: []
     }
@@ -788,11 +870,11 @@ const getEnhancedSystemPrompt = (query: string, language: string = 'en'): string
     /^[A-Z][a-z]+ [A-Z][a-z]+ [A-Z][a-z]+$/.test(query); // Matches "First Middle Last" names
   
   const achievementStructure = isNationalTeam ? 
-    `"worldCup": ["FIFA World Cup (year)"],` :
-    `"international": ["UEFA Champions League (15 titles)", "FIFA Club World Cup (5 titles)"],`;
-  
+    `"worldCup": ["FIFA World Cup (2022)", "FIFA World Cup (1978)"],` :
+    `"international": ["7x UEFA Champions League (1956, 1957, 1958, 1959, 1960, 1966, 1998)"],`;
+
   const continentalExample = isNationalTeam ?
-    `"continental": ["Copa América (2019, 2024)", "UEFA Euro (2024)"],` :
+    `"continental": ["16x Copa América (1919, 1922, 1949, 1989, 1997, 1999, 2004, 2007, 2011, 2015, 2016, 2019, 2020, 2024)"],` :
     ``;
 
   // Knowledge Injection for 2026 Season
@@ -809,16 +891,40 @@ SPECIFIC BRAZIL 2026 UPDATES:
 - Manager: Carlo Ancelotti`;
   }
 
+  // Check for major players that need comprehensive achievements
+  const needsComprehensiveAchievements = 
+    queryLower.includes('messi') ||
+    queryLower.includes('ronaldo') ||
+    queryLower.includes('mbappé') ||
+    queryLower.includes('mbappe') ||
+    queryLower.includes('haaland') ||
+    queryLower.includes('neymar') ||
+    queryLower.includes('bellingham') ||
+    queryLower.includes('kane') ||
+    queryLower.includes('de bruyne') ||
+    queryLower.includes('salah');
+
+  const achievementInstruction = needsComprehensiveAchievements ? 
+    `CRITICAL ACHIEVEMENT REQUIREMENT for ${query}: 
+- List AT LEAST 8-10 major achievements
+- Include all major trophies (Ballon d'Or, World Cup, Champions League, League titles, etc.)
+- Be comprehensive and accurate
+- Use "Xx" format for counts (e.g., "7x Ballon d'Or", "10x La Liga")` :
+    `ACHIEVEMENT REQUIREMENT:
+- List 3-5 key achievements for this player
+- Use "Xx" format for counts`;
+
   return `You are a football expert with verified 2025/2026 season knowledge. ACCURACY IS CRITICAL.
 
 CRITICAL INSTRUCTIONS FOR 2025/2026 SEASON:
 ${isLikelyPlayerSearch ? '1. If this is a PLAYER search, return ONLY that specific player with correct current team and stats' : '1. If this is a TEAM search, return A FULL SQUAD (minimum 15 players, ideally 20+) in the players array'}
 2. DO NOT mix players from different clubs - each player must have their ACTUAL current team (2026)
 3. EXCLUDE all retired, transferred, or loaned-out players
-4. Achievements MUST be accurate and complete
+4. ${achievementInstruction}
 5. Manager/Coach MUST be correct for January 2026
 6. Return VALID JSON that can be parsed - NO markdown, NO explanations
 7. Player "name" must be the NAME ONLY. Do not include descriptions like "replacement for X" or "(Captain)".
+8. Format achievements consistently: Use "Xx" format for counts (e.g., "7x Ballon d'Or", "10x La Liga", "4x UEFA Champions League") or "(X titles)" format (e.g., "UEFA Champions League (15 titles)")
 ${specificContext}
 
 REQUIRED JSON STRUCTURE (must include these fields):
@@ -833,7 +939,7 @@ REQUIRED JSON STRUCTURE (must include these fields):
     "majorAchievements": {
       ${achievementStructure}
       ${continentalExample}
-      "domestic": ["La Liga (35 titles)", "Copa del Rey (20 titles)"]
+      "domestic": ["36x La Liga", "20x Copa del Rey"]
     }
   }],
   "players": [
@@ -847,8 +953,8 @@ REQUIRED JSON STRUCTURE (must include these fields):
       "careerAssists": 50,
       "internationalAppearances": 50,
       "internationalGoals": 15,
-      "majorAchievements": ["Trophy or honor"],
-      "careerSummary": "Brief career description"
+      "majorAchievements": ["7x Ballon d'Or", "10x La Liga", "4x UEFA Champions League", "1x FIFA World Cup", "3x UEFA Super Cup", "1x Copa América", "8x Spanish Super Cup"],
+      "careerSummary": "Brief career description including key achievements"
     }
   ]
 }
@@ -967,6 +1073,48 @@ const fetchPlayerImageWithRetry = async (playerName: string, retries = 2): Promi
   return undefined;
 };
 
+// FIXED: Achievement parsing function
+const parseTitleCount = (arr?: string[] | undefined): number => {
+  if (!arr || arr.length === 0) return 0;
+  let total = 0;
+  for (const entry of arr) {
+    if (!entry) continue;
+    // IMPROVED: Better parsing for various achievement formats
+    // 1. Look for "Xx" or "X x" pattern at start (like "7x", "10x", "4x")
+    const prefixMatch = entry.match(/^(\d+)\s*x\s+/i);
+    if (prefixMatch) {
+      total += parseInt(prefixMatch[1], 10);
+      continue;
+    }
+    // 2. Look for " (X titles)" or " (X)" pattern
+    const suffixMatch = entry.match(/\((\d+)(?:\s*titles?)?\)/i);
+    if (suffixMatch) {
+      total += parseInt(suffixMatch[1], 10);
+      continue;
+    }
+    // 3. Look for years pattern like "2014, 2016, 2017, 2018, 2022, 2024"
+    const years = entry.match(/\b(19|20)\d{2}\b/g);
+    if (years && years.length > 0) {
+      total += years.length;
+    } else {
+      // 4. Default to 1 if we can't parse a specific number
+      total += 1;
+    }
+  }
+  return total;
+};
+
+// Debug function for achievement parsing
+const debugAchievements = (achievements: any, teamName: string) => {
+  console.log(`[DEBUG] Achievements for ${teamName}:`, {
+    rawAchievements: achievements,
+    parsedWorldCup: parseTitleCount(achievements.worldCup),
+    parsedInternational: parseTitleCount(achievements.international),
+    parsedContinental: parseTitleCount(achievements.continental),
+    parsedDomestic: parseTitleCount(achievements.domestic)
+  });
+};
+
 export const searchWithGROQ = async (query: string, language: string = 'en', bustCache: boolean = false): Promise<GROQSearchResponse> => {
   console.log(`\n⚽ [${CURRENT_SEASON}] Searching: "${query}" using optimized model selection`);
   
@@ -1015,7 +1163,7 @@ CRITICAL RULES:
 2. If this is a TEAM search (like "Real Madrid"), return current squad with AT LEAST 15 players
 3. DO NOT show players from old teams (e.g., PSG players for Mbappé search)
 4. Each player's "currentTeam" MUST be their ACTUAL 2026 club
-5. Include realistic statistics and achievements
+5. Include COMPREHENSIVE achievements - at least 5 for regular players, 8-10 for legends
 6. Return valid JSON only` }
         ],
         model: selectedModel,
@@ -1102,6 +1250,24 @@ CRITICAL RULES:
 
               const validatedPlayer = player;
 
+              // ENHANCED: Extract achievements from multiple sources
+              let achievements = Array.isArray(validatedPlayer.majorAchievements) ? validatedPlayer.majorAchievements : [];
+              
+              // Log achievement count for debugging
+              console.log(`[ACHIEVEMENTS] ${validatedPlayer.name}: ${achievements.length} achievements from GROQ`);
+              
+              // If achievements are minimal, try to extract from careerSummary
+              if (achievements.length < 3 && validatedPlayer.careerSummary) {
+                const extracted = extractAchievementsFromText(validatedPlayer.careerSummary);
+                if (extracted.length > 0) {
+                  console.log(`[ACHIEVEMENTS] Extracted ${extracted.length} achievements from summary for ${validatedPlayer.name}`);
+                  achievements = [...new Set([...achievements, ...extracted])]; // Combine and deduplicate
+                }
+              }
+              
+              // Log final achievement count
+              console.log(`[ACHIEVEMENTS] ${validatedPlayer.name}: Final count = ${achievements.length}`);
+
               return {
                 name: validatedPlayer.name || 'Unknown',
                 currentTeam: validatedPlayer.currentTeam || query,
@@ -1112,7 +1278,7 @@ CRITICAL RULES:
                 careerAssists: validatedPlayer.careerAssists || 0,
                 internationalAppearances: validatedPlayer.internationalAppearances || 0,
                 internationalGoals: validatedPlayer.internationalGoals || 0,
-                majorAchievements: Array.isArray(validatedPlayer.majorAchievements) ? validatedPlayer.majorAchievements : [],
+                majorAchievements: achievements,
                 careerSummary: validatedPlayer.careerSummary || `${validatedPlayer.name} plays for ${validatedPlayer.currentTeam || query}.`,
                 imageUrl: imageUrl,
                 _source: 'GROQ AI',
@@ -1236,8 +1402,18 @@ CRITICAL RULES:
              
              const validated = player;
              
+             // Extract achievements from summary if needed
+             let achievements = validated.majorAchievements || [];
+             if (achievements.length < 3 && validated.careerSummary) {
+               const extracted = extractAchievementsFromText(validated.careerSummary);
+               if (extracted.length > 0) {
+                 achievements = [...new Set([...achievements, ...extracted])];
+               }
+             }
+             
              return {
                ...validated,
+               majorAchievements: achievements,
                imageUrl,
                _source: 'Football Data API',
                _lastVerified: new Date().toISOString(),
@@ -1273,30 +1449,8 @@ CRITICAL RULES:
     // Validate all players
     const validatedPlayers = enhancedResult.players.map(player => validatePlayer(player));
     
-    // Calculate achievement counts by parsing titles (sum actual trophy counts if present)
+    // Calculate achievement counts using the improved parsing function
     const teamAchievements = enhancedResult.teams[0]?.majorAchievements || {};
-
-    const parseTitleCount = (arr?: string[] | undefined): number => {
-      if (!arr || arr.length === 0) return 0;
-      let total = 0;
-      for (const entry of arr) {
-        if (!entry) continue;
-        // Extract title count from format: "Competition Name (N titles): years" or "Competition (N): years"
-        const m = entry.match(/\((\d{1,3})\s*titles?\)|\((\d{1,3})\)/i);
-        if (m && (m[1] || m[2])) {
-          total += parseInt(m[1] || m[2], 10);
-        } else {
-          // fallback: count years or default to 1
-          const years = entry.match(/\b(19|20)\d{2}\b/g);
-          if (years && years.length > 0) {
-            total += years.length;
-          } else {
-            total += 1;
-          }
-        }
-      }
-      return total;
-    };
 
     const achievementCounts = {
       worldCup: enhancedTeam.type === 'national' ? parseTitleCount(teamAchievements.worldCup) : 0,
@@ -1305,6 +1459,9 @@ CRITICAL RULES:
       domestic: enhancedTeam.type === 'club' ? parseTitleCount(teamAchievements.domestic) : 0
     };
 
+    // Debug achievement parsing
+    debugAchievements(teamAchievements, enhancedTeam.name);
+    
     const totalAchievements = Object.values(achievementCounts).reduce((sum, count) => sum + count, 0);
     
     const finalResult: GROQSearchResponse = {
