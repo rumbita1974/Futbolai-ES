@@ -6,11 +6,12 @@ import { usePathname } from "next/navigation";
 export default function MobileNav() {
   const pathname = usePathname();
 
+  // UPDATED: "Players" changed to "Fantasy & Odds" with appropriate icon
   const navItems = [
     { href: "/", label: "Home", icon: "🏠" },
     { href: "/world-cup", label: "World Cup", icon: "🌎" },
+    { href: "/fantasy-odds", label: "Fantasy & Odds", icon: "🎲" },
     { href: "/teams", label: "Teams", icon: "👥" },
-    { href: "/players", label: "Players", icon: "👤" },
     { href: "/highlights", label: "Highlights", icon: "🎥" },
   ];
 

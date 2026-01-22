@@ -195,6 +195,11 @@ export default function HomePage() {
     }
   };
 
+  // Navigate to Fantasy & Odds page
+  const navigateToFantasyOdds = () => {
+    router.push('/fantasy-odds');
+  };
+
   const exampleSearches = {
     player: [
       { term: 'Lionel Messi', emoji: '🇦🇷' },
@@ -268,7 +273,7 @@ export default function HomePage() {
                 <span className="mr-1">📊</span> {getTranslation('detailedStats')}
               </span>
               <span className="px-3 py-1.5 bg-purple-100 text-purple-700 rounded-full text-sm font-medium flex items-center">
-                <span className="mr-1">🏆</span> {getTranslation('achievements')}
+                <span className="mr-1">🎲</span> Fantasy & Odds
               </span>
               <span className="px-3 py-1.5 bg-red-100 text-red-700 rounded-full text-sm font-medium flex items-center">
                 <span className="mr-1">📺</span> {getTranslation('videoHighlights')}
@@ -418,64 +423,73 @@ export default function HomePage() {
                 </div>
               </a>
               
-              <div className="group bg-white rounded-xl shadow-lg p-6 text-center hover:shadow-xl transition hover:-translate-y-1 border border-gray-200">
-                <div className="text-green-600 text-4xl sm:text-5xl mb-4 group-hover:scale-110 transition">📊</div>
-                <h3 className="text-xl font-bold text-gray-800 mb-3">{getTranslation('analyticsTitle')}</h3>
-                <p className="text-gray-600 mb-4">{getTranslation('analyticsDesc')}</p>
-                <div className="inline-block mt-2 px-4 py-2 bg-green-600 text-white rounded-lg font-medium">
-                  {getTranslation('searchAbove')}
+              <button
+                onClick={navigateToFantasyOdds}
+                className="group bg-white rounded-xl shadow-lg p-6 text-center hover:shadow-xl transition hover:-translate-y-1 border border-gray-200 cursor-pointer"
+              >
+                <div className="text-purple-600 text-4xl sm:text-5xl mb-4 group-hover:scale-110 transition">🎲</div>
+                <h3 className="text-xl font-bold text-gray-800 mb-3">AI Fantasy & Odds</h3>
+                <p className="text-gray-600 mb-4">AI-powered match predictions, fantasy team picks, and betting value analysis</p>
+                <div className="inline-block mt-2 px-4 py-2 bg-purple-600 text-white rounded-lg font-medium group-hover:bg-purple-700 transition">
+                  View Predictions
                 </div>
-              </div>
+              </button>
               
-              <div className="group bg-white rounded-xl shadow-lg p-6 text-center hover:shadow-xl transition hover:-translate-y-1 border border-gray-200">
-                <div className="text-red-600 text-4xl sm:text-5xl mb-4 group-hover:scale-110 transition">🎥</div>
-                <h3 className="text-xl font-bold text-gray-800 mb-3">{getTranslation('videosTitle')}</h3>
-                <p className="text-gray-600 mb-4">{getTranslation('videosDesc')}</p>
-                <div className="inline-block mt-2 px-4 py-2 bg-red-600 text-white rounded-lg font-medium">
-                  {getTranslation('trySearch')}
+              <a 
+                href="/highlights" 
+                className="group bg-white rounded-xl shadow-lg p-6 text-center hover:shadow-xl transition hover:-translate-y-1 border border-gray-200"
+              >
+                <div className="text-green-600 text-4xl sm:text-5xl mb-4 group-hover:scale-110 transition">📊</div>
+                <h3 className="text-xl font-bold text-gray-800 mb-3">Match Highlights</h3>
+                <p className="text-gray-600 mb-4">Latest results, upcoming fixtures, and live scores from major leagues</p>
+                <div className="inline-block mt-2 px-4 py-2 bg-green-600 text-white rounded-lg font-medium group-hover:bg-green-700 transition">
+                  View Matches
                 </div>
-              </div>
+              </a>
             </div>
 
             {/* Quick Stats */}
             <div className="mt-12 sm:mt-16 bg-gradient-to-r from-blue-600 to-green-600 rounded-2xl p-6 sm:p-8 text-white">
-              <h3 className="text-xl sm:text-2xl font-bold mb-6 text-center">{getTranslation('dataCoverage')}</h3>
+              <h3 className="text-xl sm:text-2xl font-bold mb-6 text-center">📈 Football Data Coverage</h3>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div className="text-center">
                   <div className="text-2xl sm:text-3xl font-bold">10,000+</div>
-                  <div className="text-blue-100 text-sm mt-1">{getTranslation('players')}</div>
+                  <div className="text-blue-100 text-sm mt-1">Players</div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl sm:text-3xl font-bold">500+</div>
-                  <div className="text-blue-100 text-sm mt-1">{getTranslation('teams')}</div>
+                  <div className="text-blue-100 text-sm mt-1">Teams</div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl sm:text-3xl font-bold">50+</div>
-                  <div className="text-blue-100 text-sm mt-1">{getTranslation('leagues')}</div>
+                  <div className="text-blue-100 text-sm mt-1">Leagues</div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl sm:text-3xl font-bold">100+</div>
-                  <div className="text-blue-100 text-sm mt-1">{getTranslation('countries')}</div>
+                  <div className="text-blue-100 text-sm mt-1">Countries</div>
                 </div>
               </div>
             </div>
 
             {/* Quick Links */}
             <div className="mt-12 text-center">
-              <h3 className="text-xl font-bold text-gray-800 mb-6">{getTranslation('quickAccess')}</h3>
+              <h3 className="text-xl font-bold text-gray-800 mb-6">Quick Access</h3>
               <div className="flex flex-wrap justify-center gap-3">
                 <a href="/world-cup" className="px-4 sm:px-6 py-3 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 font-medium">
-                  {getTranslation('worldCupSchedule')}
+                  World Cup 2026
                 </a>
-                <a href="/api/worldcup" target="_blank" className="px-4 sm:px-6 py-3 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 font-medium">
-                  {getTranslation('apiData')}
+                <button
+                  onClick={navigateToFantasyOdds}
+                  className="px-4 sm:px-6 py-3 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 font-medium"
+                >
+                  Fantasy & Odds
+                </button>
+                <a href="/highlights" className="px-4 sm:px-6 py-3 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 font-medium">
+                  Match Highlights
                 </a>
-                <button className="px-4 sm:px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium">
-                  {getTranslation('playerDatabase')}
-                </button>
-                <button className="px-4 sm:px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium">
-                  {getTranslation('teamAnalysis')}
-                </button>
+                <a href="/teams" className="px-4 sm:px-6 py-3 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 font-medium">
+                  Team Analysis
+                </a>
               </div>
             </div>
           </div>
@@ -485,13 +499,13 @@ export default function HomePage() {
         <div className="mt-12 sm:mt-16 pt-8 border-t border-gray-200">
           <div className="text-center text-gray-500 text-sm">
             <p className="mb-2">
-              ⚽ <span className="font-medium">{getTranslation('footerNote')}</span>
+              ⚽ <span className="font-medium">Your AI-powered football analytics companion</span>
             </p>
             <p className="text-gray-400">
-              {getTranslation('dataSource')}
+              Powered by real-time data and AI analysis
             </p>
             <div className="mt-4 text-xs text-gray-400">
-              <p>{getTranslation('copyright').replace('{year}', new Date().getFullYear().toString())}</p>
+              <p>© {new Date().getFullYear()} FutbolAI. All rights reserved.</p>
             </div>
           </div>
         </div>
