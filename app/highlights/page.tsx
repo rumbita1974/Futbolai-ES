@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useTranslation } from '@/hooks/useTranslation';
+import { useTranslation } from '@/hooks/useTranslation'; // ADD THIS IMPORT
 import type { MatchResult, FootballFunFact } from '@/services/matchesService';
 import { 
   getLatestResultsByLeague, 
@@ -62,7 +62,7 @@ const SourceIndicator = ({ source, confidence }: { source: string; confidence: s
 };
 
 export default function HighlightsPage() {
-  const { language } = useTranslation();
+  const { t, language } = useTranslation(); // ADD THIS HOOK
   const [groupedResults, setGroupedResults] = useState<LeagueGroupedMatches>({});
   const [upcomingMatchesGrouped, setUpcomingMatchesGrouped] = useState<LeagueGroupedMatches>({});
   const [transferNews, setTransferNews] = useState<EnhancedTransferNews[]>([]);
@@ -213,7 +213,7 @@ export default function HighlightsPage() {
         timeZone: userTimezone
       };
       
-      return date.toLocaleDateString('en-US', options);
+      return date.toLocaleDateString(language === 'es' ? 'es-ES' : 'en-US', options);
     } catch (err) {
       return dateString;
     }
@@ -230,7 +230,7 @@ export default function HighlightsPage() {
         timeZone: userTimezone
       };
       
-      return date.toLocaleDateString('en-US', options);
+      return date.toLocaleDateString(language === 'es' ? 'es-ES' : 'en-US', options);
     } catch (err) {
       return dateString;
     }
@@ -363,7 +363,7 @@ export default function HighlightsPage() {
                   {LEAGUE_DISPLAY_NAMES[leagueId] || leagueData.leagueName}
                 </h3>
                 <p className="text-sm text-gray-400">
-                  {leagueData.country} • {leagueData.matches.length} match{leagueData.matches.length !== 1 ? 'es' : ''}
+                  {leagueData.country} • {leagueData.matches.length} {leagueData.matches.length !== 1 ? t('common.matches') : 'match'}
                 </p>
               </div>
             </div>
@@ -374,7 +374,7 @@ export default function HighlightsPage() {
               }))}
               className="text-sm text-gray-400 hover:text-white transition-colors px-3 py-1 bg-gray-700/50 rounded"
             >
-              {isExpanded ? '▲ Collapse' : '▼ Expand'}
+              {isExpanded ? '▲ ' + t('common.collapse') : '▼ ' + t('common.expand')}
             </button>
           </div>
         </div>
@@ -390,7 +390,7 @@ export default function HighlightsPage() {
         
         {isExpanded && leagueData.matches.length === 0 && (
           <div className="text-center py-4 bg-gray-800/20 rounded-lg">
-            <p className="text-gray-400 text-sm">No matches in this date range</p>
+            <p className="text-gray-400 text-sm">{t('highlights.noMatchResults')}</p>
           </div>
         )}
       </div>
@@ -428,7 +428,7 @@ export default function HighlightsPage() {
                   {LEAGUE_DISPLAY_NAMES[leagueId] || leagueData.leagueName}
                 </h3>
                 <p className="text-sm text-gray-400">
-                  {leagueData.country} • {leagueData.matches.length} match{leagueData.matches.length !== 1 ? 'es' : ''}
+                  {leagueData.country} • {leagueData.matches.length} {leagueData.matches.length !== 1 ? t('common.matches') : 'match'}
                 </p>
               </div>
             </div>
@@ -439,7 +439,7 @@ export default function HighlightsPage() {
               }))}
               className="text-sm text-gray-400 hover:text-white transition-colors px-3 py-1 bg-gray-700/50 rounded"
             >
-              {isExpanded ? '▲ Collapse' : '▼ Expand'}
+              {isExpanded ? '▲ ' + t('common.collapse') : '▼ ' + t('common.expand')}
             </button>
           </div>
         </div>
@@ -455,7 +455,7 @@ export default function HighlightsPage() {
         
         {isExpanded && leagueData.matches.length === 0 && (
           <div className="text-center py-4 bg-gray-800/20 rounded-lg">
-            <p className="text-gray-400 text-sm">No upcoming matches in this date range</p>
+            <p className="text-gray-400 text-sm">{t('highlights.noUpcomingMatches')}</p>
           </div>
         )}
       </div>
@@ -554,7 +554,7 @@ export default function HighlightsPage() {
                 ))}
               </div>
             </div>
-            <p className="text-gray-400 mt-8">Loading verified football data...</p>
+            <p className="text-gray-400 mt-8">{t('highlights.loadingData')}</p>
           </div>
         </div>
       </div>
@@ -578,52 +578,52 @@ export default function HighlightsPage() {
           <div className="mb-8">
             <h1 className="text-4xl md:text-6xl font-bold mb-4">
               <span className="bg-gradient-to-r from-blue-400 to-green-400 bg-clip-text text-transparent">
-                Football Highlights
+                {t('highlights.title')}
               </span>
             </h1>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <p className="text-xl text-gray-300">
-                Latest results and upcoming matches from major leagues
+                {t('highlights.subtitle')}
               </p>
               <div className="px-3 py-1 rounded-full text-sm font-medium bg-orange-900/30 text-orange-400">
-                ⚠️ API Key Required
+                {t('highlights.apiKeyRequired')}
               </div>
             </div>
           </div>
 
           {/* Error Message */}
           <div className="mb-8 bg-gradient-to-r from-orange-900/20 to-red-900/20 border border-orange-700/30 rounded-lg p-6">
-            <h2 className="text-2xl font-bold text-orange-400 mb-4">Configuration Required</h2>
+            <h2 className="text-2xl font-bold text-orange-400 mb-4">{t('highlights.configurationRequired')}</h2>
             <p className="text-gray-300 mb-4">{errorMessage}</p>
             
             <div className="bg-gray-900/50 rounded-lg p-4 mb-4">
-              <h3 className="text-lg font-bold text-gray-200 mb-2">To fix this issue:</h3>
+              <h3 className="text-lg font-bold text-gray-200 mb-2">{t('highlights.howToFix')}:</h3>
               <ol className="list-decimal pl-5 space-y-2 text-gray-300">
-                <li>Go to your Vercel project dashboard</li>
-                <li>Navigate to Settings → Environment Variables</li>
-                <li>Add the following environment variable:
+                <li>{t('common.goTo') || 'Go to your Vercel project dashboard'}</li>
+                <li>{t('common.navigateTo') || 'Navigate to Settings → Environment Variables'}</li>
+                <li>{t('common.addVariable') || 'Add the following environment variable:'}
                   <code className="block bg-gray-800 p-2 rounded mt-2 font-mono text-sm">
                     FOOTBALL_DATA_API_KEY=your_api_key_here
                   </code>
                 </li>
-                <li>Redeploy your application</li>
+                <li>{t('common.redeploy') || 'Redeploy your application'}</li>
               </ol>
             </div>
             
             <div className="bg-blue-900/20 rounded-lg p-4">
-              <h3 className="text-lg font-bold text-blue-400 mb-2">How to get an API key:</h3>
+              <h3 className="text-lg font-bold text-blue-400 mb-2">{t('highlights.howToGetAPIKey')}:</h3>
               <ul className="list-disc pl-5 space-y-1 text-gray-300">
-                <li>Visit <a href="https://www.football-data.org/" target="_blank" className="text-blue-400 hover:text-blue-300">football-data.org</a></li>
-                <li>Sign up for a free account</li>
-                <li>Get your API key from the dashboard</li>
-                <li>Free tier includes 10 requests per minute</li>
+                <li>{t('common.visit') || 'Visit'} <a href="https://www.football-data.org/" target="_blank" className="text-blue-400 hover:text-blue-300">football-data.org</a></li>
+                <li>{t('highlights.signUp')}</li>
+                <li>{t('highlights.getAPIKey')}</li>
+                <li>{t('highlights.freeTier')}</li>
               </ul>
             </div>
           </div>
 
           {/* Transfers still work without API key */}
           <div className="mb-8">
-            <h2 className="text-2xl font-bold mb-6">Transfer News (Working)</h2>
+            <h2 className="text-2xl font-bold mb-6">{t('highlights.transferMarket')}</h2>
             {transferNews.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {transferNews.map((transfer, idx) => (
@@ -632,7 +632,7 @@ export default function HighlightsPage() {
               </div>
             ) : (
               <div className="text-center py-8 bg-gray-800/20 rounded-lg">
-                <p className="text-gray-400">No transfer data available</p>
+                <p className="text-gray-400">{t('highlights.noConfirmedTransfers')}</p>
               </div>
             )}
           </div>
@@ -648,10 +648,10 @@ export default function HighlightsPage() {
               }}
               className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold transition-colors"
             >
-              Retry Loading Data
+              {t('highlights.retryLoading')}
             </button>
             <p className="text-gray-500 text-sm mt-2">
-              After adding API key, retry loading data
+              {t('highlights.afterAddingAPIKey')}
             </p>
           </div>
         </div>
@@ -666,20 +666,20 @@ export default function HighlightsPage() {
         <div className="mb-8">
           <h1 className="text-4xl md:text-6xl font-bold mb-4">
             <span className="bg-gradient-to-r from-blue-400 to-green-400 bg-clip-text text-transparent">
-              Football Highlights
+              {t('highlights.title')}
             </span>
           </h1>
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <p className="text-xl text-gray-300">
-              Latest results and upcoming matches from major leagues
+              {t('highlights.subtitle')}
             </p>
             <div className={`px-3 py-1 rounded-full text-sm font-medium ${
               dataStatus === 'live' ? 'bg-green-900/30 text-green-400' :
               dataStatus === 'error' ? 'bg-red-900/30 text-red-400' :
               'bg-gray-700 text-gray-300'
             }`}>
-              {dataStatus === 'live' ? '✓ Live Data' : 
-               dataStatus === 'error' ? '⚠️ Error' : '📊 Loading'}
+              {dataStatus === 'live' ? t('highlights.liveData') : 
+               dataStatus === 'error' ? '⚠️ ' + t('common.error') : '📊 ' + t('common.loading')}
             </div>
           </div>
         </div>
@@ -690,7 +690,7 @@ export default function HighlightsPage() {
             <div className="flex items-start gap-3">
               <div className="text-red-400 text-2xl">⚠️</div>
               <div>
-                <h3 className="text-lg font-bold text-red-400 mb-2">Error Loading Data</h3>
+                <h3 className="text-lg font-bold text-red-400 mb-2">{t('common.error')}</h3>
                 <p className="text-gray-300">{errorMessage}</p>
               </div>
             </div>
@@ -700,12 +700,12 @@ export default function HighlightsPage() {
         {/* Fun Fact Banner */}
         {funFact && (
           <div className="mb-8 bg-gradient-to-r from-yellow-900/20 to-orange-900/20 border border-yellow-700/30 rounded-lg p-6">
-            <h2 className="text-2xl font-bold text-yellow-400 mb-2">Fun Fact of the Day</h2>
+            <h2 className="text-2xl font-bold text-yellow-400 mb-2">{t('highlights.funFactOfTheDay')}</h2>
             <p className="text-gray-300">{funFact.description}</p>
             <div className="mt-3 flex justify-between items-center">
               <span className="text-sm text-gray-400">{funFact.category}</span>
               <span className="text-xs text-gray-500">
-                {funFact._source === 'groq-ai' ? 'AI Generated' : 'Verified Fact'}
+                {funFact._source === 'groq-ai' ? t('highlights.aiGenerated') : t('highlights.verifiedFact')}
               </span>
             </div>
           </div>
@@ -721,7 +721,7 @@ export default function HighlightsPage() {
                 : 'text-gray-400 hover:text-white hover:bg-gray-800/20'
             }`}
           >
-            📊 Recent Results
+            {t('highlights.recentResults')}
           </button>
           <button
             onClick={() => setActiveTab('upcoming')}
@@ -731,7 +731,7 @@ export default function HighlightsPage() {
                 : 'text-gray-400 hover:text-white hover:bg-gray-800/20'
             }`}
           >
-            📅 Upcoming Matches
+            {t('highlights.upcomingMatches')}
           </button>
           <button
             onClick={() => setActiveTab('transfers')}
@@ -741,7 +741,7 @@ export default function HighlightsPage() {
                 : 'text-gray-400 hover:text-white hover:bg-gray-800/20'
             }`}
           >
-            🔄 Transfer News
+            {t('highlights.transferNews')}
           </button>
         </div>
 
@@ -752,17 +752,17 @@ export default function HighlightsPage() {
             <>
               <div className="flex justify-between items-center mb-6">
                 <div>
-                  <h2 className="text-2xl font-bold">Latest Results</h2>
+                  <h2 className="text-2xl font-bold">{t('highlights.latestResults')}</h2>
                   <p className="text-gray-400 text-sm">
-                    Showing matches from {weekRange.recentFrom} to {weekRange.recentTo}
+                    {t('highlights.showingMatches')} {weekRange.recentFrom} {t('highlights.to')} {weekRange.recentTo}
                   </p>
                 </div>
                 <div className="flex flex-col items-end">
                   <div className="text-sm text-gray-400">
-                    {Object.keys(groupedResults).length} leagues • {totalResults} matches
+                    {Object.keys(groupedResults).length} {t('highlights.leagues')} • {totalResults} {t('highlights.matches')}
                   </div>
                   <span className="text-xs text-gray-400">
-                    Times in {userTimezone.replace('_', ' ')}
+                    {t('highlights.timesIn')} {userTimezone.replace('_', ' ')}
                   </span>
                 </div>
               </div>
@@ -772,7 +772,7 @@ export default function HighlightsPage() {
                   {/* European Leagues Section */}
                   <div>
                     <h3 className="text-lg font-bold text-blue-400 mb-4 flex items-center gap-2">
-                      <span>🇪🇺</span> European Leagues
+                      <span>🇪🇺</span> {t('highlights.europeanLeagues')}
                     </h3>
                     {LEAGUE_PRIORITY_ORDER
                       .filter(id => ['CL', 'PD', 'PL', 'SA', 'BL1', 'FL1'].includes(id))
@@ -790,9 +790,9 @@ export default function HighlightsPage() {
                 </div>
               ) : (
                 <div className="text-center py-12 bg-gray-800/20 rounded-lg">
-                  <p className="text-gray-400">No match results available for this week</p>
+                  <p className="text-gray-400">{t('highlights.noMatchResults')}</p>
                   <p className="text-sm text-gray-500 mt-2">
-                    {dataStatus === 'error' ? 'Failed to load match data' : 'Check back later for updated results'}
+                    {dataStatus === 'error' ? t('highlights.failedToLoad') : t('highlights.checkBackLater')}
                   </p>
                 </div>
               )}
@@ -804,17 +804,17 @@ export default function HighlightsPage() {
             <>
               <div className="flex justify-between items-center mb-6">
                 <div>
-                  <h2 className="text-2xl font-bold">Upcoming Matches This Week</h2>
+                  <h2 className="text-2xl font-bold">{t('highlights.upcomingMatchesThisWeek')}</h2>
                   <p className="text-gray-400 text-sm">
-                    Showing matches from {weekRange.upcomingFrom} to {weekRange.upcomingTo}
+                    {t('highlights.showingMatches')} {weekRange.upcomingFrom} {t('highlights.to')} {weekRange.upcomingTo}
                   </p>
                 </div>
                 <div className="flex flex-col items-end">
                   <div className="text-sm text-gray-400">
-                    {Object.keys(upcomingMatchesGrouped).length} leagues • {totalUpcomingMatches} matches
+                    {Object.keys(upcomingMatchesGrouped).length} {t('highlights.leagues')} • {totalUpcomingMatches} {t('highlights.matches')}
                   </div>
                   <span className="text-xs text-gray-400">
-                    Times in {userTimezone.replace('_', ' ')}
+                    {t('highlights.timesIn')} {userTimezone.replace('_', ' ')}
                   </span>
                 </div>
               </div>
@@ -832,9 +832,9 @@ export default function HighlightsPage() {
                 </div>
               ) : (
                 <div className="text-center py-12 bg-gray-800/20 rounded-lg">
-                  <p className="text-gray-400">No upcoming matches scheduled this week</p>
+                  <p className="text-gray-400">{t('highlights.noUpcomingMatches')}</p>
                   <p className="text-sm text-gray-500 mt-2">
-                    {dataStatus === 'error' ? 'Failed to load upcoming matches' : 'Check back later for updated fixtures'}
+                    {dataStatus === 'error' ? t('highlights.failedToLoadUpcoming') : t('highlights.checkBackLaterFixtures')}
                   </p>
                 </div>
               )}
@@ -846,14 +846,14 @@ export default function HighlightsPage() {
             <>
               <div className="flex justify-between items-center mb-6">
                 <div>
-                  <h2 className="text-2xl font-bold">Transfer Market</h2>
+                  <h2 className="text-2xl font-bold">{t('highlights.transferMarket')}</h2>
                   <p className="text-gray-400 text-sm">
-                    Latest confirmed transfers • {transferNews.length} transfers
+                    {t('highlights.latestConfirmedTransfers', { count: transferNews.length })}
                   </p>
                 </div>
                 <div className="flex gap-2">
-                  <span className="px-2 py-1 bg-red-900/30 text-red-400 rounded text-xs">High Impact</span>
-                  <span className="px-2 py-1 bg-blue-900/30 text-blue-400 rounded text-xs">Confirmed</span>
+                  <span className="px-2 py-1 bg-red-900/30 text-red-400 rounded text-xs">{t('highlights.highImpact')}</span>
+                  <span className="px-2 py-1 bg-blue-900/30 text-blue-400 rounded text-xs">{t('highlights.confirmed')}</span>
                 </div>
               </div>
               
@@ -865,17 +865,17 @@ export default function HighlightsPage() {
               
               {transferNews.length === 0 && (
                 <div className="text-center py-12 bg-gray-800/20 rounded-lg">
-                  <p className="text-gray-400">No confirmed transfers available at the moment</p>
-                  <p className="text-sm text-gray-500 mt-2">Check back later for transfer updates</p>
+                  <p className="text-gray-400">{t('highlights.noConfirmedTransfers')}</p>
+                  <p className="text-sm text-gray-500 mt-2">{t('highlights.checkBackLaterTransfers')}</p>
                 </div>
               )}
               
               <div className="mt-8 p-4 bg-gray-800/30 rounded-lg border border-gray-700">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-300">Transfer data updates every 6 hours</p>
+                    <p className="text-sm text-gray-300">{t('highlights.transferUpdates')}</p>
                     <p className="text-xs text-gray-500 mt-1">
-                      Only confirmed transfers shown. No rumors or unverified data.
+                      {t('highlights.onlyConfirmed')}
                     </p>
                   </div>
                   <button 
@@ -885,7 +885,7 @@ export default function HighlightsPage() {
                     }}
                     className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors"
                   >
-                    Refresh Transfers
+                    {t('highlights.refreshTransfers')}
                   </button>
                 </div>
               </div>
@@ -905,14 +905,14 @@ export default function HighlightsPage() {
             }}
             className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold transition-colors"
           >
-            Refresh All Data
+            {t('highlights.refreshAllData')}
           </button>
           <p className="text-gray-500 text-sm mt-2">
-            Data updates every 15 minutes • Real verified sources only
+            {t('highlights.dataUpdates')}
           </p>
           {dataStatus === 'error' && (
             <p className="text-orange-400 text-sm mt-2">
-              Error loading match data. Check your Football Data API configuration.
+              {t('highlights.errorLoadingMatchData')}
             </p>
           )}
         </div>

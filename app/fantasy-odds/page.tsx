@@ -3,6 +3,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from '@/hooks/useTranslation'; // ADD THIS IMPORT
 import type { MatchResult } from '@/services/matchesService';
 import { 
   getUpcomingMatchesGrouped,
@@ -68,6 +69,7 @@ interface ValueBet {
 }
 
 export default function FantasyOddsPage() {
+  const { t, language } = useTranslation(); // ADD THIS HOOK
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'predictions' | 'fantasy' | 'value'>('predictions');
   const [predictions, setPredictions] = useState<MatchPrediction[]>([]);
@@ -138,7 +140,7 @@ export default function FantasyOddsPage() {
   const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString);
-      return date.toLocaleDateString('en-US', {
+      return date.toLocaleDateString(language === 'es' ? 'es-ES' : 'en-US', {
         weekday: 'short',
         month: 'short',
         day: 'numeric',
@@ -199,7 +201,7 @@ export default function FantasyOddsPage() {
                 ))}
               </div>
             </div>
-            <p className="text-gray-400 mt-8">Loading AI-powered predictions and odds...</p>
+            <p className="text-gray-400 mt-8">{t('fantasy.loadingAIPredictions')}</p>
           </div>
         </div>
       </div>
@@ -214,7 +216,7 @@ export default function FantasyOddsPage() {
             <div className="flex items-start gap-3">
               <div className="text-red-400 text-2xl">⚠️</div>
               <div>
-                <h3 className="text-lg font-bold text-red-400 mb-2">Error Loading Data</h3>
+                <h3 className="text-lg font-bold text-red-400 mb-2">{t('fantasy.errorLoadingData')}</h3>
                 <p className="text-gray-300">{error}</p>
               </div>
             </div>
@@ -225,7 +227,7 @@ export default function FantasyOddsPage() {
               onClick={loadData}
               className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold transition-colors"
             >
-              Retry Loading Data
+              {t('fantasy.retryLoadingData')}
             </button>
           </div>
         </div>
@@ -240,19 +242,19 @@ export default function FantasyOddsPage() {
         <div className="mb-8">
           <h1 className="text-4xl md:text-6xl font-bold mb-4">
             <span className="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-              AI Fantasy & Odds
+              {t('fantasy.title')}
             </span>
           </h1>
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <p className="text-xl text-gray-300">
-              AI-powered predictions, fantasy picks, and betting value analysis
+              {t('fantasy.subtitle')}
             </p>
             <div className="flex items-center gap-3">
               <div className="px-3 py-1 rounded-full text-sm font-medium bg-green-900/30 text-green-400">
-                🤖 AI Analysis
+                {t('fantasy.aiAnalysis')}
               </div>
               <div className="text-sm text-gray-400">
-                Updated: {lastUpdated}
+                {t('fantasy.updated')}: {lastUpdated}
               </div>
             </div>
           </div>
@@ -264,9 +266,9 @@ export default function FantasyOddsPage() {
             <div className="flex flex-col lg:flex-row gap-6">
               <div className="flex-1">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-2xl font-bold text-purple-400">🌟 Featured Match Analysis</h2>
+                  <h2 className="text-2xl font-bold text-purple-400">{t('fantasy.featuredMatchAnalysis')}</h2>
                   <div className={`px-3 py-1 rounded-full text-sm font-medium ${getConfidenceBg(featuredMatch.prediction.confidence)} ${getConfidenceColor(featuredMatch.prediction.confidence)}`}>
-                    {featuredMatch.prediction.confidence}% Confidence
+                    {featuredMatch.prediction.confidence}% {t('fantasy.confidence')}
                   </div>
                 </div>
                 
@@ -274,7 +276,7 @@ export default function FantasyOddsPage() {
                   <div className="flex items-center justify-between mb-4">
                     <div className="text-center flex-1">
                       <div className="font-bold text-xl text-white">{featuredMatch.homeTeam}</div>
-                      <div className="text-sm text-gray-400">Home</div>
+                      <div className="text-sm text-gray-400">{t('fantasy.home')}</div>
                     </div>
                     
                     <div className="mx-6 text-center">
@@ -285,14 +287,14 @@ export default function FantasyOddsPage() {
                     
                     <div className="text-center flex-1">
                       <div className="font-bold text-xl text-white">{featuredMatch.awayTeam}</div>
-                      <div className="text-sm text-gray-400">Away</div>
+                      <div className="text-sm text-gray-400">{t('fantasy.away')}</div>
                     </div>
                   </div>
                   
                   {featuredMatch.prediction.predictedScore && (
                     <div className="text-center mb-4">
                       <div className="text-lg font-bold text-yellow-400">
-                        Predicted Score: {featuredMatch.prediction.predictedScore}
+                        {t('fantasy.predictedScore')}: {featuredMatch.prediction.predictedScore}
                       </div>
                     </div>
                   )}
@@ -300,21 +302,21 @@ export default function FantasyOddsPage() {
                   <div className="grid grid-cols-3 gap-4 mb-4">
                     <div className="text-center p-3 bg-gray-800/60 rounded-lg">
                       <div className="text-2xl font-bold text-white">{featuredMatch.prediction.homeWin}%</div>
-                      <div className="text-sm text-gray-400">Home Win</div>
+                      <div className="text-sm text-gray-400">{t('fantasy.homeWin')}</div>
                     </div>
                     <div className="text-center p-3 bg-gray-800/60 rounded-lg">
                       <div className="text-2xl font-bold text-white">{featuredMatch.prediction.draw}%</div>
-                      <div className="text-sm text-gray-400">Draw</div>
+                      <div className="text-sm text-gray-400">{t('fantasy.draw')}</div>
                     </div>
                     <div className="text-center p-3 bg-gray-800/60 rounded-lg">
                       <div className="text-2xl font-bold text-white">{featuredMatch.prediction.awayWin}%</div>
-                      <div className="text-sm text-gray-400">Away Win</div>
+                      <div className="text-sm text-gray-400">{t('fantasy.awayWin')}</div>
                     </div>
                   </div>
                   
                   {featuredMatch.xg && (
                     <div className="mb-4">
-                      <h4 className="font-bold text-gray-300 mb-2">Expected Goals (xG):</h4>
+                      <h4 className="font-bold text-gray-300 mb-2">{t('fantasy.expectedGoals')}:</h4>
                       <div className="flex items-center gap-4">
                         <div className="flex-1">
                           <div className="text-sm text-gray-400 mb-1">{featuredMatch.homeTeam}</div>
@@ -346,8 +348,8 @@ export default function FantasyOddsPage() {
                     <div className="flex items-center gap-3 mb-2">
                       <div className="text-2xl">💰</div>
                       <div>
-                        <h4 className="font-bold">Value Bet Detected</h4>
-                        <p className="text-sm opacity-90">Bet on {featuredMatch.valueBet.type.toUpperCase()} (+{featuredMatch.valueBet.value}% value)</p>
+                        <h4 className="font-bold">{t('fantasy.valueBetDetected')}</h4>
+                        <p className="text-sm opacity-90">{t('fantasy.betOn')} {featuredMatch.valueBet.type.toUpperCase()} (+{featuredMatch.valueBet.value}% {t('fantasy.value')})</p>
                       </div>
                     </div>
                     <p className="text-sm">{featuredMatch.valueBet.reasoning}</p>
@@ -356,7 +358,7 @@ export default function FantasyOddsPage() {
               </div>
               
               <div className="lg:w-80">
-                <h3 className="font-bold text-gray-300 mb-3">📊 Key Factors</h3>
+                <h3 className="font-bold text-gray-300 mb-3">{t('fantasy.keyFactors')}</h3>
                 <ul className="space-y-2">
                   {featuredMatch.prediction.keyFactors.map((factor, index) => (
                     <li key={index} className="flex items-start gap-2 text-sm text-gray-300">
@@ -368,21 +370,21 @@ export default function FantasyOddsPage() {
                 
                 {featuredMatch.odds && (
                   <div className="mt-6 p-4 bg-gray-800/40 rounded-lg">
-                    <h3 className="font-bold text-gray-300 mb-3">🎰 Market Odds</h3>
+                    <h3 className="font-bold text-gray-300 mb-3">{t('fantasy.marketOdds')}</h3>
                     <div className="space-y-3">
                       <div className="flex justify-between items-center">
-                        <span className="text-gray-400">Home Win</span>
+                        <span className="text-gray-400">{t('fantasy.homeWin')}</span>
                         <span className="font-bold text-white">{featuredMatch.odds.home.toFixed(2)}</span>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="text-gray-400">Draw</span>
+                        <span className="text-gray-400">{t('fantasy.draw')}</span>
                         <span className="font-bold text-white">{featuredMatch.odds.draw.toFixed(2)}</span>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="text-gray-400">Away Win</span>
+                        <span className="text-gray-400">{t('fantasy.awayWin')}</span>
                         <span className="font-bold text-white">{featuredMatch.odds.away.toFixed(2)}</span>
                       </div>
-                      <div className="text-xs text-gray-500 mt-2">Provider: {featuredMatch.odds.provider}</div>
+                      <div className="text-xs text-gray-500 mt-2">{t('fantasy.provider')}: {featuredMatch.odds.provider}</div>
                     </div>
                   </div>
                 )}
@@ -401,7 +403,7 @@ export default function FantasyOddsPage() {
                 : 'text-gray-400 hover:text-white hover:bg-gray-800/20'
             }`}
           >
-            🔮 Match Predictions
+            {t('fantasy.matchPredictions')}
           </button>
           <button
             onClick={() => setActiveTab('fantasy')}
@@ -411,7 +413,7 @@ export default function FantasyOddsPage() {
                 : 'text-gray-400 hover:text-white hover:bg-gray-800/20'
             }`}
           >
-            🏆 Fantasy Picks
+            {t('fantasy.fantasyPicks')}
           </button>
           <button
             onClick={() => setActiveTab('value')}
@@ -421,7 +423,7 @@ export default function FantasyOddsPage() {
                 : 'text-gray-400 hover:text-white hover:bg-gray-800/20'
             }`}
           >
-            💰 Value Bets
+            {t('fantasy.valueBets')}
           </button>
         </div>
 
@@ -432,9 +434,9 @@ export default function FantasyOddsPage() {
             <>
               <div className="flex justify-between items-center mb-6">
                 <div>
-                  <h2 className="text-2xl font-bold">AI Match Predictions</h2>
+                  <h2 className="text-2xl font-bold">{t('fantasy.matchPredictions')}</h2>
                   <p className="text-gray-400 text-sm">
-                    Probability analysis for upcoming matches • {predictions.length} matches analyzed
+                    {t('fantasy.probabilityAnalysis')} • {predictions.length} {t('fantasy.matchesAnalyzed')}
                   </p>
                 </div>
               </div>
@@ -463,8 +465,8 @@ export default function FantasyOddsPage() {
                     
                     <div className="mb-4">
                       <div className="flex items-center justify-between mb-2">
-                        <div className="text-sm text-gray-400">Win Probability</div>
-                        <div className="text-xs text-gray-500">AI Analysis</div>
+                        <div className="text-sm text-gray-400">{t('fantasy.winProbabilityLabel')}</div>
+                        <div className="text-xs text-gray-500">{t('fantasy.aiAnalysisLabel')}</div>
                       </div>
                       
                       <div className="space-y-2">
@@ -512,14 +514,14 @@ export default function FantasyOddsPage() {
                     {prediction.prediction.predictedScore && (
                       <div className="mb-4 p-3 bg-gray-800/60 rounded-lg">
                         <div className="text-center">
-                          <div className="text-sm text-gray-400 mb-1">Predicted Score</div>
+                          <div className="text-sm text-gray-400 mb-1">{t('fantasy.predictedScore')}</div>
                           <div className="text-xl font-bold text-yellow-400">{prediction.prediction.predictedScore}</div>
                         </div>
                       </div>
                     )}
                     
                     <div className="mb-4">
-                      <h4 className="font-bold text-gray-300 mb-2 text-sm">Key Factors:</h4>
+                      <h4 className="font-bold text-gray-300 mb-2 text-sm">{t('fantasy.keyFactors')}:</h4>
                       <ul className="space-y-1">
                         {prediction.prediction.keyFactors.slice(0, 3).map((factor, index) => (
                           <li key={index} className="text-xs text-gray-400 flex items-start gap-2">
@@ -534,8 +536,8 @@ export default function FantasyOddsPage() {
                       <div className={`p-3 rounded-lg ${getValueBg(prediction.valueBet.value)} ${getValueColor(prediction.valueBet.value)}`}>
                         <div className="flex items-center justify-between">
                           <div>
-                            <div className="font-bold">💰 Value Bet</div>
-                            <div className="text-sm opacity-90">Bet on {prediction.valueBet.type}</div>
+                            <div className="font-bold">💰 {t('fantasy.valueBetDetected')}</div>
+                            <div className="text-sm opacity-90">{t('fantasy.betOn')} {prediction.valueBet.type}</div>
                           </div>
                           <div className="text-lg font-bold">+{prediction.valueBet.value}%</div>
                         </div>
@@ -552,9 +554,9 @@ export default function FantasyOddsPage() {
             <>
               <div className="flex justify-between items-center mb-6">
                 <div>
-                  <h2 className="text-2xl font-bold">AI Fantasy Team of the Week</h2>
+                  <h2 className="text-2xl font-bold">{t('fantasy.fantasyPicks')}</h2>
                   <p className="text-gray-400 text-sm">
-                    Optimal picks based on form, fixtures, and value • {fantasyPicks.length} players
+                    {t('fantasy.optimalPicks')} • {fantasyPicks.length} {t('fantasy.players')}
                   </p>
                 </div>
               </div>
@@ -562,15 +564,14 @@ export default function FantasyOddsPage() {
               <div className="mb-8 p-6 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-blue-700/30 rounded-lg">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                   <div>
-                    <h3 className="text-xl font-bold text-blue-400 mb-2">🏆 Fantasy Strategy</h3>
+                    <h3 className="text-xl font-bold text-blue-400 mb-2">{t('fantasy.fantasyStrategy')}</h3>
                     <p className="text-gray-300">
-                      Our AI analyzes player form, upcoming fixtures, historical performance, and value metrics
-                      to identify the best fantasy picks for the coming week.
+                      {t('fantasy.fantasyStrategyDesc')}
                     </p>
                   </div>
                   <div className="text-center">
                     <div className="text-3xl font-bold text-white">11</div>
-                    <div className="text-sm text-gray-400">Optimal Players</div>
+                    <div className="text-sm text-gray-400">{t('fantasy.optimalPlayers')}</div>
                   </div>
                 </div>
               </div>
@@ -594,14 +595,14 @@ export default function FantasyOddsPage() {
                       </div>
                       <div className="text-right">
                         <div className="text-2xl font-bold text-yellow-400">{pick.points}</div>
-                        <div className="text-xs text-gray-400">Projected</div>
+                        <div className="text-xs text-gray-400">{t('fantasy.points')}</div>
                       </div>
                     </div>
                     
                     <div className="mb-4">
                       <div className="flex justify-between items-center mb-2">
-                        <div className="text-sm text-gray-400">Value Score</div>
-                        <div className="text-xs text-gray-500">Points per million</div>
+                        <div className="text-sm text-gray-400">{t('fantasy.valueScore')}</div>
+                        <div className="text-xs text-gray-500">{t('fantasy.pointsPerMillion')}</div>
                       </div>
                       <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
                         <div 
@@ -611,14 +612,14 @@ export default function FantasyOddsPage() {
                       </div>
                       <div className="flex justify-between text-sm mt-1">
                         <span className="text-gray-300">{pick.value.toFixed(1)}</span>
-                        <span className="text-gray-400">Price: £{pick.price}m</span>
+                        <span className="text-gray-400">{t('fantasy.price')}: £{pick.price}m</span>
                       </div>
                     </div>
                     
                     <div className="mb-4">
                       <div className="flex items-center justify-between mb-2">
-                        <div className="text-sm text-gray-400">Form</div>
-                        <div className="text-xs text-gray-500">Last 5 matches</div>
+                        <div className="text-sm text-gray-400">{t('fantasy.form')}</div>
+                        <div className="text-xs text-gray-500">{t('fantasy.last5Matches')}</div>
                       </div>
                       <div className="flex gap-1">
                         {Array.from({ length: 5 }).map((_, i) => (
@@ -631,13 +632,13 @@ export default function FantasyOddsPage() {
                     </div>
                     
                     <div>
-                      <h4 className="font-bold text-gray-300 mb-2 text-sm">Why pick this player?</h4>
+                      <h4 className="font-bold text-gray-300 mb-2 text-sm">{t('fantasy.whyPickThisPlayer')}?</h4>
                       <p className="text-sm text-gray-400">{pick.reasoning}</p>
                     </div>
                     
                     <div className="mt-4 pt-4 border-t border-gray-700/50">
                       <div className="text-xs text-gray-500">
-                        Next fixture: <span className="text-gray-300">{pick.fixture}</span>
+                        {t('fantasy.nextFixture')}: <span className="text-gray-300">{pick.fixture}</span>
                       </div>
                     </div>
                   </div>
@@ -651,9 +652,9 @@ export default function FantasyOddsPage() {
             <>
               <div className="flex justify-between items-center mb-6">
                 <div>
-                  <h2 className="text-2xl font-bold">AI Value Bet Alerts</h2>
+                  <h2 className="text-2xl font-bold">{t('fantasy.valueBets')}</h2>
                   <p className="text-gray-400 text-sm">
-                    Bets where market odds differ from AI probability analysis • {valueBets.length} opportunities
+                    {t('fantasy.valueBettingDesc').split('.')[0]} • {valueBets.length} {t('fantasy.opportunities') || 'opportunities'}
                   </p>
                 </div>
               </div>
@@ -661,15 +662,14 @@ export default function FantasyOddsPage() {
               <div className="mb-8 p-6 bg-gradient-to-r from-green-900/20 to-emerald-900/20 border border-green-700/30 rounded-lg">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                   <div>
-                    <h3 className="text-xl font-bold text-green-400 mb-2">💰 Value Betting Explained</h3>
+                    <h3 className="text-xl font-bold text-green-400 mb-2">{t('fantasy.valueBettingExplained')}</h3>
                     <p className="text-gray-300">
-                      Value betting occurs when the probability of an outcome is higher than what the odds imply.
-                      Our AI compares its predicted probabilities with market odds to find these opportunities.
+                      {t('fantasy.valueBettingDesc')}
                     </p>
                   </div>
                   <div className="text-center">
                     <div className="text-3xl font-bold text-white">+{valueBets.reduce((sum, bet) => sum + bet.edge, 0).toFixed(1)}%</div>
-                    <div className="text-sm text-gray-400">Total Edge</div>
+                    <div className="text-sm text-gray-400">{t('fantasy.totalEdge')}</div>
                   </div>
                 </div>
               </div>
@@ -687,42 +687,42 @@ export default function FantasyOddsPage() {
                             {bet.league}
                           </span>
                           <span className={`px-2 py-1 rounded text-xs font-medium ${getEdgeBg(bet.edge)} ${getEdgeColor(bet.edge)}`}>
-                            +{bet.edge.toFixed(1)}% Edge
+                            +{bet.edge.toFixed(1)}% {t('fantasy.edge') || 'Edge'}
                           </span>
                           {bet.confidence === 'high' && (
                             <span className="px-2 py-1 bg-green-900/30 text-green-400 rounded text-xs">
-                              High Confidence
+                              {t('fantasy.highConfidence')}
                             </span>
                           )}
                         </div>
                       </div>
                       <div className="text-right">
                         <div className="text-2xl font-bold text-yellow-400">{bet.odds.toFixed(2)}</div>
-                        <div className="text-xs text-gray-400">Odds</div>
+                        <div className="text-xs text-gray-400">{t('fantasy.odds') || 'Odds'}</div>
                       </div>
                     </div>
                     
                     <div className="mb-4">
                       <div className="flex items-center justify-between mb-2">
-                        <div className="text-sm text-gray-400">Bet Type</div>
-                        <div className="text-xs text-gray-500">Market vs AI Probability</div>
+                        <div className="text-sm text-gray-400">{t('fantasy.betType')}</div>
+                        <div className="text-xs text-gray-500">{t('fantasy.marketVsAI')}</div>
                       </div>
                       <div className="bg-gray-800/60 rounded-lg p-3">
                         <div className="flex justify-between items-center mb-2">
                           <div className="font-bold text-white">{bet.betType}</div>
                           <div className="text-sm">
-                            <span className="text-gray-400">Value: </span>
+                            <span className="text-gray-400">{t('fantasy.value') || 'Value'}: </span>
                             <span className="font-bold text-green-400">+{bet.value.toFixed(1)}%</span>
                           </div>
                         </div>
                         <div className="flex items-center gap-4">
                           <div className="flex-1">
-                            <div className="text-xs text-gray-400 mb-1">AI Probability</div>
+                            <div className="text-xs text-gray-400 mb-1">{t('fantasy.aiProbability')}</div>
                             <div className="text-lg font-bold text-white">{bet.probability.toFixed(1)}%</div>
                           </div>
                           <div className="text-gray-500">→</div>
                           <div className="flex-1">
-                            <div className="text-xs text-gray-400 mb-1">Implied Probability</div>
+                            <div className="text-xs text-gray-400 mb-1">{t('fantasy.impliedProbability')}</div>
                             <div className="text-lg font-bold text-gray-300">
                               {(100 / bet.odds).toFixed(1)}%
                             </div>
@@ -732,13 +732,13 @@ export default function FantasyOddsPage() {
                     </div>
                     
                     <div className="mb-4">
-                      <h4 className="font-bold text-gray-300 mb-2 text-sm">AI Reasoning:</h4>
+                      <h4 className="font-bold text-gray-300 mb-2 text-sm">{t('fantasy.aiReasoning')}:</h4>
                       <p className="text-sm text-gray-400">{bet.reasoning}</p>
                     </div>
                     
                     <div className="flex items-center justify-between pt-4 border-t border-gray-700/50">
                       <div className="text-xs text-gray-500">
-                        Confidence: 
+                        {t('fantasy.confidence')}: 
                         <span className={`ml-2 px-2 py-1 rounded ${getConfidenceBg(
                           bet.confidence === 'high' ? 80 : bet.confidence === 'medium' ? 60 : 40
                         )} ${getConfidenceColor(
@@ -748,7 +748,7 @@ export default function FantasyOddsPage() {
                         </span>
                       </div>
                       <div className="text-xs text-gray-400">
-                        Expected Value: +{(bet.edge * bet.odds / 100).toFixed(2)}
+                        {t('fantasy.expectedValue')}: +{(bet.edge * bet.odds / 100).toFixed(2)}
                       </div>
                     </div>
                   </div>
@@ -762,11 +762,10 @@ export default function FantasyOddsPage() {
         <div className="mt-12 pt-8 border-t border-gray-800">
           <div className="text-center text-gray-500 text-sm">
             <p className="mb-2">
-              ⚠️ <span className="font-medium">Disclaimer: For entertainment purposes only</span>
+              ⚠️ <span className="font-medium">{t('fantasy.disclaimer')}</span>
             </p>
             <p className="text-gray-400">
-              AI predictions are based on statistical analysis and should not be considered financial advice.
-              Betting involves risk. Please gamble responsibly.
+              {t('fantasy.disclaimerText')}
             </p>
             <div className="mt-4">
               <button
@@ -780,10 +779,10 @@ export default function FantasyOddsPage() {
                 }}
                 className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm transition-colors"
               >
-                🔄 Refresh AI Analysis
+                {t('fantasy.refreshAnalysis')}
               </button>
               <p className="text-gray-500 text-xs mt-2">
-                Analysis updates every hour • Uses latest match data
+                {t('fantasy.analysisUpdates')}
               </p>
             </div>
           </div>
