@@ -360,9 +360,9 @@ export default function HomePage() {
       };
       
       // Use searchFresh for cache busting, or regular search otherwise
-      const result = forceFresh 
-        ? await searchFresh(query)
-        : await searchWithGROQ(query, language);
+const result = forceFresh 
+  ? await searchFresh(query) // searchFresh defaults to player search
+  : await searchWithGROQ(query, language, false, isTeam); // Pass isTeam parameter
       
       console.log(`${forceFresh ? 'FRESH ' : ''}${isAutoSearch ? 'Auto-' : ''}Search result:`, result);
       
