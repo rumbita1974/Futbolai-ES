@@ -16,150 +16,80 @@ interface Player {
   wikipediaUrl: string;
 }
 
-// Mock Wikipedia API integration
-async function fetchTeamDataFromWikipedia(countryName: string): Promise<Player[]> {
-  // This is a mock function. In production, you would:
-  // 1. Fetch from Wikipedia API
-  // 2. Parse the squad information
-  // 3. Extract player data
+// Helper to calculate age from DOB
+function calculateAge(dob: string): number {
+  if (!dob) return 0;
+  try {
+    const birthDate = new Date(dob);
+    const ageDifMs = Date.now() - birthDate.getTime();
+    const ageDate = new Date(ageDifMs);
+    return Math.abs(ageDate.getUTCFullYear() - 1970);
+  } catch (e) { return 0; }
+}
+
+// Real API integration to fetch squad data
+async function fetchTeamRoster(teamName: string): Promise<Player[]> {
+  let players: Player[] = [];
   
-  // Simulating API delay
-  await new Promise(resolve => setTimeout(resolve, 1000));
-  
-  // Mock data for demonstration based on team
-  const mockTeams: Record<string, Player[]> = {
-    'Argentina': [
-      {
-        name: "Lionel Messi",
-        position: "Forward",
-        age: 39,
-        dob: "1987-06-24",
-        club: "Inter Miami CF",
-        caps: 180,
-        goals: 106,
-        photoUrl: "https://upload.wikimedia.org/wikipedia/commons/b/b4/Lionel-Messi-Argentina-2022-FIFA-World-Cup_%28cropped%29.jpg",
-        wikipediaUrl: "https://en.wikipedia.org/wiki/Lionel_Messi"
-      },
-      {
-        name: "Ángel Di María",
-        position: "Midfielder",
-        age: 36,
-        dob: "1988-02-14",
-        club: "Benfica",
-        caps: 136,
-        goals: 29,
-        photoUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f4/Di_Mar%C3%ADa_2022.jpg/480px-Di_Mar%C3%ADa_2022.jpg",
-        wikipediaUrl: "https://en.wikipedia.org/wiki/%C3%81ngel_Di_Mar%C3%ADa"
-      },
-      {
-        name: "Emiliano Martínez",
-        position: "Goalkeeper",
-        age: 32,
-        dob: "1992-09-02",
-        club: "Aston Villa",
-        caps: 38,
-        goals: 0,
-        photoUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5b/Emiliano_Mart%C3%ADnez_2021.jpg/480px-Emiliano_Mart%C3%ADnez_2021.jpg",
-        wikipediaUrl: "https://en.wikipedia.org/wiki/Emiliano_Mart%C3%ADnez"
-      },
-      {
-        name: "Nicolás Otamendi",
-        position: "Defender",
-        age: 36,
-        dob: "1988-02-12",
-        club: "Benfica",
-        caps: 112,
-        goals: 6,
-        photoUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Nicol%C3%A1s_Otamendi_2018.jpg/480px-Nicol%C3%A1s_Otamendi_2018.jpg",
-        wikipediaUrl: "https://en.wikipedia.org/wiki/Nicol%C3%A1s_Otamendi"
-      },
-      {
-        name: "Julián Álvarez",
-        position: "Forward",
-        age: 24,
-        dob: "2000-01-31",
-        club: "Manchester City",
-        caps: 29,
-        goals: 7,
-        photoUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6c/Juli%C3%A1n_%C3%81lvarez_2022.jpg/480px-Juli%C3%A1n_%C3%81lvarez_2022.jpg",
-        wikipediaUrl: "https://en.wikipedia.org/wiki/Juli%C3%A1n_%C3%81lvarez"
-      },
-      {
-        name: "Enzo Fernández",
-        position: "Midfielder",
-        age: 23,
-        dob: "2001-01-17",
-        club: "Chelsea",
-        caps: 19,
-        goals: 3,
-        photoUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7b/Enzo_Fern%C3%A1ndez_2022.jpg/480px-Enzo_Fern%C3%A1ndez_2022.jpg",
-        wikipediaUrl: "https://en.wikipedia.org/wiki/Enzo_Fern%C3%A1ndez"
+  try {
+    // 1. Try AI API with specific season context for better accuracy
+    const response = await fetch(`/api/ai?action=search&query=${encodeURIComponent(`current squad of ${teamName} 2024-2025`)}`);
+    
+    if (response.ok) {
+      const data = await response.json();
+      if (data.success) {
+        if (data.teamInfo?.squad && Array.isArray(data.teamInfo.squad)) {
+          players = data.teamInfo.squad.map(mapToPlayer);
+        } else if (data.players && Array.isArray(data.players)) {
+          players = data.players.map(mapToPlayer);
+        }
       }
-    ],
-    'Brazil': [
-      {
-        name: "Neymar",
-        position: "Forward",
-        age: 32,
-        dob: "1992-02-05",
-        club: "Al Hilal",
-        caps: 128,
-        goals: 79,
-        photoUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/02/Neymar_2022.jpg/480px-Neymar_2022.jpg",
-        wikipediaUrl: "https://en.wikipedia.org/wiki/Neymar"
-      },
-      {
-        name: "Vinícius Júnior",
-        position: "Forward",
-        age: 23,
-        dob: "2000-07-12",
-        club: "Real Madrid",
-        caps: 26,
-        goals: 3,
-        photoUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/06/Vin%C3%ADcius_J%C3%BAnior_2021.jpg/480px-Vin%C3%ADcius_J%C3%BAnior_2021.jpg",
-        wikipediaUrl: "https://en.wikipedia.org/wiki/Vin%C3%ADcius_J%C3%BAnior"
+    }
+  } catch (error) {
+    console.error("Error fetching team roster from AI:", error);
+  }
+
+  // 2. Fallback to SportsDB if AI returned no players (Robustness improvement)
+  if (players.length === 0) {
+    try {
+      const sdbResponse = await fetch(`https://www.thesportsdb.com/api/v1/json/3/searchplayers.php?t=${encodeURIComponent(teamName)}`);
+      if (sdbResponse.ok) {
+        const sdbData = await sdbResponse.json();
+        if (sdbData.player && Array.isArray(sdbData.player)) {
+          players = sdbData.player.map((p: any) => ({
+            name: p.strPlayer || 'Unknown',
+            position: p.strPosition || 'Unknown',
+            age: calculateAge(p.dateBorn),
+            dob: p.dateBorn || 'N/A',
+            club: p.strTeam || teamName,
+            caps: 0,
+            goals: 0,
+            photoUrl: p.strCutout || p.strThumb || '',
+            wikipediaUrl: `https://en.wikipedia.org/wiki/${encodeURIComponent(p.strPlayer || '')}`
+          }));
+        }
       }
-    ],
-    'United States': [
-      {
-        name: "Christian Pulisic",
-        position: "Forward",
-        age: 26,
-        dob: "1998-09-18",
-        club: "AC Milan",
-        caps: 65,
-        goals: 28,
-        photoUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/9/93/Christian_Pulisic_USMNT_2022.jpg/480px-Christian_Pulisic_USMNT_2022.jpg",
-        wikipediaUrl: "https://en.wikipedia.org/wiki/Christian_Pulisic"
-      },
-      {
-        name: "Weston McKennie",
-        position: "Midfielder",
-        age: 26,
-        dob: "1998-08-28",
-        club: "Juventus",
-        caps: 51,
-        goals: 11,
-        photoUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/04/Weston_McKennie_2021.jpg/480px-Weston_McKennie_2021.jpg",
-        wikipediaUrl: "https://en.wikipedia.org/wiki/Weston_McKennie"
-      }
-    ],
-    'France': [
-      {
-        name: "Kylian Mbappé",
-        position: "Forward",
-        age: 25,
-        dob: "1998-12-20",
-        club: "Paris Saint-Germain",
-        caps: 77,
-        goals: 46,
-        photoUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ae/Kylian_Mbapp%C3%A9_2021.jpg/480px-Kylian_Mbapp%C3%A9_2021.jpg",
-        wikipediaUrl: "https://en.wikipedia.org/wiki/Kylian_Mbapp%C3%A9"
-      }
-    ]
+    } catch (e) {
+      console.error("SportsDB fallback failed:", e);
+    }
+  }
+
+  return players;
+}
+
+// Helper to map API response to Player interface
+function mapToPlayer(p: any): Player {
+  return {
+    name: p.name || 'Unknown',
+    position: p.position || 'Unknown',
+    age: p.age || 0,
+    dob: p.dateOfBirth || p.dob || 'N/A',
+    club: p.currentClub || p.club || 'Unknown',
+    caps: p.internationalCaps || p.caps || 0,
+    goals: p.internationalGoals || p.goals || 0,
+    photoUrl: p.image || p.photoUrl || p.imageUrl || '',
+    wikipediaUrl: p.wikipediaUrl || `https://en.wikipedia.org/wiki/${encodeURIComponent(p.name || '')}`
   };
-  
-  return mockTeams[countryName] || [];
 }
 
 export default function TeamDetailsPanel() {
@@ -176,12 +106,18 @@ export default function TeamDetailsPanel() {
         return;
       }
 
+      // Use squad data from context if available (passed from FootballSearch)
+      if ((selectedTeam as any).squad && Array.isArray((selectedTeam as any).squad) && (selectedTeam as any).squad.length > 0) {
+        setPlayers((selectedTeam as any).squad.map(mapToPlayer));
+        return;
+      }
+
       setLoadingPlayers(true);
       setError(null);
       setSelectedPosition('all');
       
       try {
-        const teamPlayers = await fetchTeamDataFromWikipedia(selectedTeam.name);
+        const teamPlayers = await fetchTeamRoster(selectedTeam.name);
         setPlayers(teamPlayers);
       } catch (err) {
         setError('Failed to load team data. Please try again.');
@@ -220,7 +156,7 @@ export default function TeamDetailsPanel() {
         </div>
         <h3 className="text-xl font-semibold text-gray-700 mb-2">No Team Selected</h3>
         <p className="text-gray-500 max-w-md mx-auto">
-          Click on any team name in the fixtures to view their roster, player details, and venue information.
+          Click on any team name in the fixtures or search for a team to view their roster and details.
         </p>
         <div className="mt-6 p-4 bg-gradient-to-r from-blue-50 to-green-50 rounded-lg border border-blue-200 max-w-lg mx-auto">
           <h4 className="font-bold text-gray-700 mb-2">💡 Quick Tip</h4>
@@ -299,7 +235,7 @@ export default function TeamDetailsPanel() {
         <div className="text-center py-12">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
           <p className="text-gray-600">Loading team roster from Wikipedia...</p>
-          <p className="text-sm text-gray-500 mt-2">Fetching player data and photos</p>
+          <p className="text-sm text-gray-500 mt-2">Fetching real-time player data and photos</p>
         </div>
       )}
 
@@ -323,7 +259,7 @@ export default function TeamDetailsPanel() {
             <h3 className="text-xl font-bold text-gray-800">Team Roster</h3>
             <div className="flex items-center space-x-4">
               <div className="text-sm text-gray-500">
-                {players.length} players • Data sourced from Wikipedia
+                {players.length} players • Live Data
               </div>
               
               {/* Position Filter */}
@@ -513,12 +449,12 @@ export default function TeamDetailsPanel() {
             </svg>
           </div>
           <h4 className="text-lg font-semibold text-gray-600 mb-2">Roster Data Unavailable</h4>
-          <p className="text-gray-500 max-w-md mx-auto mb-4">
-            Player data for {selectedTeam.name} is not available at the moment. This data is fetched from Wikipedia.
+          <p className="text-gray-500 max-w-md mx-auto mb-4 text-sm">
+            Player data for {selectedTeam.name} could not be retrieved. This might be due to API limits or data availability.
           </p>
           <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-green-50 rounded-lg border border-blue-200 max-w-md mx-auto">
             <p className="text-sm text-gray-600">
-              <span className="font-medium">Note:</span> In a production environment, this would fetch real-time squad data from Wikipedia's API.
+              <span className="font-medium">Note:</span> We are using Groq AI + Wikipedia to fetch the latest squad data.
             </p>
           </div>
         </div>
@@ -526,4 +462,3 @@ export default function TeamDetailsPanel() {
     </div>
   );
 }
-

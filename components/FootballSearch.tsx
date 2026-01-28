@@ -1,3 +1,4 @@
+// components/footballsearch.tsx - UPDATED WITH REAL-TIME VERIFICATION
 'use client'
 
 import { useState, useRef, useCallback } from 'react';
@@ -26,6 +27,7 @@ export default function FootballSearch({
   const [query, setQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSearching, setIsSearching] = useState(false);
+  const [confidence, setConfidence] = useState<number | null>(null);
   
   // Use refs to track the current search and prevent race conditions
   const searchControllerRef = useRef<AbortController | null>(null);
@@ -40,6 +42,7 @@ export default function FootballSearch({
     onTeamsUpdate([]);
     onVideoFound('');
     onAnalysisUpdate('');
+    setConfidence(null);
   }, [onPlayerSelect, onTeamSelect, onWorldCupUpdate, onTeamsUpdate, onVideoFound, onAnalysisUpdate]);
 
   // Cleanup function
@@ -61,7 +64,6 @@ export default function FootballSearch({
 
   // Handle World Cup 2026 button click
   const handleWorldCup2026Click = () => {
-    // Navigate to the World Cup 2026 page
     router.push('/worldcup-2026');
   };
 
@@ -82,6 +84,366 @@ export default function FootballSearch({
     const normalizedQuery = searchQuery.toLowerCase().trim();
     return worldCupTerms.some(term => normalizedQuery.includes(term));
   };
+// ADD this function right after the cleanupSearch function in FootballSearch.tsx:
+const verifyTeamDataWithSportsDB = async (teamName: string) => {
+  console.log(`🔍 [SPORTSDB-VERIFY] Starting verification for: ${teamName}`);
+  
+  try {
+    // Step 1: Search for team
+    const searchUrl = `https://www.thesportsdb.com/api/v1/json/3/searchteams.php?t=${encodeURIComponent(teamName)}`;
+    console.log(`[SPORTSDB-VERIFY] Searching: ${searchUrl}`);
+    
+    const searchResponse = await fetch(searchUrl);
+    if (!searchResponse.ok) {
+      console.warn(`[SPORTSDB-VERIFY] Search failed: ${searchResponse.status}`);
+      return null;
+    }
+    
+    const searchData = await searchResponse.json();
+    
+    if (!searchData.teams || searchData.teams.length === 0) {
+      console.log(`[SPORTSDB-VERIFY] No team found: ${teamName}`);
+      return null;
+    }
+    
+    const team = searchData.teams[0];
+    console.log(`✅ [SPORTSDB-VERIFY] Found: ${team.strTeam}, ID: ${team.idTeam}`);
+    
+    // Step 2: Get honors/trophies
+    let honors = [];
+    if (team.idTeam) {
+      try {
+        const honorsUrl = `https://www.thesportsdb.com/api/v1/json/3/lookuphonors.php?id=${team.idTeam}`;
+        console.log(`[SPORTSDB-VERIFY] Fetching honors: ${honorsUrl}`);
+        
+        const honorsResponse = await fetch(honorsUrl);
+        if (honorsResponse.ok) {
+          const honorsData = await honorsResponse.json();
+          honors = honorsData.honours || [];
+          console.log(`✅ [SPORTSDB-VERIFY] Found ${honors.length} honor records`);
+        }
+      } catch (e) {
+        console.error(`[SPORTSDB-VERIFY] Honors error:`, e);
+      }
+    }
+    
+    // Step 3: Analyze trophies
+    const trophyAnalysis = {
+      championsLeague: 0,
+      clubWorldCup: 0,
+      domesticLeague: 0,
+      domesticCup: 0,
+      superCup: 0
+    };
+    
+    // Count each trophy type
+    honors.forEach((honor: any) => {
+      if (!honor.strHonour) return;
+      
+      const honorName = honor.strHonour.toLowerCase();
+      
+      if (honorName.includes('champions league') || honorName.includes('european cup')) {
+        trophyAnalysis.championsLeague++;
+      } else if (honorName.includes('club world cup') || honorName.includes('intercontinental')) {
+        trophyAnalysis.clubWorldCup++;
+      } else if (honorName.includes('la liga') || honorName.includes('premier league') || 
+                 honorName.includes('bundesliga') || honorName.includes('serie a') || 
+                 honorName.includes('ligue 1')) {
+        trophyAnalysis.domesticLeague++;
+      } else if (honorName.includes('copa del rey') || honorName.includes('fa cup') || 
+                 honorName.includes('dfb-pokal') || honorName.includes('coppa italia')) {
+        trophyAnalysis.domesticCup++;
+      } else if (honorName.includes('supercopa') || honorName.includes('super cup')) {
+        trophyAnalysis.superCup++;
+      }
+    });
+    
+    console.log(`🏆 [SPORTSDB-VERIFY] Trophy analysis:`, trophyAnalysis);
+    
+    return {
+      verified: true,
+      coach: team.strManager,
+      stadium: team.strStadium,
+      founded: team.intFormedYear,
+      league: team.strLeague,
+      country: team.strCountry,
+      honors,
+      trophyAnalysis,
+      rawData: team
+    };
+    
+  } catch (error) {
+    console.error(`[SPORTSDB-VERIFY] Verification failed for ${teamName}:`, error);
+    return null;
+  }
+};
+
+// THEN in your handleSearch method, FIND this section and ADD the verification code:
+// Look for where you process team data (around line where you have: if ((data.type === 'club' || data.type === 'national') && data.teamInfo) {
+
+// Add this RIGHT AFTER you create teamData object but BEFORE onTeamSelect(teamData):
+if ((data.type === 'club' || data.type === 'national') && data.teamInfo) {
+  console.log('🏟️ Setting team data:', data.teamInfo.name);
+  
+  // ... your existing team data processing code ...
+  
+  // Create teamData object first (your existing code)
+  const teamData = {
+    // ... your existing teamData properties ...
+  };
+  
+  // ====== CRITICAL FIX: ADD VERIFICATION HERE ======
+  console.log('🔄 Starting SportsDB verification...');
+  const verifiedData = await verifyTeamDataWithSportsDB(data.teamInfo.name);
+  
+  if (verifiedData && verifiedData.verified) {
+    console.log('✅ SportsDB verification successful!');
+    
+    // Update coach
+    if (verifiedData.coach && verifiedData.coach !== 'Unknown') {
+      teamData.currentManager = { name: verifiedData.coach };
+      teamData.currentCoach = verifiedData.coach;
+      teamData.coach = verifiedData.coach;
+      console.log(`✅ Coach updated to: ${verifiedData.coach}`);
+    }
+    
+    // Update stadium
+    if (verifiedData.stadium) {
+      teamData.stadium = verifiedData.stadium;
+      teamData.homeStadium = verifiedData.stadium;
+    }
+    
+    // Update founded year
+    if (verifiedData.founded) {
+      teamData.founded = verifiedData.founded;
+    }
+    
+    // ====== CRITICAL: FIX ACHIEVEMENTS ======
+    if (verifiedData.trophyAnalysis) {
+      const analysis = verifiedData.trophyAnalysis;
+      
+      // Clear and rebuild achievements with VERIFIED data
+      teamData.achievements = [];
+      teamData.majorAchievements = {
+        worldCup: [],
+        clubWorldCup: [],
+        international: [],
+        continental: [],
+        domestic: []
+      };
+      
+      // Add Champions League titles
+      if (analysis.championsLeague > 0) {
+        const uclEntry = `${analysis.championsLeague}x UEFA Champions League`;
+        teamData.achievements.push(uclEntry);
+        teamData.majorAchievements.international.push(uclEntry);
+        console.log(`✅ Champions League: ${analysis.championsLeague} titles`);
+      }
+      
+      // Add Club World Cup titles
+      if (analysis.clubWorldCup > 0) {
+        const cwcEntry = `${analysis.clubWorldCup}x FIFA Club World Cup`;
+        teamData.achievements.push(cwcEntry);
+        teamData.majorAchievements.international.push(cwcEntry);
+        console.log(`✅ Club World Cup: ${analysis.clubWorldCup} titles`);
+      }
+      
+      // Add domestic league titles
+      if (analysis.domesticLeague > 0) {
+        const leagueName = verifiedData.league || 'Domestic League';
+        const leagueEntry = `${analysis.domesticLeague}x ${leagueName}`;
+        teamData.achievements.push(leagueEntry);
+        teamData.majorAchievements.domestic.push(leagueEntry);
+        console.log(`✅ Domestic League: ${analysis.domesticLeague} titles`);
+      }
+      
+      // Add domestic cup titles
+      if (analysis.domesticCup > 0) {
+        const cupName = data.teamInfo.name.toLowerCase().includes('barcelona') 
+          ? 'Copa del Rey' 
+          : 'Domestic Cup';
+        const cupEntry = `${analysis.domesticCup}x ${cupName}`;
+        teamData.achievements.push(cupEntry);
+        teamData.majorAchievements.domestic.push(cupEntry);
+        console.log(`✅ Domestic Cup: ${analysis.domesticCup} titles`);
+      }
+      
+      // Add super cup titles
+      if (analysis.superCup > 0) {
+        const superCupEntry = `${analysis.superCup}x Super Cup`;
+        teamData.achievements.push(superCupEntry);
+        teamData.majorAchievements.domestic.push(superCupEntry);
+      }
+      
+      // Mark as verified
+      teamData._verified = true;
+      teamData._verificationSource = 'TheSportsDB';
+      teamData._verificationDate = new Date().toISOString();
+    }
+  } else {
+    console.log('⚠️ SportsDB verification failed or no data');
+  }
+  // ====== END OF CRITICAL FIX ======
+  
+  console.log('🏟️ Enhanced team data with verification');
+  onTeamSelect(teamData);
+}
+  // NEW: Enhanced verification function
+  const verifyTeamWithMultipleSources = async (teamName: string): Promise<any> => {
+    console.log(`[VERIFICATION] Verifying ${teamName} with multiple sources...`);
+    
+    const verificationResults = {
+      sportsDb: null as any,
+      footballData: null as any,
+      wikipedia: null as any,
+      confidence: 0
+    };
+    
+    try {
+      // Try SportsDB first (most reliable for current season)
+      const sportsDbResponse = await fetch(
+        `https://www.thesportsdb.com/api/v1/json/3/searchteams.php?t=${encodeURIComponent(teamName)}`
+      );
+      
+      if (sportsDbResponse.ok) {
+        const sportsDbData = await sportsDbResponse.json();
+        if (sportsDbData.teams && sportsDbData.teams.length > 0) {
+          verificationResults.sportsDb = sportsDbData.teams[0];
+          verificationResults.confidence += 40;
+          console.log(`[VERIFICATION] SportsDB found: ${verificationResults.sportsDb.strTeam}`);
+          
+          // Fetch honors if team ID available
+          if (verificationResults.sportsDb.idTeam) {
+            try {
+              const honorsResponse = await fetch(
+                `https://www.thesportsdb.com/api/v1/json/3/lookuphonors.php?id=${verificationResults.sportsDb.idTeam}`
+              );
+              if (honorsResponse.ok) {
+                const honorsData = await honorsResponse.json();
+                verificationResults.sportsDb.honors = honorsData.honours || [];
+              }
+            } catch (e) {
+              console.error("Error fetching honors:", e);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error("SportsDB verification failed:", e);
+    }
+    
+    // Try Football Data API
+    try {
+      const footballDataResponse = await fetch(`/api/football-data?team=${encodeURIComponent(teamName)}`);
+      if (footballDataResponse.ok) {
+        const footballData = await footballDataResponse.json();
+        verificationResults.footballData = footballData;
+        verificationResults.confidence += 30;
+        console.log(`[VERIFICATION] Football Data API found data`);
+      }
+    } catch (e) {
+      console.error("Football Data API verification failed:", e);
+    }
+    
+    // Try Wikipedia for additional info
+    try {
+      const wikipediaResponse = await fetch(
+        `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(teamName)}`
+      );
+      if (wikipediaResponse.ok) {
+        const wikipediaData = await wikipediaResponse.json();
+        verificationResults.wikipedia = wikipediaData;
+        verificationResults.confidence += 20;
+        console.log(`[VERIFICATION] Wikipedia found: ${wikipediaData.title}`);
+      }
+    } catch (e) {
+      console.error("Wikipedia verification failed:", e);
+    }
+    
+    return verificationResults;
+  };
+
+  // NEW: Enhanced achievement extraction from verified data
+  const extractVerifiedAchievements = (verificationData: any, teamData: any) => {
+    const achievements = {
+      worldCup: [] as string[],
+      clubWorldCup: [] as string[],
+      international: [] as string[],
+      continental: [] as string[],
+      domestic: [] as string[]
+    };
+    
+    // Start with SportsDB honors (most reliable for trophy counts)
+    if (verificationData.sportsDb?.honors && Array.isArray(verificationData.sportsDb.honors)) {
+      const honorCounts: Record<string, number> = {};
+      const honorYears: Record<string, string[]> = {};
+      
+      verificationData.sportsDb.honors.forEach((honor: any) => {
+        const honorName = honor.strHonour;
+        const season = honor.strSeason || '';
+        
+        // Extract year from season
+        const yearMatch = season.match(/\b(19|20)\d{2}\b/);
+        const year = yearMatch ? yearMatch[0] : '';
+        
+        if (!honorCounts[honorName]) {
+          honorCounts[honorName] = 0;
+          honorYears[honorName] = [];
+        }
+        
+        honorCounts[honorName]++;
+        if (year) {
+          honorYears[honorName].push(year);
+        }
+      });
+      
+      // Convert to categorized achievements
+      Object.entries(honorCounts).forEach(([honorName, count]) => {
+        const honorLower = honorName.toLowerCase();
+        const years = honorYears[honorName] || [];
+        const recentYear = years.length > 0 ? years[years.length - 1] : '';
+        
+        let achievementText = `${count}x ${honorName}`;
+        if (recentYear) {
+          achievementText += ` (last: ${recentYear})`;
+        }
+        
+        if (honorLower.includes('world cup') && !honorLower.includes('club')) {
+          achievements.worldCup.push(achievementText);
+        } else if (honorLower.includes('club world cup') || honorLower.includes('intercontinental')) {
+          achievements.clubWorldCup.push(achievementText);
+        } else if (honorLower.includes('champions league') || honorLower.includes('european cup')) {
+          achievements.international.push(achievementText);
+        } else if (honorLower.includes('uefa') || honorLower.includes('europa') || 
+                   honorLower.includes('libertadores') || honorLower.includes('concacaf')) {
+          achievements.continental.push(achievementText);
+        } else {
+          achievements.domestic.push(achievementText);
+        }
+      });
+    }
+    
+    // Fallback to AI achievements if no verified data
+    if (teamData.achievements && achievements.domestic.length === 0) {
+      teamData.achievements.forEach((ach: string) => {
+        const lower = ach.toLowerCase();
+        if (lower.includes('world cup') && !lower.includes('club')) {
+          achievements.worldCup.push(ach);
+        } else if (lower.includes('club world cup') || lower.includes('intercontinental')) {
+          achievements.clubWorldCup.push(ach);
+        } else if (lower.includes('champions league') || lower.includes('european cup')) {
+          achievements.international.push(ach);
+        } else if (lower.includes('uefa') || lower.includes('europa') || 
+                   lower.includes('libertadores') || lower.includes('concacaf')) {
+          achievements.continental.push(ach);
+        } else {
+          achievements.domestic.push(ach);
+        }
+      });
+    }
+    
+    return achievements;
+  };
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,6 +461,7 @@ export default function FootballSearch({
     setIsSearching(true);
     onLoadingChange(true);
     setError(null);
+    setConfidence(null);
     
     // Clean up any previous search
     cleanupSearch();
@@ -122,7 +485,6 @@ export default function FootballSearch({
       
       console.log('🔍 [API] Response status:', response.status);
       
-      // Check if response is ok
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -130,26 +492,17 @@ export default function FootballSearch({
       const data = await response.json();
       console.log('🔍 [API] Response received, success:', data.success);
       
-      // Check if this is still the current search
       if (!searchControllerRef.current?.signal.aborted) {
         if (data.success) {
           console.log('✅ [API] Success! Type from API:', data.type);
-          console.log('📊 Data received:', {
-            playerInfo: !!data.playerInfo,
-            teamInfo: !!data.teamInfo,
-            worldCupInfo: !!data.worldCupInfo,
-            teamType: data.teamInfo?.type,
-            language: data.language,
-            isSpanish: data.isSpanish
-          });
           
-          // Clear all data again before setting new data (just to be sure)
+          // Clear all data again before setting new data
           clearAllPreviousData();
           
           if (data.type === 'player' && data.playerInfo) {
             console.log('👤 Setting player data:', data.playerInfo.name);
             
-            // Process player achievements from achievementsSummary
+            // Process player achievements
             let playerAchievements = [];
             if (data.playerInfo.achievementsSummary) {
               const { achievementsSummary } = data.playerInfo;
@@ -167,7 +520,6 @@ export default function FootballSearch({
                 playerAchievements.push(`Domestic Cups: ${achievementsSummary.clubDomesticTitles.cups}`);
               }
               
-              // Add individual awards if present
               if (achievementsSummary.individualAwards && Array.isArray(achievementsSummary.individualAwards)) {
                 achievementsSummary.individualAwards.forEach((award: string) => {
                   playerAchievements.push(award);
@@ -183,51 +535,49 @@ export default function FootballSearch({
               nationality: data.playerInfo.nationality || 'Unknown',
               currentClub: data.playerInfo.currentClub || 'Unknown',
               age: data.playerInfo.age || null,
-              
-              // Extract stats from careerStats
               careerStats: data.playerInfo.careerStats || null,
               goals: data.playerInfo.careerStats?.club?.totalGoals || 0,
               assists: data.playerInfo.careerStats?.club?.totalAssists || 0,
               appearances: data.playerInfo.careerStats?.club?.totalAppearances || 0,
-              
               marketValue: data.playerInfo.marketValue || 'Unknown',
-              
-              // Enhanced achievements structure - use the NEW format
               achievementsSummary: data.playerInfo.achievementsSummary || null,
               achievements: playerAchievements,
-              
-              // Enhanced fields
               dateOfBirth: data.playerInfo.dateOfBirth || null,
               height: data.playerInfo.height || null,
               weight: data.playerInfo.weight || null,
               preferredFoot: data.playerInfo.preferredFoot || 'Unknown',
               playingStyle: data.playerInfo.playingStyle || '',
-              
-              // International stats
               internationalCaps: data.playerInfo.careerStats?.international?.caps || 0,
               internationalGoals: data.playerInfo.careerStats?.international?.goals || 0,
               internationalDebut: data.playerInfo.careerStats?.international?.debut,
-              
-              // Current year context
               currentYear: data.playerInfo.currentYear || new Date().getFullYear(),
               lastUpdated: data.playerInfo.lastUpdated || new Date().toISOString(),
-              
-              // Language info
               language: data.language,
-              isSpanish: data.isSpanish
+              isSpanish: data.isSpanish,
+              _confidence: data._metadata?.confidenceScore || 70
             };
             
-            console.log('👤 Enhanced player data prepared with achievementsSummary');
+            console.log('👤 Enhanced player data prepared');
             onPlayerSelect(playerData);
+            setConfidence(data._metadata?.confidenceScore || 70);
           } 
           else if ((data.type === 'club' || data.type === 'national') && data.teamInfo) {
             console.log('🏟️ Setting team data:', data.teamInfo.name);
             
-            // Clear player data if switching from player to team
+            // Clear player data
             onPlayerSelect(null);
             
-            // Process team achievements from achievementsSummary - NEW FORMAT
-            let teamAchievements = [];
+            // Initialize achievements structure
+            const majorAchievements = {
+              worldCup: [] as string[],
+              clubWorldCup: [] as string[],
+              international: [] as string[],
+              continental: [] as string[],
+              domestic: [] as string[]
+            };
+            
+            // Process team achievements from Groq data
+            let teamAchievements: string[] = [];
             const isNationalTeam = data.teamInfo.type === 'national';
             
             if (data.teamInfo.achievementsSummary) {
@@ -244,7 +594,6 @@ export default function FootballSearch({
                   teamAchievements.push(`Olympic Titles: ${achievementsSummary.olympicTitles}`);
                 }
               } else {
-                // Club team
                 if (achievementsSummary.continentalTitles > 0) {
                   teamAchievements.push(`Continental Titles: ${achievementsSummary.continentalTitles}`);
                 }
@@ -260,32 +609,28 @@ export default function FootballSearch({
               }
             }
             
-            // Add trophy details from the NEW trophies structure
+            // Add trophy details
             if (data.teamInfo.trophies) {
               const { trophies } = data.teamInfo;
               
-              // Continental trophies
               if (trophies.continental && Array.isArray(trophies.continental)) {
                 trophies.continental.forEach((trophy: any) => {
                   teamAchievements.push(`${trophy.competition}: ${trophy.wins} wins (last: ${trophy.lastWin})`);
                 });
               }
               
-              // International trophies
               if (trophies.international && Array.isArray(trophies.international)) {
                 trophies.international.forEach((trophy: any) => {
                   teamAchievements.push(`${trophy.competition}: ${trophy.wins} wins (last: ${trophy.lastWin})`);
                 });
               }
               
-              // Domestic league trophies
               if (trophies.domestic?.league && Array.isArray(trophies.domestic.league)) {
                 trophies.domestic.league.forEach((trophy: any) => {
                   teamAchievements.push(`${trophy.competition}: ${trophy.wins} league titles (last: ${trophy.lastWin})`);
                 });
               }
               
-              // Domestic cup trophies
               if (trophies.domestic?.cup && Array.isArray(trophies.domestic.cup)) {
                 trophies.domestic.cup.forEach((trophy: any) => {
                   teamAchievements.push(`${trophy.competition}: ${trophy.wins} cup titles (last: ${trophy.lastWin})`);
@@ -293,66 +638,121 @@ export default function FootballSearch({
               }
             }
             
-            // Add major honors for national teams
-            if (data.teamInfo.majorHonors && Array.isArray(data.teamInfo.majorHonors)) {
-              data.teamInfo.majorHonors.forEach((honor: any) => {
-                teamAchievements.push(`${honor.competition}: ${honor.titles} titles (last: ${honor.lastWin})`);
-              });
-            }
-            
+            // Categorize achievements
+            teamAchievements.forEach(ach => {
+              const lower = ach.toLowerCase();
+              if (lower.includes('world cup') && !lower.includes('club')) {
+                 majorAchievements.worldCup.push(ach);
+              } else if (lower.includes('club world cup') || lower.includes('intercontinental')) {
+                 majorAchievements.clubWorldCup.push(ach);
+              } else if (lower.includes('continental') || lower.includes('champions') || 
+                         lower.includes('uefa') || lower.includes('libertadores') || lower.includes('concacaf')) {
+                 majorAchievements.continental.push(ach);
+              } else if (lower.includes('international')) {
+                 majorAchievements.international.push(ach);
+              } else {
+                 majorAchievements.domestic.push(ach);
+              }
+            });
+
             const teamData = {
               id: Date.now(),
               name: data.teamInfo.name || query,
               type: data.teamInfo.type || 'club',
-              
-              // Ranking
               fifaRanking: data.teamInfo.fifaRanking,
               ranking: data.teamInfo.fifaRanking || 'N/A',
-              
-              // Manager/Coach - NEW STRUCTURE
               currentManager: data.teamInfo.currentManager || null,
-              currentCoach: data.teamInfo.currentCoach || null,
+              currentCoach: (typeof data.teamInfo.currentCoach === 'object' ? 
+                data.teamInfo.currentCoach.name : data.teamInfo.currentCoach) || null,
               coach: data.teamInfo.currentManager?.name || 
-                    data.teamInfo.currentCoach?.name || 'Unknown',
-              
-              // Stadium
+                (typeof data.teamInfo.currentCoach === 'object' ? 
+                 data.teamInfo.currentCoach.name : data.teamInfo.currentCoach) || 'Unknown',
               stadium: data.teamInfo.stadium || null,
               homeStadium: data.teamInfo.homeStadium,
-              
-              // Basic info
               league: data.teamInfo.league || 'Unknown',
               founded: data.teamInfo.founded || 'Unknown',
-              
-              // Achievements - NEW structured format
               achievementsSummary: data.teamInfo.achievementsSummary || null,
               trophies: data.teamInfo.trophies || null,
               majorHonors: data.teamInfo.majorHonors || null,
               achievements: teamAchievements,
-              
-              // Current season
+              majorAchievements,
+              squad: data.teamInfo.squad || [],
               currentSeason: data.teamInfo.currentSeason || null,
-              
-              // Current year context
               currentYear: data.teamInfo.currentYear || new Date().getFullYear(),
               lastUpdated: data.teamInfo.lastUpdated || new Date().toISOString(),
-              
-              // Additional team info
               playingStyle: data.teamInfo.playingStyle,
               confederation: data.teamInfo.confederation,
               fifaCode: data.teamInfo.fifaCode,
-              
-              // Language info
               language: data.language,
-              isSpanish: data.isSpanish
+              isSpanish: data.isSpanish,
+              _confidence: data._metadata?.confidenceScore || 70,
+              _verificationLevel: data._metadata?.verificationLevel || 'medium'
             };
             
-            console.log('🏟️ Enhanced team data prepared with detailed trophies');
+            // ENHANCED: Real-time verification with multiple sources
+            console.log('🔄 Starting real-time verification...');
+            try {
+              const verificationResults = await verifyTeamWithMultipleSources(data.teamInfo.name);
+              
+              // Update confidence
+              const newConfidence = verificationResults.confidence || data._metadata?.confidenceScore || 70;
+              setConfidence(newConfidence);
+              teamData._confidence = newConfidence;
+              
+              // Update coach if verified data is available
+              if (verificationResults.sportsDb?.strManager) {
+                const verifiedCoach = verificationResults.sportsDb.strManager;
+                if (verifiedCoach !== teamData.coach && verifiedCoach !== 'Unknown') {
+                  console.log(`✅ Coach updated to verified: ${verifiedCoach}`);
+                  teamData.currentManager = { name: verifiedCoach };
+                  teamData.currentCoach = verifiedCoach;
+                  teamData.coach = verifiedCoach;
+                }
+              }
+              
+              // Update stadium
+              if (verificationResults.sportsDb?.strStadium) {
+                teamData.stadium = verificationResults.sportsDb.strStadium;
+                teamData.homeStadium = verificationResults.sportsDb.strStadium;
+              }
+              
+              // Update founded year
+              if (verificationResults.sportsDb?.intFormedYear) {
+                teamData.founded = verificationResults.sportsDb.intFormedYear;
+              }
+              
+              // Update league
+              if (verificationResults.sportsDb?.strLeague) {
+                teamData.league = verificationResults.sportsDb.strLeague;
+              }
+              
+              // Extract verified achievements
+              const verifiedAchievements = extractVerifiedAchievements(verificationResults, teamData);
+              
+              // Replace or merge achievements with verified ones
+              if (verifiedAchievements.domestic.length > 0 || verifiedAchievements.international.length > 0) {
+                teamData.majorAchievements = verifiedAchievements;
+                teamData.achievements = [
+                  ...verifiedAchievements.worldCup,
+                  ...verifiedAchievements.clubWorldCup,
+                  ...verifiedAchievements.international,
+                  ...verifiedAchievements.continental,
+                  ...verifiedAchievements.domestic
+                ];
+                
+                console.log(`✅ Achievements verified: ${teamData.achievements.length} entries`);
+              }
+              
+            } catch (verificationError) {
+              console.error('Verification failed:', verificationError);
+            }
+            
+            console.log('🏟️ Enhanced team data with verification');
             onTeamSelect(teamData);
           }
           else if (data.type === 'worldcup' && data.worldCupInfo) {
             console.log('🌍 Setting World Cup data');
             
-            // Clear player and team data if switching to World Cup
             onPlayerSelect(null);
             onTeamSelect(null);
             
@@ -366,12 +766,8 @@ export default function FootballSearch({
               defendingChampion: data.worldCupInfo.defendingChampion,
               mostTitles: data.worldCupInfo.mostTitles,
               details: data.worldCupInfo.details,
-              
-              // Current year context
               currentYear: data.worldCupInfo.currentYear || new Date().getFullYear(),
               lastUpdated: data.worldCupInfo.lastUpdated || new Date().toISOString(),
-              
-              // Language info
               language: data.language,
               isSpanish: data.isSpanish
             };
@@ -381,7 +777,6 @@ export default function FootballSearch({
           }
           else {
             console.log('📝 General query - only showing analysis');
-            // Clear all data for general queries
             onPlayerSelect(null);
             onTeamSelect(null);
             onWorldCupUpdate(null);
@@ -405,7 +800,6 @@ export default function FootballSearch({
         }
       }
     } catch (error: any) {
-      // Only show error if it's not an abort error
       if (error.name !== 'AbortError') {
         console.error('❌ Search failed:', error);
         setError('Network error. Please check your connection.');
@@ -418,44 +812,34 @@ export default function FootballSearch({
   };
 
   const handleExampleClick = (example: string) => {
-    // Check if this is a World Cup 2026 example
     if (example.toLowerCase().includes('2026')) {
       console.log('🌍 Quick search for World Cup 2026, redirecting...');
       handleWorldCup2026Click();
       return;
     }
     
-    // Trim the example query
     const trimmedExample = example.trim();
-    
-    // Set query state immediately
     setQuery(trimmedExample);
     setError(null);
     
-    // Cancel any existing timeout immediately
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
       searchTimeoutRef.current = null;
     }
     
-    // Abort any ongoing search
     if (searchControllerRef.current) {
       searchControllerRef.current.abort();
       searchControllerRef.current = null;
     }
     
-    // Clear all previous data
     clearAllPreviousData();
     
-    // Trigger search immediately (no setTimeout delay)
     console.log('🔍 [QUICK SEARCH] Starting search for:', trimmedExample);
     setIsSearching(true);
     onLoadingChange(true);
     
-    // Create new abort controller
     searchControllerRef.current = new AbortController();
     
-    // Perform the search directly
     const performQuickSearch = async () => {
       try {
         const apiUrl = `/api/ai?action=search&query=${encodeURIComponent(trimmedExample)}`;
@@ -474,10 +858,8 @@ export default function FootballSearch({
           if (data.success) {
             console.log('✅ [API] Quick search success! Type:', data.type);
             
-            // Clear all data before setting new data
             clearAllPreviousData();
             
-            // Handle the response (same logic as handleSearch)
             if (data.type === 'player' && data.playerInfo) {
               const playerData = {
                 id: Date.now(),
@@ -492,9 +874,11 @@ export default function FootballSearch({
                 preferredFoot: data.playerInfo.preferredFoot || 'Unknown',
                 playingStyle: data.playerInfo.playingStyle || '',
                 careerStats: data.playerInfo.careerStats || null,
+                _confidence: data._metadata?.confidenceScore || 70
               };
               
               onPlayerSelect(playerData);
+              setConfidence(data._metadata?.confidenceScore || 70);
             } 
             else if ((data.type === 'club' || data.type === 'national') && data.teamInfo) {
               const teamData = {
@@ -509,12 +893,15 @@ export default function FootballSearch({
                 currentManager: data.teamInfo.currentManager || null,
                 currentCoach: data.teamInfo.currentCoach || null,
                 trophies: data.teamInfo.trophies || null,
+                squad: data.teamInfo.squad || [],
+                _confidence: data._metadata?.confidenceScore || 70,
+                _verificationLevel: data._metadata?.verificationLevel || 'medium'
               };
               
               onTeamSelect(teamData);
+              setConfidence(data._metadata?.confidenceScore || 70);
             }
             
-            // Update analysis and video
             if (data.analysis) onAnalysisUpdate(data.analysis);
             if (data.youtubeUrl) onVideoFound(data.youtubeUrl);
             
@@ -535,7 +922,6 @@ export default function FootballSearch({
       }
     };
     
-    // Start the search
     performQuickSearch();
   };
 
@@ -563,11 +949,53 @@ export default function FootballSearch({
     'Paris Saint-Germain'
   ];
 
+  // NEW: Confidence badge component
+  const ConfidenceBadge = ({ score }: { score: number | null }) => {
+    if (!score) return null;
+    
+    let color = 'gray';
+    let text = 'Low Confidence';
+    
+    if (score >= 80) {
+      color = 'green';
+      text = 'High Confidence';
+    } else if (score >= 60) {
+      color = 'yellow';
+      text = 'Medium Confidence';
+    } else {
+      color = 'red';
+      text = 'Low Confidence';
+    }
+    
+    return (
+      <div style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        padding: '0.25rem 0.75rem',
+        background: `rgba(${color === 'green' ? '34, 197, 94' : color === 'yellow' ? '234, 179, 8' : '239, 68, 68'}, 0.1)`,
+        border: `1px solid rgba(${color === 'green' ? '34, 197, 94' : color === 'yellow' ? '234, 179, 8' : '239, 68, 68'}, 0.3)`,
+        borderRadius: '999px',
+        fontSize: '0.75rem',
+        fontWeight: 500,
+        color: `rgb(${color === 'green' ? '34, 197, 94' : color === 'yellow' ? '234, 179, 8' : '239, 68, 68'})`,
+        marginLeft: '0.5rem'
+      }}>
+        <span style={{ marginRight: '0.25rem' }}>
+          {score >= 80 ? '✅' : score >= 60 ? '⚠️' : '❓'}
+        </span>
+        {text} ({score}%)
+      </div>
+    );
+  };
+
   return (
     <div>
-      <h2 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '1.5rem', color: 'white' }}>
-        ⚽ Football AI Search
-      </h2>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '1.5rem' }}>
+        <h2 style={{ fontSize: '1.75rem', fontWeight: 700, color: 'white', margin: 0 }}>
+          ⚽ Football AI Search
+        </h2>
+        {confidence !== null && <ConfidenceBadge score={confidence} />}
+      </div>
       
       {error && (
         <div style={{
@@ -811,7 +1239,7 @@ export default function FootballSearch({
       </div>
       
       <div style={{ marginTop: '1rem', fontSize: '0.875rem', color: '#94a3b8' }}>
-        <p>Get detailed stats, trophy counts, current managers, and AI analysis</p>
+        <p>Get detailed stats, verified trophy counts, current managers, and AI analysis</p>
         <div style={{
           marginTop: '0.5rem',
           fontSize: '0.75rem',
@@ -824,10 +1252,9 @@ export default function FootballSearch({
           <span>Spanish searches will use Spanish Wikipedia for accurate data</span>
         </div>
         <p style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: '#64748b' }}>
-          Powered by Groq AI + Wikipedia • Current 2024 data • Video highlights
+          Powered by GROQ AI + SportsDB + Football Data API • Verified 2024-2025 data • Confidence scoring
         </p>
       </div>
     </div>
   );
 }
-

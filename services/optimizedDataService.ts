@@ -1,583 +1,610 @@
-/**
- * Optimized Data Service - Replaces expensive Groq calls with reliable free sources
- * Strategy: Football Data API (verified squads) + Wikipedia (rich data) + Wikimedia Commons (player photos)
- * 
- * Token Savings:
- * - Eliminates ~5-10 Groq calls per search (translations, image fetching, coach verification)
- * - Uses free APIs: Football Data, Wikipedia, Wikimedia Commons, TMDb
- * - Implements aggressive caching to prevent redundant calls
- */
-
-import { Player, Team, GROQSearchResponse } from './groqService';
-
-// ============================================================================
-// FOOTBALL DATA API WRAPPER
-// ============================================================================
-
-const FOOTBALL_DATA_API_KEY = process.env.NEXT_PUBLIC_FOOTBALL_DATA_API_KEY;
-const FOOTBALL_DATA_BASE_URL = 'https://api.football-data.org/v4';
-
-// Cache for Football Data API calls (24 hours)
-const footballDataCache = new Map<string, { data: any; timestamp: number }>();
-const FOOTBALL_DATA_CACHE_TTL = 24 * 60 * 60 * 1000;
-
-// Popular team ID mapping for Football Data API (prevents search mismatches)
-const POPULAR_TEAM_IDS: Record<string, number> = {
-  'real madrid': 86,
-  'barcelona': 81,
-  'manchester city': 328,
-  'manchester united': 66,
-  'liverpool': 64,
-  'arsenal': 57,
-  'chelsea': 61,
-  'tottenham': 73,
-  'ac milan': 98,
-  'inter': 99,
-  'inter milan': 99,
-  'juventus': 102,
-  'juventus fc': 102,
-  'napoli': 105,
-  'as roma': 103,
-  'fiorentina': 99,
-  'lazio': 110,
-  'atalanta': 95,
-  'bayern munich': 27,
-  'bayern': 27,
-  'borussia dortmund': 4,
-  'dortmund': 4,
-  'psg': 66,
-  'paris saint-germain': 66,
-  'olympique lyonnais': 90,
-  'lyon': 90,
-  'marseille': 89,
-  'ajax': 194,
-  'psv': 281,
-  'feyenoord': 293,
-  'atletico madrid': 78,
-  'atletico': 78,
-  'sevilla': 559,
-  'real sociedad': 92,
-  'sociedad': 92,
-  'valencia': 111,
-  'villarreal': 107,
-  'laliga': 2014,
-  'premier league': 2021,
-  'serie a': 2019,
-  'bundesliga': 2002,
-  'ligue 1': 2015,
-};
-
-interface FootballDataTeam {
-  id: number;
-  name: string;
-  shortName: string;
-  tla: string;
-  crest: string;
-  address?: string;
-  website?: string;
-  founded?: number;
-  clubColors?: string;
-  venue?: string;
-  coach?: {
-    id: number;
-    name: string;
-    dateOfBirth?: string;
-    nationality?: string;
-  };
-  squad?: Array<{
-    id: number;
-    name: string;
-    position: string;
-    dateOfBirth: string;
-    nationality: string;
-    shirtNumber?: number;
-  }>;
-}
-
-// Helper to fetch data (Server vs Client handling)
-const fetchFootballData = async (url: string) => {
-  if (typeof window !== 'undefined') {
-    // Client-side: use proxy to avoid CORS
-    const endpoint = url.replace('https://api.football-data.org/v4', '');
-    return fetch(`/api/football-data?endpoint=${encodeURIComponent(endpoint)}`);
-  } else {
-    // Server-side: fetch directly
-    return fetch(url, {
-      headers: { 'X-Auth-Token': FOOTBALL_DATA_API_KEY || '' },
-    });
+// services/optimizedDataService.ts - COMPLETE FIXED VERSION
+// Configuration for API endpoints
+const API_CONFIG = {
+  footballData: {
+    baseUrl: 'https://api.football-data.org/v4',
+    apiKey: process.env.NEXT_PUBLIC_FOOTBALL_DATA_API_KEY || ''
+  },
+  sportsDB: {
+    baseUrl: 'https://www.thesportsdb.com/api/v1/json/3',
+    apiKey: '3'
+  },
+  wikipedia: {
+    baseUrl: 'https://en.wikipedia.org/api/rest_v1'
+  },
+  wikidata: {
+    baseUrl: 'https://www.wikidata.org/w/api.php'
   }
 };
 
-/**
- * Fetch verified squad data from Football Data API
- * Returns ACCURATE current squad info, no hallucinations
- */
-export const fetchVerifiedSquad = async (teamName: string): Promise<FootballDataTeam | null> => {
-  if (!FOOTBALL_DATA_API_KEY) {
-    console.error(`[FD_API] ❌ NO API KEY - Football Data will not work!`);
-    return null;
-  }
+// Cache for API responses
+const apiCache = new Map<string, { data: any; timestamp: number }>();
+const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
-  const cacheKey = `squad_${teamName.toLowerCase()}`;
+// Helper function for cached API calls
+const cachedFetch = async (cacheKey: string, fetchFn: () => Promise<any>): Promise<any> => {
+  const now = Date.now();
+  const cached = apiCache.get(cacheKey);
   
-  // Check cache
-  const cached = footballDataCache.get(cacheKey);
-  if (cached && Date.now() - cached.timestamp < FOOTBALL_DATA_CACHE_TTL) {
-    console.log(`[FD_API] [${teamName}] Cache HIT`);
+  if (cached && now - cached.timestamp < CACHE_TTL) {
+    console.log(`[CACHE] Using cached: ${cacheKey}`);
     return cached.data;
   }
-
+  
   try {
-    const knownTeamId = POPULAR_TEAM_IDS[teamName.toLowerCase()];
-    let teamId: number | null = knownTeamId || null;
+    const data = await fetchFn();
+    apiCache.set(cacheKey, { data, timestamp: now });
+    return data;
+  } catch (error) {
+    console.error(`[API] Failed: ${cacheKey}`, error);
+    throw error;
+  }
+};
+
+// Football Data API integration
+export const fetchVerifiedSquad = async (teamName: string): Promise<any> => {
+  const cacheKey = `footballData_squad_${teamName.toLowerCase()}`;
+  
+  return cachedFetch(cacheKey, async () => {
+    console.log(`[FootballData] Searching for team: ${teamName}`);
     
-    console.log(`[FD_API] [${teamName}] Fetching...`);
+    // First, try to find team ID by name
+    const searchUrl = `${API_CONFIG.footballData.baseUrl}/teams`;
+    const searchParams = new URLSearchParams({
+      name: teamName,
+      limit: '5'
+    });
     
-    // If not in popular teams list, search for team
-    if (!teamId) {
-      console.log(`[Football Data] Team ID not found in mapping, searching...`);
-      const searchUrl = `${FOOTBALL_DATA_BASE_URL}/teams?name=${encodeURIComponent(teamName)}`;
-      const searchResponse = await fetchFootballData(searchUrl);
-
-      if (!searchResponse.ok) {
-        console.error(`[Football Data] Search failed: ${searchResponse.status}`);
-        return null;
+    const searchResponse = await fetch(`${searchUrl}?${searchParams}`, {
+      headers: {
+        'X-Auth-Token': API_CONFIG.footballData.apiKey,
+        'Accept': 'application/json'
       }
-
-      const searchData = await searchResponse.json();
-      if (!searchData.teams || searchData.teams.length === 0) {
-        console.warn(`[Football Data] No team found for: ${teamName}`);
-        return null;
-      }
-
-      teamId = searchData.teams[0].id;
-    } else {
-      console.log(`[Football Data] Using known team ID: ${teamId}`);
+    });
+    
+    if (!searchResponse.ok) {
+      throw new Error(`Football Data search failed: ${searchResponse.status}`);
     }
-
-    // Fetch detailed team data with squad
-    const teamUrl = `${FOOTBALL_DATA_BASE_URL}/teams/${teamId}`;
-    const teamResponse = await fetchFootballData(teamUrl);
-
-    if (!teamResponse.ok) {
-      console.error(`[FD_API] [${teamName}] HTTP ${teamResponse.status} error`);
-      if (teamResponse.status === 404) {
-        console.warn(`[FD_API] ⚠️ 404 Error: The API route might be missing. Please restart the server.`);
-      }
+    
+    const searchData = await searchResponse.json();
+    const teams = searchData.teams || searchData;
+    
+    if (!teams || teams.length === 0) {
+      console.log(`[FootballData] No team found for: ${teamName}`);
       return null;
     }
-
+    
+    // Find best match
+    const team = teams[0];
+    const teamId = team.id;
+    
+    // Get team details with squad
+    const teamUrl = `${API_CONFIG.footballData.baseUrl}/teams/${teamId}`;
+    const teamResponse = await fetch(teamUrl, {
+      headers: {
+        'X-Auth-Token': API_CONFIG.footballData.apiKey,
+        'Accept': 'application/json'
+      }
+    });
+    
+    if (!teamResponse.ok) {
+      throw new Error(`Football Data team fetch failed: ${teamResponse.status}`);
+    }
+    
     const teamData = await teamResponse.json();
     
-    // Check if we got squad data
-    if (!teamData.squad) {
-      console.warn(`[FD_API] [${teamName}] No squad in response`);
-    } else {
-      console.log(`[FD_API] [${teamName}] ✓ Got ${teamData.squad.length} players`);
-    }
+    // Extract squad and coach information
+    const squad = teamData.squad || [];
+    const coach = squad.find((member: any) => member.role === 'COACH');
     
-    // Cache the result
-    footballDataCache.set(cacheKey, {
-      data: teamData,
-      timestamp: Date.now(),
-    });
-
-    console.log(`[FD_API] [${teamName}] Cached ✓`);
-    return teamData;
-  } catch (error) {
-    console.error(`[FD_API] [${teamName}] ❌ Exception: ${(error as any).message}`);
-    return null;
-  }
-};
-
-// ============================================================================
-// WIKIMEDIA COMMONS API FOR PLAYER PHOTOS (Centered, Full-Face)
-// ============================================================================
-
-const WIKIMEDIA_API_BASE = 'https://commons.wikimedia.org/w/api.php';
-const WIKIMEDIA_CACHE = new Map<string, { url: string; timestamp: number }>();
-const WIKIMEDIA_CACHE_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days
-
-/**
- * Fetch player image from Wikimedia Commons
- * Returns high-quality, centered photos (more standardized than Wikipedia)
- */
-export const fetchWikimediaPlayerImage = async (playerName: string): Promise<string | null> => {
-  const cacheKey = `wikimedia_${playerName.toLowerCase()}`;
-  
-  // Check cache
-  const cached = WIKIMEDIA_CACHE.get(cacheKey);
-  if (cached && Date.now() - cached.timestamp < WIKIMEDIA_CACHE_TTL) {
-    console.log(`[Wikimedia] Cache hit: ${playerName}`);
-    return cached.url;
-  }
-
-  try {
-    console.log(`[Wikimedia] Searching for: ${playerName}`);
-    
-    const response = await fetch(
-      `${WIKIMEDIA_API_BASE}?action=query&list=allimages&aisort=timestamp&aidir=descending&aifrom=${encodeURIComponent(playerName)}&ailimit=5&format=json&origin=*`,
-      { signal: AbortSignal.timeout(5000) }
-    );
-
-    if (!response.ok) return null;
-
-    const data = await response.json();
-    if (!data.query?.allimages?.length) {
-      console.log(`[Wikimedia] No images found for: ${playerName}`);
-      return null;
-    }
-
-    // Get the image URL
-    const image = data.query.allimages[0];
-    const imageUrl = `https://upload.wikimedia.org/wikipedia/commons/${image.url.split('/').slice(-2).join('/')}`;
-    
-    // Cache it
-    WIKIMEDIA_CACHE.set(cacheKey, {
-      url: imageUrl,
-      timestamp: Date.now(),
-    });
-
-    console.log(`[Wikimedia] ✓ Found image: ${playerName}`);
-    return imageUrl;
-  } catch (error) {
-    console.error(`[Wikimedia] Error: ${error}`);
-    return null;
-  }
-};
-
-// ============================================================================
-// HARDCODED TRANSLATIONS (Replace Groq Translation calls)
-// ============================================================================
-
-export const HARDCODED_TRANSLATIONS = {
-  teams: {
-    'Real Madrid': { es: 'Real Madrid', fr: 'Real Madrid', de: 'Real Madrid', pt: 'Real Madrid' },
-    'Barcelona': { es: 'Barcelona', fr: 'Barcelone', de: 'Barcelona', pt: 'Barcelona' },
-    'Manchester City': { es: 'Manchester City', fr: 'Manchester City', de: 'Manchester City', pt: 'Manchester City' },
-    'Liverpool': { es: 'Liverpool', fr: 'Liverpool', de: 'Liverpool', pt: 'Liverpool' },
-    'Bayern Munich': { es: 'Bayern de Múnich', fr: 'Bayern Munich', de: 'Bayern München', pt: 'Bayern de Munique' },
-    'Paris Saint-Germain': { es: 'PSG', fr: 'PSG', de: 'PSG', pt: 'PSG' },
-    'Juventus': { es: 'Juventus', fr: 'Juventus', de: 'Juventus', pt: 'Juventus' },
-    'AC Milan': { es: 'AC Milan', fr: 'AC Milan', de: 'AC Mailand', pt: 'AC Milan' },
-    'Inter Milan': { es: 'Inter de Milán', fr: 'Inter Milan', de: 'Inter Mailand', pt: 'Inter de Milão' },
-    'Arsenal': { es: 'Arsenal', fr: 'Arsenal', de: 'Arsenal', pt: 'Arsenal' },
-    'Chelsea': { es: 'Chelsea', fr: 'Chelsea', de: 'Chelsea', pt: 'Chelsea' },
-    'Manchester United': { es: 'Manchester United', fr: 'Manchester United', de: 'Manchester United', pt: 'Manchester United' },
-  },
-  countries: {
-    'England': { es: 'Inglaterra', fr: 'Angleterre', de: 'England', pt: 'Inglaterra' },
-    'Spain': { es: 'España', fr: 'Espagne', de: 'Spanien', pt: 'Espanha' },
-    'France': { es: 'Francia', fr: 'France', de: 'Frankreich', pt: 'França' },
-    'Germany': { es: 'Alemania', fr: 'Allemagne', de: 'Deutschland', pt: 'Alemanha' },
-    'Italy': { es: 'Italia', fr: 'Italie', de: 'Italien', pt: 'Itália' },
-    'Portugal': { es: 'Portugal', fr: 'Portugal', de: 'Portugal', pt: 'Portugal' },
-    'Argentina': { es: 'Argentina', fr: 'Argentine', de: 'Argentinien', pt: 'Argentina' },
-    'Brazil': { es: 'Brasil', fr: 'Brésil', de: 'Brasilien', pt: 'Brasil' },
-    'Netherlands': { es: 'Países Bajos', fr: 'Pays-Bas', de: 'Niederlande', pt: 'Países Baixos' },
-  },
-  positions: {
-    'Goalkeeper': { es: 'Portero', fr: 'Gardien', de: 'Torwart', pt: 'Goleiro' },
-    'Defender': { es: 'Defensa', fr: 'Défenseur', de: 'Abwehr', pt: 'Defesa' },
-    'Midfielder': { es: 'Centrocampista', fr: 'Milieu', de: 'Mittelfeld', pt: 'Meio-campista' },
-    'Forward': { es: 'Delantero', fr: 'Attaquant', de: 'Stürmer', pt: 'Atacante' },
-  },
-};
-
-export const translateTerm = (term: string, language: string, category: 'teams' | 'countries' | 'positions'): string => {
-  if (language === 'en') return term;
-  
-  const translations = HARDCODED_TRANSLATIONS[category] as any;
-  return translations?.[term]?.[language] || term;
-};
-
-// ============================================================================
-// WIKIPEDIA ENRICHMENT (Rich historical data, achievements, legends)
-// ============================================================================
-
-const WIKI_CACHE = new Map<string, { data: any; timestamp: number }>();
-const WIKI_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
-
-interface WikipediaTeamData {
-  summary?: string;
-  legends: Array<{
-    name: string;
-    years: string;
-    achievements: string;
-  }>;
-  trophies: {
-    leagues: string[];
-    cups: string[];
-    european: string[];
-    international: string[];
-  };
-  stadiumInfo?: string;
-}
-
-/**
- * Fetch rich team data from Wikipedia
- * Includes legends, historical achievements, stadium info
- */
-export const fetchWikipediaTeamData = async (teamName: string): Promise<WikipediaTeamData | null> => {
-  const cacheKey = `wiki_team_${teamName.toLowerCase()}`;
-  
-  const cached = WIKI_CACHE.get(cacheKey);
-  if (cached && Date.now() - cached.timestamp < WIKI_CACHE_TTL) {
-    console.log(`[Wikipedia] Cache hit for team: ${teamName}`);
-    return cached.data;
-  }
-
-  try {
-    console.log(`[Wikipedia] Fetching team data: ${teamName}`);
-    
-    const response = await fetch(
-      `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(teamName)}`,
-      { signal: AbortSignal.timeout(5000) }
-    );
-
-    if (!response.ok) {
-      console.warn(`[Wikipedia] No data found for: ${teamName}`);
-      return null;
-    }
-
-    const data = await response.json();
-    
-    // Parse the Wikipedia extract for legends and achievements
-    const wikiData: WikipediaTeamData = {
-      summary: data.extract?.substring(0, 300),
-      legends: extractLegendsFromWiki(data.extract),
-      trophies: extractTrophiesFromWiki(data.extract),
-      stadiumInfo: extractStadiumInfo(data.extract),
-    };
-
-    // Cache it
-    WIKI_CACHE.set(cacheKey, {
-      data: wikiData,
-      timestamp: Date.now(),
-    });
-
-    console.log(`[Wikipedia] ✓ Got team data for: ${teamName}`);
-    return wikiData;
-  } catch (error) {
-    console.error(`[Wikipedia] Error: ${error}`);
-    return null;
-  }
-};
-
-// Helper to extract legends from Wikipedia text
-function extractLegendsFromWiki(text: string): Array<{ name: string; years: string; achievements: string }> {
-  // Simple pattern matching for "legendary" or "iconic" players
-  const legendPattern = /(?:legendary|iconic|greatest|famous).*?(?:player|footballer).*?(?:named|called)?\s+([A-Z][a-z]+\s+[A-Z][a-z]+)/gi;
-  const legends: Array<{ name: string; years: string; achievements: string }> = [];
-  
-  if (!text) return legends;
-  
-  // This is a simplified approach - in production, use NLP
-  // For now, return empty to avoid hallucination
-  return legends;
-}
-
-// Helper to extract trophies from Wikipedia text
-function extractTrophiesFromWiki(text: string): { leagues: string[]; cups: string[]; european: string[]; international: string[] } {
-  return {
-    leagues: [],
-    cups: [],
-    european: [],
-    international: [],
-  };
-}
-
-// Helper to extract stadium info
-function extractStadiumInfo(text: string): string | undefined {
-  const stadiumPattern = /(?:plays at|stadium|home ground|based at)\s+([^.]+)/i;
-  const match = text?.match(stadiumPattern);
-  return match?.[1]?.trim();
-}
-
-// ============================================================================
-// WIKIDATA VERIFICATION (Structured Data for Managers & Teams)
-// ============================================================================
-
-/**
- * Fetch current manager/coach from Wikidata
- * Uses P286 (head coach) property with DATE VALIDATION
- */
-export const getCoachFromWikidata = async (teamName: string): Promise<string | null> => {
-  try {
-    console.log(`[Wikidata] Searching manager for: ${teamName}`);
-    // 1. Search for team entity
-    const searchUrl = `https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(teamName + ' football team')}&language=en&format=json&origin=*&type=item&limit=1`;
-    const searchRes = await fetch(searchUrl);
-    const searchData = await searchRes.json();
-    
-    if (!searchData.search || searchData.search.length === 0) return null;
-    const teamId = searchData.search[0].id;
-    
-    // 2. Get claims for P286 (head coach)
-    const claimsUrl = `https://www.wikidata.org/w/api.php?action=wbgetclaims&entity=${teamId}&property=P286&format=json&origin=*`;
-    const claimsRes = await fetch(claimsUrl);
-    const claimsData = await claimsRes.json();
-    
-    const claims = claimsData.claims?.P286;
-    if (!claims || claims.length === 0) return null;
-    
-    // 3. Filter and Sort Claims
-    // We want the coach with a start date (P580) but NO end date (P582)
-    // Or the one with the most recent start date if multiple exist
-    
-    const activeCoaches = claims.filter((c: any) => {
-      // Check if there is an end date qualifier (P582)
-      const endDates = c.qualifiers?.P582;
-      if (endDates && endDates.length > 0) return false; // Has ended
-      return true;
-    });
-
-    // If we have active coaches, sort by start date (P580)
-    const sortedCoaches = activeCoaches.sort((a: any, b: any) => {
-      const startA = a.qualifiers?.P580?.[0]?.datavalue?.value?.time;
-      const startB = b.qualifiers?.P580?.[0]?.datavalue?.value?.time;
-      
-      if (!startA) return 1;
-      if (!startB) return -1;
-      
-      return startB.localeCompare(startA); // Descending (newest first)
-    });
-
-    // Select the most recent active coach, or fallback to preferred/last
-    let currentCoachClaim = sortedCoaches.length > 0 ? sortedCoaches[0] : (claims.find((c: any) => c.rank === 'preferred') || claims[claims.length - 1]);
-    
-    if (!currentCoachClaim?.mainsnak?.datavalue?.value?.id) return null;
-    
-    const coachId = currentCoachClaim.mainsnak.datavalue.value.id;
-    
-    // 4. Get coach name label
-    const entityUrl = `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${coachId}&props=labels&languages=en&format=json&origin=*`;
-    const entityRes = await fetch(entityUrl);
-    const entityData = await entityRes.json();
-    
-    const coachName = entityData.entities?.[coachId]?.labels?.en?.value;
-    if (coachName) {
-        console.log(`[Wikidata] Found coach: ${coachName}`);
-        return coachName;
-    }
-    
-    return null;
-  } catch (error) {
-    console.error('[Wikidata] Error fetching coach:', error);
-    return null;
-  }
-};
-
-/**
- * Fetch current team for a player from Wikidata
- * Uses P54 (member of sports team)
- */
-export const getCurrentTeamFromWikidata = async (playerName: string): Promise<string | null> => {
-  try {
-    const searchUrl = `https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(playerName)}&language=en&format=json&origin=*&type=item&limit=1`;
-    const searchRes = await fetch(searchUrl);
-    const searchData = await searchRes.json();
-    
-    if (!searchData.search || searchData.search.length === 0) return null;
-    const playerId = searchData.search[0].id;
-    
-    // P54 is "member of sports team"
-    const claimsUrl = `https://www.wikidata.org/w/api.php?action=wbgetclaims&entity=${playerId}&property=P54&format=json&origin=*`;
-    const claimsRes = await fetch(claimsUrl);
-    const claimsData = await claimsRes.json();
-    
-    const claims = claimsData.claims?.P54;
-    if (!claims || claims.length === 0) return null;
-    
-    // Find preferred rank (current team)
-    let currentTeamClaim = claims.find((c: any) => c.rank === 'preferred');
-    if (!currentTeamClaim) currentTeamClaim = claims[claims.length - 1];
-    
-    if (!currentTeamClaim?.mainsnak?.datavalue?.value?.id) return null;
-    
-    const teamId = currentTeamClaim.mainsnak.datavalue.value.id;
-    
-    const entityUrl = `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${teamId}&props=labels&languages=en&format=json&origin=*`;
-    const entityRes = await fetch(entityUrl);
-    const entityData = await entityRes.json();
-    
-    return entityData.entities?.[teamId]?.labels?.en?.value || null;
-  } catch (e) {
-    return null;
-  }
-};
-
-// ============================================================================
-// LIVE SCORE DATA FOR HIGHLIGHTS PAGE
-// ============================================================================
-
-export const LIVE_SCORE_PROVIDERS = {
-  // Free providers (no API key required or generous free tier)
-  // 1. SportRadar (free tier available)
-  // 2. ESPN data (web scraping fallback)
-  // 3. Rapid API free tier for football-api
-};
-
-/**
- * Fetch live scores and match data
- * Can be replaced with API call or web scraping
- */
-export const fetchLiveMatches = async (competition?: string): Promise<any[]> => {
-  // TODO: Integrate with free sports API
-  // For now, return mock data
-  return [];
-};
-
-// ============================================================================
-// CACHE MANAGEMENT UTILITIES
-// ============================================================================
-
-export const clearAllCaches = () => {
-  footballDataCache.clear();
-  WIKIMEDIA_CACHE.clear();
-  WIKI_CACHE.clear();
-  console.log('[Cache] All caches cleared');
-};
-
-export const getCacheStats = () => {
-  return {
-    footballDataCached: footballDataCache.size,
-    wikimediaCached: WIKIMEDIA_CACHE.size,
-    wikipediaCached: WIKI_CACHE.size,
-    totalCached: footballDataCache.size + WIKIMEDIA_CACHE.size + WIKI_CACHE.size,
-  };
-};
-
-export const convertFootballDataToPlayers = (footballData: FootballDataTeam): Player[] => {
-  if (!footballData.squad) return [];
-  
-  return footballData.squad.map(p => {
-    const age = p.dateOfBirth ? new Date().getFullYear() - new Date(p.dateOfBirth).getFullYear() : undefined;
     return {
-      name: p.name,
-      currentTeam: footballData.name,
-      position: p.position || 'Unknown',
-      age: age,
-      nationality: p.nationality || 'Unknown',
-      careerGoals: 0,
-      careerAssists: 0,
-      internationalAppearances: 0,
-      internationalGoals: 0,
-      majorAchievements: [],
-      careerSummary: `${p.name} plays for ${footballData.name}.`,
-      _source: 'Football Data API',
-      _lastVerified: new Date().toISOString(),
-      _priority: 'high'
-    } as Player;
+      id: teamData.id,
+      name: teamData.name,
+      shortName: teamData.shortName,
+      tla: teamData.tla,
+      crest: teamData.crest,
+      address: teamData.address,
+      website: teamData.website,
+      founded: teamData.founded,
+      clubColors: teamData.clubColors,
+      venue: teamData.venue,
+      runningCompetitions: teamData.runningCompetitions,
+      coach: coach ? {
+        id: coach.id,
+        name: coach.name,
+        dateOfBirth: coach.dateOfBirth,
+        nationality: coach.nationality
+      } : null,
+      squad: squad.filter((member: any) => member.role === 'PLAYER').map((player: any) => ({
+        id: player.id,
+        name: player.name,
+        position: player.position,
+        dateOfBirth: player.dateOfBirth,
+        nationality: player.nationality,
+        shirtNumber: player.shirtNumber
+      })),
+      type: teamData.type || 'club',
+      country: teamData.area?.name || '',
+      stadium: teamData.venue
+    };
   });
 };
 
+// SportsDB API integration
+export const fetchTeamInfoFromSportsDB = async (teamName: string): Promise<any> => {
+  const cacheKey = `sportsdb_team_${teamName.toLowerCase()}`;
+  
+  return cachedFetch(cacheKey, async () => {
+    console.log(`[SportsDB] Searching for team: ${teamName}`);
+    
+    const searchUrl = `${API_CONFIG.sportsDB.baseUrl}/searchteams.php`;
+    const params = new URLSearchParams({ t: teamName });
+    
+    const response = await fetch(`${searchUrl}?${params}`);
+    
+    if (!response.ok) {
+      throw new Error(`SportsDB search failed: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    if (!data.teams || data.teams.length === 0) {
+      // Try alternative search
+      const altResponse = await fetch(`${API_CONFIG.sportsDB.baseUrl}/searchallteams.php?l=${encodeURIComponent(teamName)}`);
+      if (altResponse.ok) {
+        const altData = await altResponse.json();
+        if (altData.teams && altData.teams.length > 0) {
+          return altData.teams[0];
+        }
+      }
+      return null;
+    }
+    
+    return data.teams[0];
+  });
+};
+
+export const fetchCoachFromSportsDB = async (teamId: string): Promise<string | null> => {
+  const cacheKey = `sportsdb_coach_${teamId}`;
+  
+  return cachedFetch(cacheKey, async () => {
+    console.log(`[SportsDB] Fetching coach for team ID: ${teamId}`);
+    
+    const teamUrl = `${API_CONFIG.sportsDB.baseUrl}/lookupteam.php`;
+    const params = new URLSearchParams({ id: teamId });
+    
+    const response = await fetch(`${teamUrl}?${params}`);
+    
+    if (!response.ok) {
+      throw new Error(`SportsDB team fetch failed: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    if (data.teams && data.teams.length > 0) {
+      return data.teams[0].strManager || null;
+    }
+    
+    return null;
+  });
+};
+
+export const fetchTeamHonorsFromSportsDB = async (teamId: string): Promise<any[]> => {
+  const cacheKey = `sportsdb_honors_${teamId}`;
+  
+  return cachedFetch(cacheKey, async () => {
+    console.log(`[SportsDB] Fetching honors for team ID: ${teamId}`);
+    
+    const honorsUrl = `${API_CONFIG.sportsDB.baseUrl}/lookuphonors.php`;
+    const params = new URLSearchParams({ id: teamId });
+    
+    const response = await fetch(`${honorsUrl}?${params}`);
+    
+    if (!response.ok) {
+      throw new Error(`SportsDB honors fetch failed: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    return data.honours || [];
+  });
+};
+
+// Wikipedia API integration
+export const fetchFromWikipedia = async (query: string, language: string = 'en'): Promise<any> => {
+  const cacheKey = `wikipedia_${language}_${query.toLowerCase()}`;
+  
+  return cachedFetch(cacheKey, async () => {
+    console.log(`[Wikipedia] Fetching: "${query}" in ${language}`);
+    
+    const url = `${API_CONFIG.wikipedia.baseUrl}/page/summary/${encodeURIComponent(query)}`;
+    
+    const response = await fetch(url, {
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'FutbolAI/1.0'
+      }
+    });
+    
+    if (!response.ok) {
+      // Try with underscores for spaces
+      const altQuery = query.replace(/ /g, '_');
+      const altUrl = `${API_CONFIG.wikipedia.baseUrl}/page/summary/${encodeURIComponent(altQuery)}`;
+      const altResponse = await fetch(altUrl, {
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'FutbolAI/1.0'
+        }
+      });
+      
+      if (altResponse.ok) {
+        return await altResponse.json();
+      }
+      
+      throw new Error(`Wikipedia fetch failed: ${response.status}`);
+    }
+    
+    return await response.json();
+  });
+};
+
+// Wikidata API integration
+export const getCoachFromWikidata = async (teamName: string): Promise<string | null> => {
+  const cacheKey = `wikidata_coach_${teamName.toLowerCase()}`;
+  
+  return cachedFetch(cacheKey, async () => {
+    console.log(`[Wikidata] Searching for coach of: ${teamName}`);
+    
+    // First, search for the team entity
+    const searchUrl = `${API_CONFIG.wikidata.baseUrl}`;
+    const searchParams = new URLSearchParams({
+      action: 'wbsearchentities',
+      search: teamName,
+      language: 'en',
+      format: 'json',
+      type: 'item'
+    });
+    
+    const searchResponse = await fetch(`${searchUrl}?${searchParams}`);
+    
+    if (!searchResponse.ok) {
+      return null;
+    }
+    
+    const searchData = await searchResponse.json();
+    
+    if (!searchData.search || searchData.search.length === 0) {
+      return null;
+    }
+    
+    const teamEntity = searchData.search[0];
+    const entityId = teamEntity.id;
+    
+    // Now query for coach information
+    const queryUrl = `${API_CONFIG.wikidata.baseUrl}`;
+    const queryParams = new URLSearchParams({
+      action: 'wbgetentities',
+      ids: entityId,
+      props: 'claims',
+      format: 'json'
+    });
+    
+    const queryResponse = await fetch(`${queryUrl}?${queryParams}`);
+    
+    if (!queryResponse.ok) {
+      return null;
+    }
+    
+    const entityData = await queryResponse.json();
+    const claims = entityData.entities?.[entityId]?.claims;
+    
+    if (!claims) {
+      return null;
+    }
+    
+    // Look for coach property (P286)
+    const coachClaims = claims.P286;
+    if (coachClaims && coachClaims.length > 0) {
+      const coachId = coachClaims[0].mainsnak.datavalue?.value.id;
+      
+      if (coachId) {
+        // Get coach name
+        const coachQueryParams = new URLSearchParams({
+          action: 'wbgetentities',
+          ids: coachId,
+          props: 'labels',
+          format: 'json',
+          languages: 'en'
+        });
+        
+        const coachResponse = await fetch(`${queryUrl}?${coachQueryParams}`);
+        if (coachResponse.ok) {
+          const coachData = await coachResponse.json();
+          return coachData.entities?.[coachId]?.labels?.en?.value || null;
+        }
+      }
+    }
+    
+    return null;
+  });
+};
+
+export const getCurrentTeamFromWikidata = async (playerName: string): Promise<string | null> => {
+  const cacheKey = `wikidata_team_${playerName.toLowerCase()}`;
+  
+  return cachedFetch(cacheKey, async () => {
+    console.log(`[Wikidata] Searching for current team of: ${playerName}`);
+    
+    // Search for player entity
+    const searchUrl = `${API_CONFIG.wikidata.baseUrl}`;
+    const searchParams = new URLSearchParams({
+      action: 'wbsearchentities',
+      search: playerName,
+      language: 'en',
+      format: 'json',
+      type: 'item'
+    });
+    
+    const searchResponse = await fetch(`${searchUrl}?${searchParams}`);
+    
+    if (!searchResponse.ok) {
+      return null;
+    }
+    
+    const searchData = await searchResponse.json();
+    
+    if (!searchData.search || searchData.search.length === 0) {
+      return null;
+    }
+    
+    const playerEntity = searchData.search[0];
+    const entityId = playerEntity.id;
+    
+    // Query for team information
+    const queryUrl = `${API_CONFIG.wikidata.baseUrl}`;
+    const queryParams = new URLSearchParams({
+      action: 'wbgetentities',
+      ids: entityId,
+      props: 'claims',
+      format: 'json'
+    });
+    
+    const queryResponse = await fetch(`${queryUrl}?${queryParams}`);
+    
+    if (!queryResponse.ok) {
+      return null;
+    }
+    
+    const entityData = await queryResponse.json();
+    const claims = entityData.entities?.[entityId]?.claims;
+    
+    if (!claims) {
+      return null;
+    }
+    
+    // Look for current team property (P54)
+    const teamClaims = claims.P54;
+    if (teamClaims && teamClaims.length > 0) {
+      const teamId = teamClaims[0].mainsnak.datavalue?.value.id;
+      
+      if (teamId) {
+        // Get team name
+        const teamQueryParams = new URLSearchParams({
+          action: 'wbgetentities',
+          ids: teamId,
+          props: 'labels',
+          format: 'json',
+          languages: 'en'
+        });
+        
+        const teamResponse = await fetch(`${queryUrl}?${teamQueryParams}`);
+        if (teamResponse.ok) {
+          const teamData = await teamResponse.json();
+          return teamData.entities?.[teamId]?.labels?.en?.value || null;
+        }
+      }
+    }
+    
+    return null;
+  });
+};
+
+export const getTeamTrophiesFromWikidata = async (teamName: string): Promise<any> => {
+  const cacheKey = `wikidata_trophies_${teamName.toLowerCase()}`;
+  
+  return cachedFetch(cacheKey, async () => {
+    console.log(`[Wikidata] Searching for trophies of: ${teamName}`);
+    
+    // This is a simplified version - Wikidata trophy data requires complex SPARQL queries
+    // For now, return empty structure
+    return {
+      worldCup: [],
+      international: [],
+      continental: [],
+      domestic: []
+    };
+  });
+};
+
+// Player interface (moved here to avoid circular dependency)
+interface LocalPlayer {
+  name: string;
+  currentTeam: string;
+  position: string;
+  age?: number;
+  nationality: string;
+  careerGoals?: number;
+  careerAssists?: number;
+  internationalAppearances?: number;
+  internationalGoals?: number;
+  majorAchievements: string[];
+  careerSummary: string;
+  _source?: string;
+  _lastVerified?: string;
+  _priority?: 'high' | 'medium' | 'low';
+}
+
+// Player conversion utilities
+export const convertFootballDataToPlayers = (teamData: any): LocalPlayer[] => {
+  if (!teamData.squad || !Array.isArray(teamData.squad)) {
+    return [];
+  }
+  
+  return teamData.squad.map((player: any) => ({
+    name: player.name,
+    currentTeam: teamData.name,
+    position: mapPosition(player.position),
+    age: calculateAge(player.dateOfBirth),
+    nationality: player.nationality,
+    careerGoals: 0, // Would need additional API calls
+    careerAssists: 0,
+    internationalAppearances: 0,
+    internationalGoals: 0,
+    majorAchievements: [],
+    careerSummary: `${player.name} is a ${player.position} for ${teamData.name}.`,
+    _source: 'Football Data API',
+    _lastVerified: new Date().toISOString(),
+    _priority: 'high'
+  }));
+};
+
+// Achievement categorization from SportsDB honors
+export const categorizeAchievementsFromHonors = (honors: any[]): any => {
+  const achievements = {
+    worldCup: [] as string[],
+    international: [] as string[],
+    continental: [] as string[],
+    domestic: [] as string[]
+  };
+  
+  if (!honors || !Array.isArray(honors)) return achievements;
+  
+  // Group honors by type and count
+  const honorGroups: Record<string, { count: number; years: string[] }> = {};
+  
+  honors.forEach((honor: any) => {
+    const honorName = honor.strHonour?.toLowerCase() || '';
+    const season = honor.strSeason || '';
+    
+    // Categorize honor
+    let category = 'domestic';
+    let displayName = honor.strHonour || 'Unknown Honor';
+    
+    if (honorName.includes('world cup') && !honorName.includes('club')) {
+      category = 'worldCup';
+    } else if (honorName.includes('champions league') || honorName.includes('european cup')) {
+      category = 'international';
+      displayName = 'UEFA Champions League';
+    } else if (honorName.includes('club world cup') || honorName.includes('intercontinental')) {
+      category = 'international';
+      displayName = 'FIFA Club World Cup';
+    } else if (honorName.includes('uefa') || honorName.includes('europa league') || 
+               honorName.includes('libertadores') || honorName.includes('concacaf champions')) {
+      category = 'continental';
+    } else if (honorName.includes('super cup') || honorName.includes('supercopa')) {
+      category = 'domestic'; // Domestic super cups
+    }
+    
+    if (!honorGroups[displayName]) {
+      honorGroups[displayName] = { count: 0, years: [] };
+    }
+    
+    honorGroups[displayName].count++;
+    if (season) {
+      const yearMatch = season.match(/\b(19|20)\d{2}\b/);
+      if (yearMatch) {
+        honorGroups[displayName].years.push(yearMatch[0]);
+      }
+    }
+  });
+  
+  // Convert to achievement strings
+  Object.entries(honorGroups).forEach(([honorName, data]) => {
+    let achievementString = '';
+    if (data.count > 1) {
+      achievementString = `${data.count}x ${honorName}`;
+      if (data.years.length > 0) {
+        const recentYears = data.years.slice(-3).join(', ');
+        achievementString += ` (last: ${recentYears})`;
+      }
+    } else {
+      achievementString = honorName;
+      if (data.years.length > 0) {
+        achievementString += ` (${data.years[0]})`;
+      }
+    }
+    
+    // Determine category for this honor
+    const honorLower = honorName.toLowerCase();
+    if (honorLower.includes('world cup') && !honorLower.includes('club')) {
+      achievements.worldCup.push(achievementString);
+    } else if (honorLower.includes('champions league') || honorLower.includes('club world cup') || 
+               honorLower.includes('intercontinental')) {
+      achievements.international.push(achievementString);
+    } else if (honorLower.includes('uefa') || honorLower.includes('europa') || 
+               honorLower.includes('libertadores') || honorLower.includes('concacaf')) {
+      achievements.continental.push(achievementString);
+    } else {
+      achievements.domestic.push(achievementString);
+    }
+  });
+  
+  return achievements;
+};
+
+// Clear all caches
+export const clearApiCaches = () => {
+  apiCache.clear();
+  console.log('[API CACHE] Cleared all API caches');
+};
+
+// Helper functions (private/internal)
+const mapPosition = (position: string): string => {
+  const positionMap: Record<string, string> = {
+    'Goalkeeper': 'Goalkeeper',
+    'Defence': 'Defender',
+    'Defender': 'Defender',
+    'Midfield': 'Midfielder',
+    'Midfielder': 'Midfielder',
+    'Offence': 'Forward',
+    'Forward': 'Forward',
+    'Attacker': 'Forward',
+    'Striker': 'Forward'
+  };
+  
+  return positionMap[position] || 'Player';
+};
+
+const calculateAge = (dateOfBirth: string): number | undefined => {
+  if (!dateOfBirth) return undefined;
+  
+  try {
+    const birthDate = new Date(dateOfBirth);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    
+    return age;
+  } catch (error) {
+    return undefined;
+  }
+};
+
+// Export everything at the end to ensure all functions are available
 export default {
   fetchVerifiedSquad,
-  fetchWikimediaPlayerImage,
-  fetchWikipediaTeamData,
-  translateTerm,
-  clearAllCaches,
-  getCacheStats,
   convertFootballDataToPlayers,
+  fetchTeamInfoFromSportsDB,
+  fetchCoachFromSportsDB,
+  fetchTeamHonorsFromSportsDB,
+  fetchFromWikipedia,
+  getCoachFromWikidata,
+  getCurrentTeamFromWikidata,
+  getTeamTrophiesFromWikidata,
+  categorizeAchievementsFromHonors,
+  clearApiCaches
 };
