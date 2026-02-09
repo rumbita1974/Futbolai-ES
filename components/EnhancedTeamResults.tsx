@@ -1,4 +1,4 @@
-// components/EnhancedTeamResults.tsx - UPDATED VERSION WITH SPANISH SUPPORT AND HISTORICAL DATA
+// components/EnhancedTeamResults.tsx - COMPLETE FIXED VERSION
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -9,6 +9,7 @@ import PlayerCard from '@/components/PlayerCard';
 import { PlayerImageErrorBoundary, PlayerGridErrorBoundary } from '@/components/PlayerImageErrorBoundary';
 import { usePlayerImages } from '@/hooks/usePlayerImages';
 import { ValidatedPlayer } from '@/services/dataValidationService';
+import { getPlayerImages } from '@/services/playerImageService';
 
 interface EnhancedTeamResultsProps {
   teams: Team[];
@@ -17,6 +18,8 @@ interface EnhancedTeamResultsProps {
   searchTerm: string;
   getTeamFlagUrl: (teamName: string, teamType: string, country?: string) => string;
   language?: string;
+  cacheStatus?: 'fresh' | 'cached' | 'none';
+  lastRefreshed?: Date | null;
 }
 
 // ADD THIS COMPONENT AT THE TOP LEVEL (before the main component)
@@ -123,7 +126,9 @@ export default function EnhancedTeamResults({
   youtubeQuery,
   searchTerm,
   getTeamFlagUrl,
-  language = 'en'
+  language = 'en',
+  cacheStatus,
+  lastRefreshed
 }: EnhancedTeamResultsProps) {
   const [youtubeVideos, setYoutubeVideos] = useState<YouTubeVideo[]>([]);
   const [loadingVideos, setLoadingVideos] = useState(false);
@@ -132,10 +137,56 @@ export default function EnhancedTeamResults({
   const [displayPlayers, setDisplayPlayers] = useState<Player[]>(players);
   const [legendaryPlayers, setLegendaryPlayers] = useState<Player[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [playerImageUrls, setPlayerImageUrls] = useState<Map<string, string>>(new Map());
+  const [loadingImages, setLoadingImages] = useState(false);
 
   // Get data from metadata if available
   const team = teams[0];
   const teamMetadata = team?._dataCurrency;
+
+  // Fetch player images when players change
+  useEffect(() => {
+    const fetchPlayerImages = async () => {
+      if (displayPlayers.length > 0) {
+        setLoadingImages(true);
+        try {
+          // Get all unique player names
+          const playerNames = displayPlayers.map(p => p.name).filter(name => name && name.trim() !== '');
+          
+          if (playerNames.length > 0) {
+            const images = await getPlayerImages(playerNames);
+            
+            // Convert to simple URL map
+            const urlMap = new Map<string, string>();
+            images.forEach((result, name) => {
+              if (result.url) {
+                urlMap.set(name, result.url);
+              } else {
+                // Fallback to UI Avatar if no image found
+                urlMap.set(name, `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&color=fff&size=300&bold=true`);
+              }
+            });
+            
+            setPlayerImageUrls(urlMap);
+          }
+        } catch (error) {
+          console.error('Error fetching player images:', error);
+          // Create fallback avatars for all players
+          const urlMap = new Map<string, string>();
+          displayPlayers.forEach(player => {
+            urlMap.set(player.name, `https://ui-avatars.com/api/?name=${encodeURIComponent(player.name)}&background=random&color=fff&size=300&bold=true`);
+          });
+          setPlayerImageUrls(urlMap);
+        } finally {
+          setLoadingImages(false);
+        }
+      }
+    };
+
+    if (activeTab === 'squad') {
+      fetchPlayerImages();
+    }
+  }, [displayPlayers, activeTab]);
 
   // FIXED: Use useLayoutEffect to avoid React warning about state updates during render
   useEffect(() => {
@@ -620,74 +671,90 @@ export default function EnhancedTeamResults({
 
             {displayPlayers.length > 0 ? (
               <>
-                <PlayerGridErrorBoundary>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {displayPlayers.map((player, index) => (
-                      <PlayerImageErrorBoundary key={`${player.name}-${index}`}>
-                        <PlayerCard 
-                          player={player as ValidatedPlayer}
-                          imageUrl={player.imageUrl}
-                          showValidationScore={true}
-                        />
-                      </PlayerImageErrorBoundary>
-                    ))}
+                {loadingImages ? (
+                  <div className="flex justify-center items-center h-64">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                      <p className="text-gray-300">Loading player images...</p>
+                    </div>
                   </div>
-                </PlayerGridErrorBoundary>
+                ) : (
+                  <>
+                    <PlayerGridErrorBoundary>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {displayPlayers.map((player, index) => {
+                          const imageUrl = playerImageUrls.get(player.name) || 
+                            `https://ui-avatars.com/api/?name=${encodeURIComponent(player.name)}&background=random&color=fff&size=300&bold=true`;
+                          
+                          return (
+                            <PlayerImageErrorBoundary key={`${player.name}-${index}`}>
+                              <PlayerCard 
+                                player={player as ValidatedPlayer}
+                                imageUrl={imageUrl}
+                                showValidationScore={false}
+                              />
+                            </PlayerImageErrorBoundary>
+                          );
+                        })}
+                      </div>
+                    </PlayerGridErrorBoundary>
 
-                {/* Squad Statistics */}
-                <div className="mt-8 pt-8 border-t border-gray-700">
-                  <h4 className="text-xl font-bold text-white mb-6">
-                    {t('Squad Statistics', 'Estadísticas del equipo')}
-                  </h4>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="bg-gray-800/50 rounded-xl p-4 text-center">
-                      <div className="text-2xl font-bold text-blue-400">
-                        {Math.round(displayPlayers.reduce((avg, p) => avg + (p.age || 0), 0) / displayPlayers.length) || 0}
-                      </div>
-                      <div className="text-gray-400 text-sm mt-1">
-                        {t('Average Age', 'Edad promedio')}
+                    {/* Squad Statistics */}
+                    <div className="mt-8 pt-8 border-t border-gray-700">
+                      <h4 className="text-xl font-bold text-white mb-6">
+                        {t('Squad Statistics', 'Estadísticas del equipo')}
+                      </h4>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="bg-gray-800/50 rounded-xl p-4 text-center">
+                          <div className="text-2xl font-bold text-blue-400">
+                            {Math.round(displayPlayers.reduce((avg, p) => avg + (p.age || 0), 0) / displayPlayers.length) || 0}
+                          </div>
+                          <div className="text-gray-400 text-sm mt-1">
+                            {t('Average Age', 'Edad promedio')}
+                          </div>
+                        </div>
+                        <div className="bg-gray-800/50 rounded-xl p-4 text-center">
+                          <div className="text-2xl font-bold text-green-400">
+                            {displayPlayers.filter(p => 
+                              p.position?.toLowerCase().includes('forward') || 
+                              p.position?.toLowerCase().includes('delantero') ||
+                              p.position?.toLowerCase().includes('atacante')
+                            ).length}
+                          </div>
+                          <div className="text-gray-400 text-sm mt-1">
+                            {t('Forwards', 'Delanteros')}
+                          </div>
+                        </div>
+                        <div className="bg-gray-800/50 rounded-xl p-4 text-center">
+                          <div className="text-2xl font-bold text-yellow-400">
+                            {displayPlayers.filter(p => 
+                              p.position?.toLowerCase().includes('midfielder') || 
+                              p.position?.toLowerCase().includes('centrocampista') ||
+                              p.position?.toLowerCase().includes('mediocampista')
+                            ).length}
+                          </div>
+                          <div className="text-gray-400 text-sm mt-1">
+                            {t('Midfielders', 'Centrocampistas')}
+                          </div>
+                        </div>
+                        <div className="bg-gray-800/50 rounded-xl p-4 text-center">
+                          <div className="text-2xl font-bold text-red-400">
+                            {displayPlayers.filter(p => 
+                              p.position?.toLowerCase().includes('defender') || 
+                              p.position?.toLowerCase().includes('defensa') ||
+                              p.position?.toLowerCase().includes('goalkeeper') ||
+                              p.position?.toLowerCase().includes('portero') ||
+                              p.position?.toLowerCase().includes('arquero')
+                            ).length}
+                          </div>
+                          <div className="text-gray-400 text-sm mt-1">
+                            {t('Defenders + GK', 'Defensas + Portero')}
+                          </div>
+                        </div>
                       </div>
                     </div>
-                    <div className="bg-gray-800/50 rounded-xl p-4 text-center">
-                      <div className="text-2xl font-bold text-green-400">
-                        {displayPlayers.filter(p => 
-                          p.position?.toLowerCase().includes('forward') || 
-                          p.position?.toLowerCase().includes('delantero') ||
-                          p.position?.toLowerCase().includes('atacante')
-                        ).length}
-                      </div>
-                      <div className="text-gray-400 text-sm mt-1">
-                        {t('Forwards', 'Delanteros')}
-                      </div>
-                    </div>
-                    <div className="bg-gray-800/50 rounded-xl p-4 text-center">
-                      <div className="text-2xl font-bold text-yellow-400">
-                        {displayPlayers.filter(p => 
-                          p.position?.toLowerCase().includes('midfielder') || 
-                          p.position?.toLowerCase().includes('centrocampista') ||
-                          p.position?.toLowerCase().includes('mediocampista')
-                        ).length}
-                      </div>
-                      <div className="text-gray-400 text-sm mt-1">
-                        {t('Midfielders', 'Centrocampistas')}
-                      </div>
-                    </div>
-                    <div className="bg-gray-800/50 rounded-xl p-4 text-center">
-                      <div className="text-2xl font-bold text-red-400">
-                        {displayPlayers.filter(p => 
-                          p.position?.toLowerCase().includes('defender') || 
-                          p.position?.toLowerCase().includes('defensa') ||
-                          p.position?.toLowerCase().includes('goalkeeper') ||
-                          p.position?.toLowerCase().includes('portero') ||
-                          p.position?.toLowerCase().includes('arquero')
-                        ).length}
-                      </div>
-                      <div className="text-gray-400 text-sm mt-1">
-                        {t('Defenders + GK', 'Defensas + Portero')}
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                  </>
+                )}
               </>
             ) : (
               <div className="text-center py-12 bg-gray-800/30 rounded-xl">

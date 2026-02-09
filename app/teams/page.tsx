@@ -213,7 +213,7 @@ export default function TeamsPage() {
     }
   }, [searchParams]);
 
-  // Unified search function with caching and cache busting
+  // Unified search function with caching and cache busting - FIXED VERSION
   const handleSearchWithCache = async (query: string, forceFresh: boolean = false, isAutoSearch = false) => {
     const now = Date.now();
     const timeSinceLastSearch = now - lastSearchTimeRef.current;
@@ -250,10 +250,8 @@ export default function TeamsPage() {
     try {
       console.log(`${forceFresh ? 'FRESH ' : ''}${isAutoSearch ? 'Auto-' : ''}Searching team for:`, query);
       
-      // Use searchFresh for cache busting, or regular search otherwise
-      const result = forceFresh 
-        ? await searchFresh(query)
-        : await searchWithGROQ(query, language);
+      // FIXED: Use searchWithGROQ with isTeamSearch = true for ALL searches on the teams page
+      const result = await searchWithGROQ(query, language, forceFresh, true);
       
       // Translate the results if not in English
       const translatedResult = language !== 'en' 
