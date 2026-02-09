@@ -1,542 +1,151 @@
+// app/highlights/page.tsx - ENHANCED VERSION WITH PROPER FALLBACK HANDLING
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useTranslation } from '@/hooks/useTranslation'; // ADD THIS IMPORT
+import { useTranslation } from '@/hooks/useTranslation';
 import type { MatchResult, FootballFunFact } from '@/services/matchesService';
 import { 
   getLatestResultsByLeague, 
   getUpcomingMatchesGrouped,
   getDailyFootballFact,
-  clearMatchCache,
-  LeagueGroupedMatches
+  clearMatchCache
 } from '@/services/matchesService';
-import { 
-  fetchEnhancedTransferNews, 
-  EnhancedTransferNews 
-} from '@/services/transferService';
 
-// League order: Champions League FIRST, then others
-const LEAGUE_PRIORITY_ORDER = [
-  'CL',  // Europe - Champions League FIRST
-  'PD',  // Spain - La Liga SECOND
-  'PL',  // England - Premier League
-  'SA',  // Italy - Serie A
-  'BL1', // Germany - Bundesliga
-  'FL1', // France - Ligue 1
-];
-
-// League names mapping with proper display names
-const LEAGUE_DISPLAY_NAMES: Record<string, string> = {
-  'CL': 'UEFA Champions League',
-  'PD': 'La Liga Primera División',
-  'PL': 'Premier League',
-  'SA': 'Serie A',
-  'BL1': 'Bundesliga',
-  'FL1': 'Ligue 1',
+// Competition mapping with proper display names
+const COMPETITION_NAMES: Record<string, { en: string; es: string; color: string }> = {
+  'CL': { en: 'UEFA Champions League', es: 'Liga de Campeones', color: 'bg-indigo-500' },
+  'PD': { en: 'La Liga', es: 'La Liga', color: 'bg-red-500' },
+  'PL': { en: 'Premier League', es: 'Premier League', color: 'bg-purple-500' },
+  'SA': { en: 'Serie A', es: 'Serie A', color: 'bg-green-500' },
+  'BL1': { en: 'Bundesliga', es: 'Bundesliga', color: 'bg-red-600' },
+  'FL1': { en: 'Ligue 1', es: 'Ligue 1', color: 'bg-blue-500' },
+  'CDR': { en: 'Copa del Rey', es: 'Copa del Rey', color: 'bg-red-700' },
+  'FAC': { en: 'FA Cup', es: 'FA Cup', color: 'bg-red-800' },
+  'ELC': { en: 'Carabao Cup', es: 'Carabao Cup', color: 'bg-blue-600' },
+  'CI': { en: 'Coppa Italia', es: 'Coppa Italia', color: 'bg-green-600' },
+  'DFB': { en: 'DFB-Pokal', es: 'DFB-Pokal', color: 'bg-black' },
+  'FRC': { en: 'Coupe de France', es: 'Coupe de France', color: 'bg-blue-700' }
 };
 
-// Source indicator component
-const SourceIndicator = ({ source, confidence }: { source: string; confidence: string }) => {
-  const getColor = () => {
-    switch (confidence) {
-      case 'high': return 'bg-green-500';
-      case 'medium': return 'bg-yellow-500';
-      case 'low': return 'bg-orange-500';
-      default: return 'bg-gray-500';
-    }
-  };
-  
-  const getLabel = () => {
-    switch (source) {
-      case 'football-data': return '✓ Live Data';
-      default: return source;
-    }
-  };
-  
-  return (
-    <div className="flex items-center gap-2">
-      <div className={`w-2 h-2 rounded-full ${getColor()}`} />
-      <span className="text-xs text-gray-400">{getLabel()}</span>
-    </div>
-  );
-};
+// Priority order for display
+const COMPETITION_PRIORITY = ['CL', 'CDR', 'PD', 'PL', 'FAC', 'ELC', 'SA', 'CI', 'BL1', 'DFB', 'FL1', 'FRC'];
 
 export default function HighlightsPage() {
-  const { t, language } = useTranslation(); // ADD THIS HOOK
-  const [groupedResults, setGroupedResults] = useState<LeagueGroupedMatches>({});
-  const [upcomingMatchesGrouped, setUpcomingMatchesGrouped] = useState<LeagueGroupedMatches>({});
-  const [transferNews, setTransferNews] = useState<EnhancedTransferNews[]>([]);
+  const { t, language } = useTranslation();
+  const [groupedResults, setGroupedResults] = useState<any>({});
+  const [upcomingMatchesGrouped, setUpcomingMatchesGrouped] = useState<any>({});
   const [funFact, setFunFact] = useState<FootballFunFact | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'results' | 'upcoming' | 'transfers'>('results');
-  const [dataStatus, setDataStatus] = useState<'loading' | 'live' | 'api-error' | 'error'>('loading');
-  const [userTimezone, setUserTimezone] = useState<string>('Europe/Paris');
-  const [errorMessage, setErrorMessage] = useState<string>('');
-  const [expandedLeaguesResults, setExpandedLeaguesResults] = useState<Record<string, boolean>>({});
-  const [expandedLeaguesUpcoming, setExpandedLeaguesUpcoming] = useState<Record<string, boolean>>({});
+  const [activeTab, setActiveTab] = useState<'results' | 'upcoming'>('results');
+  const [expandedLeagues, setExpandedLeagues] = useState<Record<string, boolean>>({});
 
-  // Get user timezone on component mount
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      setUserTimezone(tz);
-    }
-  }, []);
-
-  const loadRealData = useCallback(async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
-    setDataStatus('loading');
-    setErrorMessage('');
-    
-    console.log('[Highlights] Loading verified football data...');
+    console.log('Loading football data...');
     
     try {
       // Load all data in parallel
-      const [groupedResultsData, upcomingGroupedData, transfers, fact] = await Promise.all([
+      const [results, upcoming, fact] = await Promise.all([
         getLatestResultsByLeague(),
         getUpcomingMatchesGrouped(),
-        fetchEnhancedTransferNews(12),
         getDailyFootballFact()
       ]);
       
-      // Sort grouped results by priority order
-      const sortedGroupedResults: LeagueGroupedMatches = {};
-      LEAGUE_PRIORITY_ORDER.forEach(leagueId => {
-        if (groupedResultsData[leagueId]) {
-          sortedGroupedResults[leagueId] = groupedResultsData[leagueId];
+      // Filter out competitions with no matches
+      const filteredResults: any = {};
+      const filteredUpcoming: any = {};
+      
+      Object.entries(results || {}).forEach(([compId, leagueData]: [string, any]) => {
+        if (leagueData?.matches?.length > 0) {
+          filteredResults[compId] = leagueData;
         }
       });
       
-      // Add any remaining leagues not in priority order
-      Object.keys(groupedResultsData).forEach(leagueId => {
-        if (!sortedGroupedResults[leagueId]) {
-          sortedGroupedResults[leagueId] = groupedResultsData[leagueId];
+      Object.entries(upcoming || {}).forEach(([compId, leagueData]: [string, any]) => {
+        if (leagueData?.matches?.length > 0) {
+          filteredUpcoming[compId] = leagueData;
         }
       });
       
-      // Sort upcoming matches by priority order too
-      const sortedUpcomingGrouped: LeagueGroupedMatches = {};
-      LEAGUE_PRIORITY_ORDER.forEach(leagueId => {
-        if (upcomingGroupedData[leagueId]) {
-          sortedUpcomingGrouped[leagueId] = upcomingGroupedData[leagueId];
-        }
-      });
-      
-      // Add any remaining leagues not in priority order
-      Object.keys(upcomingGroupedData).forEach(leagueId => {
-        if (!sortedUpcomingGrouped[leagueId]) {
-          sortedUpcomingGrouped[leagueId] = upcomingGroupedData[leagueId];
-        }
-      });
-      
-      setGroupedResults(sortedGroupedResults);
-      setUpcomingMatchesGrouped(sortedUpcomingGrouped);
-      setTransferNews(transfers);
+      setGroupedResults(filteredResults);
+      setUpcomingMatchesGrouped(filteredUpcoming);
       setFunFact(fact);
       
-      // Initialize expanded state for leagues with matches
-      const expandedResults: Record<string, boolean> = {};
-      const expandedUpcoming: Record<string, boolean> = {};
+      // Initialize expanded state only for competitions with data
+      const initialExpanded: Record<string, boolean> = {};
+      COMPETITION_PRIORITY.forEach(compId => {
+        if (filteredResults[compId]?.matches?.length > 0 || filteredUpcoming[compId]?.matches?.length > 0) {
+          initialExpanded[compId] = true;
+        }
+      });
+      setExpandedLeagues(initialExpanded);
       
-      Object.keys(sortedGroupedResults).forEach(leagueId => {
-        expandedResults[leagueId] = true; // Show ALL matches by default
+      console.log('Football data loaded successfully', {
+        resultsCount: Object.keys(filteredResults).length,
+        upcomingCount: Object.keys(filteredUpcoming).length
       });
       
-      Object.keys(sortedUpcomingGrouped).forEach(leagueId => {
-        expandedUpcoming[leagueId] = true; // Show ALL matches by default
-      });
-      
-      setExpandedLeaguesResults(expandedResults);
-      setExpandedLeaguesUpcoming(expandedUpcoming);
-      
-      // Check if we have any match data
-      const hasMatchData = Object.values(sortedGroupedResults).some(league => league.matches.length > 0) ||
-                          Object.values(sortedUpcomingGrouped).some(league => league.matches.length > 0);
-      
-      // Calculate totals
-      const totalResults = Object.values(sortedGroupedResults).reduce(
-        (sum, league) => sum + league.matches.length, 0
-      );
-      const totalUpcoming = Object.values(sortedUpcomingGrouped).reduce(
-        (sum, league) => sum + league.matches.length, 0
-      );
-      
-      console.log(`[Highlights] Loaded: ${totalResults} results, ${totalUpcoming} upcoming matches`);
-      
-      if (hasMatchData) {
-        setDataStatus('live');
-      } else if (transfers.length > 0) {
-        setDataStatus('api-error');
-        setErrorMessage('Football Data API key is not configured. Matches data unavailable.');
-      } else {
-        setDataStatus('error');
-        setErrorMessage('Failed to load data. Please check your internet connection and try again.');
-      }
-      
-    } catch (error: any) {
-      console.error('[Highlights] Failed to load data:', error);
-      
-      if (error.message === 'API_KEY_MISSING') {
-        setDataStatus('api-error');
-        setErrorMessage('Football Data API key is not configured. Please add FOOTBALL_DATA_API_KEY to your Vercel environment variables.');
-      } else {
-        setDataStatus('error');
-        setErrorMessage(`Error loading data: ${error.message || 'Unknown error'}`);
-      }
-      
-      // Set empty states
+    } catch (error) {
+      console.error('Failed to load football data:', error);
       setGroupedResults({});
       setUpcomingMatchesGrouped({});
-      setTransferNews([]);
-      
+      setFunFact({
+        title: 'Football Fact',
+        description: 'UEFA Champions League is the most prestigious club competition in European football.',
+        category: 'champions-league',
+        _source: 'error'
+      });
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadRealData();
-  }, [loadRealData]);
+    loadData();
+  }, [loadData]);
 
-  // Format date utility functions
-  const formatMatchDateTime = (dateString: string): string => {
+  // Format date
+  const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString);
-      
-      const options: Intl.DateTimeFormatOptions = {
+      return date.toLocaleDateString(language === 'es' ? 'es-ES' : 'en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric'
+      });
+    } catch {
+      return dateString;
+    }
+  };
+
+  // Format date and time
+  const formatDateTime = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString(language === 'es' ? 'es-ES' : 'en-US', {
         weekday: 'short',
         month: 'short',
         day: 'numeric',
         hour: '2-digit',
-        minute: '2-digit',
-        hour12: true,
-        timeZone: userTimezone
-      };
-      
-      return date.toLocaleDateString(language === 'es' ? 'es-ES' : 'en-US', options);
-    } catch (err) {
+        minute: '2-digit'
+      });
+    } catch {
       return dateString;
     }
   };
 
-  const formatMatchDate = (dateString: string): string => {
-    try {
-      const date = new Date(dateString);
-      
-      const options: Intl.DateTimeFormatOptions = {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric',
-        timeZone: userTimezone
-      };
-      
-      return date.toLocaleDateString(language === 'es' ? 'es-ES' : 'en-US', options);
-    } catch (err) {
-      return dateString;
-    }
+  // Get competition display name
+  const getCompetitionName = (compId: string) => {
+    const comp = COMPETITION_NAMES[compId];
+    if (!comp) return compId;
+    return language === 'es' ? comp.es : comp.en;
   };
 
-  // Get current week date range for display
-  const getCurrentWeekRange = () => {
-    const now = new Date();
-    const dayOfWeek = now.getDay();
-    const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-    
-    // Previous Monday (for Recent Results)
-    const previousMonday = new Date(now);
-    previousMonday.setDate(now.getDate() + diffToMonday - 7);
-    
-    // Next Monday (for Upcoming Matches)
-    const nextMonday = new Date(now);
-    nextMonday.setDate(now.getDate() + diffToMonday + 7);
-    
-    return {
-      recentFrom: formatMatchDate(previousMonday.toISOString()),
-      recentTo: formatMatchDate(now.toISOString()),
-      upcomingFrom: formatMatchDate(now.toISOString()),
-      upcomingTo: formatMatchDate(nextMonday.toISOString())
-    };
-  };
-
-  const weekRange = getCurrentWeekRange();
-
-  // Match Card Component for results - COMPACT VERSION
-  const MatchCard = ({ match }: { match: MatchResult }) => (
-    <div className="bg-gray-800/40 rounded-lg p-3 border border-gray-700 hover:border-blue-500/30 transition-all group">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex-1 text-right">
-          <div className="font-bold text-white group-hover:text-blue-300 transition-colors">
-            {match.homeTeam.name}
-          </div>
-        </div>
-
-        <div className="flex flex-col items-center justify-center min-w-[80px]">
-          {match.status === 'FINISHED' ? (
-            <>
-              <div className="text-xl font-bold text-white">
-                {match.homeTeam.goals} - {match.awayTeam.goals}
-              </div>
-              <div className="text-xs text-green-400 font-medium mt-1">FT</div>
-            </>
-          ) : (
-            <div className="text-center">
-              <div className="text-xl font-bold text-gray-400">VS</div>
-              <div className="text-xs text-gray-500">{formatMatchDateTime(match.date)}</div>
-            </div>
-          )}
-        </div>
-
-        <div className="flex-1 text-left">
-          <div className="font-bold text-white group-hover:text-blue-300 transition-colors">
-            {match.awayTeam.name}
-          </div>
-        </div>
-      </div>
-      
-      <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-700/50">
-        <div className="text-xs text-gray-400">
-          {formatMatchDate(match.date)} • {match.competition}
-        </div>
-        <SourceIndicator source={match._source} confidence={match._confidence} />
-      </div>
-    </div>
-  );
-
-  // Upcoming Match Card Component - COMPACT VERSION
-  const UpcomingMatchCard = ({ match }: { match: MatchResult }) => (
-    <div className="bg-gray-800/40 rounded-lg p-3 border border-gray-700 hover:border-green-500/30 transition-all">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex-1 text-right">
-          <div className="font-bold text-white">{match.homeTeam.name}</div>
-        </div>
-
-        <div className="flex flex-col items-center justify-center min-w-[80px]">
-          <div className="text-xl font-bold text-gray-400">VS</div>
-          <div className="text-xs text-gray-500 mt-1">
-            {formatMatchDateTime(match.date)}
-          </div>
-        </div>
-
-        <div className="flex-1 text-left">
-          <div className="font-bold text-white">{match.awayTeam.name}</div>
-        </div>
-      </div>
-      
-      <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-700/50">
-        <div className="text-xs text-gray-400">
-          {match.competition}
-          {match.venue && ` • 📍 ${match.venue}`}
-        </div>
-        <SourceIndicator source={match._source} confidence={match._confidence} />
-      </div>
-    </div>
-  );
-
-  // League Section Component for RESULTS
-  const LeagueSectionResults = ({ 
-    leagueId, 
-    leagueData 
-  }: { 
-    leagueId: string; 
-    leagueData: { leagueName: string; country: string; matches: MatchResult[] } 
-  }) => {
-    const leagueColors: Record<string, string> = {
-      'CL': 'bg-indigo-500',
-      'PD': 'bg-red-500',
-      'PL': 'bg-purple-500',
-      'SA': 'bg-green-500',
-      'BL1': 'bg-red-600',
-      'FL1': 'bg-blue-500'
-    };
-
-    const isExpanded = expandedLeaguesResults[leagueId] || false;
-
-    return (
-      <div className="mb-6">
-        {/* League Header */}
-        <div className="mb-4 p-3 bg-gray-800/50 rounded-lg border border-gray-700">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className={`w-3 h-8 rounded ${leagueColors[leagueId] || 'bg-gray-600'}`} />
-              <div>
-                <h3 className="text-lg font-bold text-white">
-                  {LEAGUE_DISPLAY_NAMES[leagueId] || leagueData.leagueName}
-                </h3>
-                <p className="text-sm text-gray-400">
-                  {leagueData.country} • {leagueData.matches.length} {leagueData.matches.length !== 1 ? t('common.matches') : 'match'}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => setExpandedLeaguesResults(prev => ({
-                ...prev,
-                [leagueId]: !prev[leagueId]
-              }))}
-              className="text-sm text-gray-400 hover:text-white transition-colors px-3 py-1 bg-gray-700/50 rounded"
-            >
-              {isExpanded ? '▲ ' + t('common.collapse') : '▼ ' + t('common.expand')}
-            </button>
-          </div>
-        </div>
-        
-        {/* ALL MATCHES */}
-        {isExpanded && leagueData.matches.length > 0 && (
-          <div className="space-y-2">
-            {leagueData.matches.map(match => (
-              <MatchCard key={match.id} match={match} />
-            ))}
-          </div>
-        )}
-        
-        {isExpanded && leagueData.matches.length === 0 && (
-          <div className="text-center py-4 bg-gray-800/20 rounded-lg">
-            <p className="text-gray-400 text-sm">{t('highlights.noMatchResults')}</p>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  // League Section Component for UPCOMING matches
-  const LeagueSectionUpcoming = ({ 
-    leagueId, 
-    leagueData 
-  }: { 
-    leagueId: string; 
-    leagueData: { leagueName: string; country: string; matches: MatchResult[] } 
-  }) => {
-    const leagueColors: Record<string, string> = {
-      'CL': 'bg-indigo-500',
-      'PD': 'bg-red-500',
-      'PL': 'bg-purple-500',
-      'SA': 'bg-green-500',
-      'BL1': 'bg-red-600',
-      'FL1': 'bg-blue-500'
-    };
-
-    const isExpanded = expandedLeaguesUpcoming[leagueId] || false;
-
-    return (
-      <div className="mb-8">
-        {/* League Header - COMPACT */}
-        <div className="mb-4 p-3 bg-gray-800/50 rounded-lg border border-gray-700">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className={`w-3 h-8 rounded ${leagueColors[leagueId] || 'bg-gray-600'}`} />
-              <div>
-                <h3 className="text-lg font-bold text-white">
-                  {LEAGUE_DISPLAY_NAMES[leagueId] || leagueData.leagueName}
-                </h3>
-                <p className="text-sm text-gray-400">
-                  {leagueData.country} • {leagueData.matches.length} {leagueData.matches.length !== 1 ? t('common.matches') : 'match'}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => setExpandedLeaguesUpcoming(prev => ({
-                ...prev,
-                [leagueId]: !prev[leagueId]
-              }))}
-              className="text-sm text-gray-400 hover:text-white transition-colors px-3 py-1 bg-gray-700/50 rounded"
-            >
-              {isExpanded ? '▲ ' + t('common.collapse') : '▼ ' + t('common.expand')}
-            </button>
-          </div>
-        </div>
-        
-        {/* ALL MATCHES FOR THIS COMPETITION */}
-        {isExpanded && leagueData.matches.length > 0 && (
-          <div className="space-y-2">
-            {leagueData.matches.map(match => (
-              <UpcomingMatchCard key={match.id} match={match} />
-            ))}
-          </div>
-        )}
-        
-        {isExpanded && leagueData.matches.length === 0 && (
-          <div className="text-center py-4 bg-gray-800/20 rounded-lg">
-            <p className="text-gray-400 text-sm">{t('highlights.noUpcomingMatches')}</p>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  // Enhanced Transfer Card Component
-  const EnhancedTransferCard = ({ transfer }: { transfer: EnhancedTransferNews }) => {
-    return (
-      <div className={`bg-gray-800/40 rounded-lg p-5 border transition-all hover:scale-[1.02] ${
-        transfer.impact === 'high' ? 'border-red-500/30 hover:border-red-500/50' :
-        transfer.impact === 'medium' ? 'border-yellow-500/30 hover:border-yellow-500/50' :
-        'border-blue-500/30 hover:border-blue-500/50'
-      }`}>
-        <div className="flex justify-between items-start mb-4">
-          <div>
-            <h3 className="font-bold text-white text-lg">{transfer.player}</h3>
-            <div className="flex items-center gap-2 mt-1">
-              {transfer.position && (
-                <span className="text-xs px-2 py-1 bg-gray-700/50 rounded">
-                  {transfer.position}
-                </span>
-              )}
-              <span className="text-xs text-gray-400">{transfer.age} years</span>
-              {transfer.marketValue && (
-                <span className="text-xs px-2 py-1 bg-gray-700/30 rounded">
-                  {transfer.marketValue}
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="text-right">
-            <div className="text-xs text-gray-400">{transfer.date}</div>
-            <div className={`text-xs px-2 py-1 rounded mt-1 ${
-              transfer.status === 'confirmed' ? 'bg-green-900/30 text-green-400' :
-              'bg-yellow-900/30 text-yellow-400'
-            }`}>
-              {transfer.status.toUpperCase()}
-            </div>
-          </div>
-        </div>
-        
-        <div className="flex items-center justify-center gap-3 mb-4">
-          <div className="text-center">
-            <div className="font-medium text-gray-300">{transfer.from}</div>
-            <div className="text-xs text-gray-500">From</div>
-          </div>
-          <div className="text-gray-500 text-xl">→</div>
-          <div className="text-center">
-            <div className="font-bold text-white">{transfer.to}</div>
-            <div className="text-xs text-gray-500">To</div>
-          </div>
-        </div>
-        
-        <div className="mb-4">
-          <p className="text-sm text-gray-300">{transfer.description}</p>
-        </div>
-        
-        <div className="flex justify-between items-center pt-4 border-t border-gray-700/50">
-          <div className="flex items-center gap-3">
-            <span className={`px-3 py-1 text-xs rounded-full font-medium ${
-              transfer.type === 'transfer' ? 'bg-blue-900/30 text-blue-400' :
-              'bg-green-900/30 text-green-400'
-            }`}>
-              {transfer.type.toUpperCase()}
-            </span>
-            <span className="text-sm font-bold text-white">
-              {transfer.fee}
-            </span>
-          </div>
-          
-          <div className="text-right">
-            <div className="text-xs text-gray-400">
-              Source: {transfer.source}
-            </div>
-            <div className="text-xs text-green-400">
-              ✓ Verified
-            </div>
-          </div>
-        </div>
-      </div>
+  // Filter competitions that have data for the current tab
+  const getCompetitionsWithData = () => {
+    const dataSource = activeTab === 'results' ? groupedResults : upcomingMatchesGrouped;
+    return COMPETITION_PRIORITY.filter(compId => 
+      dataSource[compId]?.matches?.length > 0
     );
   };
 
@@ -554,110 +163,22 @@ export default function HighlightsPage() {
                 ))}
               </div>
             </div>
-            <p className="text-gray-400 mt-8">{t('highlights.loadingData')}</p>
+            <p className="text-gray-400 mt-8">Loading football highlights...</p>
           </div>
         </div>
       </div>
     );
   }
 
-  // Calculate totals for display
+  // Calculate totals
   const totalResults = Object.values(groupedResults).reduce(
-    (sum, league) => sum + league.matches.length, 0
+    (sum: number, league: any) => sum + (league?.matches?.length || 0), 0
   );
-  const totalUpcomingMatches = Object.values(upcomingMatchesGrouped).reduce(
-    (sum, league) => sum + league.matches.length, 0
+  const totalUpcoming = Object.values(upcomingMatchesGrouped).reduce(
+    (sum: number, league: any) => sum + (league?.matches?.length || 0), 0
   );
 
-  // API Error Display
-  if (dataStatus === 'api-error') {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-black text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-4xl md:text-6xl font-bold mb-4">
-              <span className="bg-gradient-to-r from-blue-400 to-green-400 bg-clip-text text-transparent">
-                {t('highlights.title')}
-              </span>
-            </h1>
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <p className="text-xl text-gray-300">
-                {t('highlights.subtitle')}
-              </p>
-              <div className="px-3 py-1 rounded-full text-sm font-medium bg-orange-900/30 text-orange-400">
-                {t('highlights.apiKeyRequired')}
-              </div>
-            </div>
-          </div>
-
-          {/* Error Message */}
-          <div className="mb-8 bg-gradient-to-r from-orange-900/20 to-red-900/20 border border-orange-700/30 rounded-lg p-6">
-            <h2 className="text-2xl font-bold text-orange-400 mb-4">{t('highlights.configurationRequired')}</h2>
-            <p className="text-gray-300 mb-4">{errorMessage}</p>
-            
-            <div className="bg-gray-900/50 rounded-lg p-4 mb-4">
-              <h3 className="text-lg font-bold text-gray-200 mb-2">{t('highlights.howToFix')}:</h3>
-              <ol className="list-decimal pl-5 space-y-2 text-gray-300">
-                <li>{t('common.goTo') || 'Go to your Vercel project dashboard'}</li>
-                <li>{t('common.navigateTo') || 'Navigate to Settings → Environment Variables'}</li>
-                <li>{t('common.addVariable') || 'Add the following environment variable:'}
-                  <code className="block bg-gray-800 p-2 rounded mt-2 font-mono text-sm">
-                    FOOTBALL_DATA_API_KEY=your_api_key_here
-                  </code>
-                </li>
-                <li>{t('common.redeploy') || 'Redeploy your application'}</li>
-              </ol>
-            </div>
-            
-            <div className="bg-blue-900/20 rounded-lg p-4">
-              <h3 className="text-lg font-bold text-blue-400 mb-2">{t('highlights.howToGetAPIKey')}:</h3>
-              <ul className="list-disc pl-5 space-y-1 text-gray-300">
-                <li>{t('common.visit') || 'Visit'} <a href="https://www.football-data.org/" target="_blank" className="text-blue-400 hover:text-blue-300">football-data.org</a></li>
-                <li>{t('highlights.signUp')}</li>
-                <li>{t('highlights.getAPIKey')}</li>
-                <li>{t('highlights.freeTier')}</li>
-              </ul>
-            </div>
-          </div>
-
-          {/* Transfers still work without API key */}
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold mb-6">{t('highlights.transferMarket')}</h2>
-            {transferNews.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {transferNews.map((transfer, idx) => (
-                  <EnhancedTransferCard key={idx} transfer={transfer} />
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 bg-gray-800/20 rounded-lg">
-                <p className="text-gray-400">{t('highlights.noConfirmedTransfers')}</p>
-              </div>
-            )}
-          </div>
-
-          {/* Refresh Button */}
-          <div className="mt-12 pt-8 border-t border-gray-800 text-center">
-            <button
-              onClick={() => {
-                clearMatchCache();
-                localStorage.removeItem('real_transfers_12');
-                setLoading(true);
-                loadRealData();
-              }}
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold transition-colors"
-            >
-              {t('highlights.retryLoading')}
-            </button>
-            <p className="text-gray-500 text-sm mt-2">
-              {t('highlights.afterAddingAPIKey')}
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const competitionsWithData = getCompetitionsWithData();
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-black text-white">
@@ -666,46 +187,24 @@ export default function HighlightsPage() {
         <div className="mb-8">
           <h1 className="text-4xl md:text-6xl font-bold mb-4">
             <span className="bg-gradient-to-r from-blue-400 to-green-400 bg-clip-text text-transparent">
-              {t('highlights.title')}
+              Football Highlights
             </span>
           </h1>
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <p className="text-xl text-gray-300">
-              {t('highlights.subtitle')}
-            </p>
-            <div className={`px-3 py-1 rounded-full text-sm font-medium ${
-              dataStatus === 'live' ? 'bg-green-900/30 text-green-400' :
-              dataStatus === 'error' ? 'bg-red-900/30 text-red-400' :
-              'bg-gray-700 text-gray-300'
-            }`}>
-              {dataStatus === 'live' ? t('highlights.liveData') : 
-               dataStatus === 'error' ? '⚠️ ' + t('common.error') : '📊 ' + t('common.loading')}
-            </div>
-          </div>
+          <p className="text-xl text-gray-300">
+            Live scores, upcoming fixtures, and football facts
+          </p>
         </div>
-
-        {/* Error Message Banner */}
-        {errorMessage && dataStatus === 'error' && (
-          <div className="mb-8 bg-gradient-to-r from-red-900/20 to-orange-900/20 border border-red-700/30 rounded-lg p-6">
-            <div className="flex items-start gap-3">
-              <div className="text-red-400 text-2xl">⚠️</div>
-              <div>
-                <h3 className="text-lg font-bold text-red-400 mb-2">{t('common.error')}</h3>
-                <p className="text-gray-300">{errorMessage}</p>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Fun Fact Banner */}
         {funFact && (
           <div className="mb-8 bg-gradient-to-r from-yellow-900/20 to-orange-900/20 border border-yellow-700/30 rounded-lg p-6">
-            <h2 className="text-2xl font-bold text-yellow-400 mb-2">{t('highlights.funFactOfTheDay')}</h2>
-            <p className="text-gray-300">{funFact.description}</p>
+            <h2 className="text-2xl font-bold text-yellow-400">Fun Fact of the Day</h2>
+            <p className="text-gray-300 mt-2">{funFact.description}</p>
             <div className="mt-3 flex justify-between items-center">
               <span className="text-sm text-gray-400">{funFact.category}</span>
               <span className="text-xs text-gray-500">
-                {funFact._source === 'groq-ai' ? t('highlights.aiGenerated') : t('highlights.verifiedFact')}
+                {funFact._source === 'groq-ai' ? '🤖 AI Generated' : 
+                 funFact._source === 'static' ? '📚 Historical Fact' : '📊 Verified Fact'}
               </span>
             </div>
           </div>
@@ -721,7 +220,7 @@ export default function HighlightsPage() {
                 : 'text-gray-400 hover:text-white hover:bg-gray-800/20'
             }`}
           >
-            {t('highlights.recentResults')}
+            Recent Results ({totalResults})
           </button>
           <button
             onClick={() => setActiveTab('upcoming')}
@@ -731,17 +230,7 @@ export default function HighlightsPage() {
                 : 'text-gray-400 hover:text-white hover:bg-gray-800/20'
             }`}
           >
-            {t('highlights.upcomingMatches')}
-          </button>
-          <button
-            onClick={() => setActiveTab('transfers')}
-            className={`px-4 py-3 font-semibold transition-all rounded-t-lg ${
-              activeTab === 'transfers'
-                ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-800/30'
-                : 'text-gray-400 hover:text-white hover:bg-gray-800/20'
-            }`}
-          >
-            {t('highlights.transferNews')}
+            Upcoming Matches ({totalUpcoming})
           </button>
         </div>
 
@@ -752,47 +241,85 @@ export default function HighlightsPage() {
             <>
               <div className="flex justify-between items-center mb-6">
                 <div>
-                  <h2 className="text-2xl font-bold">{t('highlights.latestResults')}</h2>
+                  <h2 className="text-2xl font-bold">Latest Results</h2>
                   <p className="text-gray-400 text-sm">
-                    {t('highlights.showingMatches')} {weekRange.recentFrom} {t('highlights.to')} {weekRange.recentTo}
+                    Showing matches from last 14 days • {competitionsWithData.length} competitions
                   </p>
                 </div>
-                <div className="flex flex-col items-end">
-                  <div className="text-sm text-gray-400">
-                    {Object.keys(groupedResults).length} {t('highlights.leagues')} • {totalResults} {t('highlights.matches')}
-                  </div>
-                  <span className="text-xs text-gray-400">
-                    {t('highlights.timesIn')} {userTimezone.replace('_', ' ')}
-                  </span>
+                <div className="text-sm text-gray-400">
+                  {totalResults} matches total
                 </div>
               </div>
               
               {totalResults > 0 ? (
                 <div className="space-y-6">
-                  {/* European Leagues Section */}
-                  <div>
-                    <h3 className="text-lg font-bold text-blue-400 mb-4 flex items-center gap-2">
-                      <span>🇪🇺</span> {t('highlights.europeanLeagues')}
-                    </h3>
-                    {LEAGUE_PRIORITY_ORDER
-                      .filter(id => ['CL', 'PD', 'PL', 'SA', 'BL1', 'FL1'].includes(id))
-                      .map(leagueId => 
-                        groupedResults[leagueId] && (
-                          <LeagueSectionResults 
-                            key={leagueId} 
-                            leagueId={leagueId} 
-                            leagueData={groupedResults[leagueId]} 
-                          />
-                        )
-                      )
-                    }
-                  </div>
+                  {competitionsWithData.map((compId) => {
+                      const leagueData = groupedResults[compId];
+                      const isExpanded = expandedLeagues[compId];
+                      
+                      return (
+                        <div key={compId} className="mb-6">
+                          {/* Competition Header */}
+                          <div className="mb-4 p-3 bg-gray-800/50 rounded-lg border border-gray-700">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <div className={`w-3 h-8 rounded ${COMPETITION_NAMES[compId]?.color || 'bg-gray-600'}`} />
+                                <div>
+                                  <h3 className="text-lg font-bold text-white">
+                                    {getCompetitionName(compId)}
+                                  </h3>
+                                  <p className="text-sm text-gray-400">
+                                    {leagueData.country} • {leagueData.matches.length} matches
+                                  </p>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => setExpandedLeagues(prev => ({
+                                  ...prev,
+                                  [compId]: !prev[compId]
+                                }))}
+                                className="text-sm text-gray-400 hover:text-white transition-colors px-3 py-1 bg-gray-700/50 rounded"
+                              >
+                                {isExpanded ? '▲ Collapse' : '▼ Expand'}
+                              </button>
+                            </div>
+                          </div>
+                          
+                          {/* Matches */}
+                          {isExpanded && (
+                            <div className="space-y-2">
+                              {leagueData.matches.map((match: MatchResult) => (
+                                <div key={match.id} className="bg-gray-800/40 rounded-lg p-3 border border-gray-700 hover:border-blue-500/30 transition-all">
+                                  <div className="flex items-center justify-between gap-4">
+                                    <div className="flex-1 text-right">
+                                      <div className="font-bold text-white">{match.homeTeam.name}</div>
+                                    </div>
+                                    <div className="flex flex-col items-center justify-center min-w-[80px]">
+                                      <div className="text-xl font-bold text-white">
+                                        {match.homeTeam.goals} - {match.awayTeam.goals}
+                                      </div>
+                                      <div className="text-xs text-green-400 font-medium mt-1">FT</div>
+                                    </div>
+                                    <div className="flex-1 text-left">
+                                      <div className="font-bold text-white">{match.awayTeam.name}</div>
+                                    </div>
+                                  </div>
+                                  <div className="text-xs text-gray-400 mt-2 pt-2 border-t border-gray-700/50">
+                                    {formatDate(match.date)} • {match.competition}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                 </div>
               ) : (
                 <div className="text-center py-12 bg-gray-800/20 rounded-lg">
-                  <p className="text-gray-400">{t('highlights.noMatchResults')}</p>
+                  <p className="text-gray-400">No match results available for this period</p>
                   <p className="text-sm text-gray-500 mt-2">
-                    {dataStatus === 'error' ? t('highlights.failedToLoad') : t('highlights.checkBackLater')}
+                    Check back later for recent match results
                   </p>
                 </div>
               )}
@@ -804,117 +331,118 @@ export default function HighlightsPage() {
             <>
               <div className="flex justify-between items-center mb-6">
                 <div>
-                  <h2 className="text-2xl font-bold">{t('highlights.upcomingMatchesThisWeek')}</h2>
+                  <h2 className="text-2xl font-bold">Upcoming Matches</h2>
                   <p className="text-gray-400 text-sm">
-                    {t('highlights.showingMatches')} {weekRange.upcomingFrom} {t('highlights.to')} {weekRange.upcomingTo}
+                    Showing matches for next 7 days • {competitionsWithData.length} competitions
                   </p>
                 </div>
-                <div className="flex flex-col items-end">
-                  <div className="text-sm text-gray-400">
-                    {Object.keys(upcomingMatchesGrouped).length} {t('highlights.leagues')} • {totalUpcomingMatches} {t('highlights.matches')}
-                  </div>
-                  <span className="text-xs text-gray-400">
-                    {t('highlights.timesIn')} {userTimezone.replace('_', ' ')}
-                  </span>
+                <div className="text-sm text-gray-400">
+                  {totalUpcoming} matches total
                 </div>
               </div>
               
-              {totalUpcomingMatches > 0 ? (
-                <div>
-                  {/* Render each competition - Champions League FIRST */}
-                  {Object.entries(upcomingMatchesGrouped).map(([leagueId, leagueData]) => (
-                    <LeagueSectionUpcoming 
-                      key={leagueId} 
-                      leagueId={leagueId} 
-                      leagueData={leagueData} 
-                    />
-                  ))}
+              {totalUpcoming > 0 ? (
+                <div className="space-y-6">
+                  {competitionsWithData.map((compId) => {
+                      const leagueData = upcomingMatchesGrouped[compId];
+                      const isExpanded = expandedLeagues[compId];
+                      
+                      return (
+                        <div key={compId} className="mb-6">
+                          {/* Competition Header */}
+                          <div className="mb-4 p-3 bg-gray-800/50 rounded-lg border border-gray-700">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <div className={`w-3 h-8 rounded ${COMPETITION_NAMES[compId]?.color || 'bg-gray-600'}`} />
+                                <div>
+                                  <h3 className="text-lg font-bold text-white">
+                                    {getCompetitionName(compId)}
+                                  </h3>
+                                  <p className="text-sm text-gray-400">
+                                    {leagueData.country} • {leagueData.matches.length} matches
+                                  </p>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => setExpandedLeagues(prev => ({
+                                  ...prev,
+                                  [compId]: !prev[compId]
+                                }))}
+                                className="text-sm text-gray-400 hover:text-white transition-colors px-3 py-1 bg-gray-700/50 rounded"
+                              >
+                                {isExpanded ? '▲ Collapse' : '▼ Expand'}
+                              </button>
+                            </div>
+                          </div>
+                          
+                          {/* Matches */}
+                          {isExpanded && (
+                            <div className="space-y-2">
+                              {leagueData.matches.map((match: MatchResult) => (
+                                <div key={match.id} className="bg-gray-800/40 rounded-lg p-3 border border-gray-700 hover:border-green-500/30 transition-all">
+                                  <div className="flex items-center justify-between gap-4">
+                                    <div className="flex-1 text-right">
+                                      <div className="font-bold text-white">{match.homeTeam.name}</div>
+                                    </div>
+                                    <div className="flex flex-col items-center justify-center min-w-[80px]">
+                                      <div className="text-xl font-bold text-gray-400">VS</div>
+                                      <div className="text-xs text-gray-500 mt-1">
+                                        {formatDateTime(match.date)}
+                                      </div>
+                                    </div>
+                                    <div className="flex-1 text-left">
+                                      <div className="font-bold text-white">{match.awayTeam.name}</div>
+                                    </div>
+                                  </div>
+                                  <div className="text-xs text-gray-400 mt-2 pt-2 border-t border-gray-700/50">
+                                    {match.competition}
+                                    {match.venue && ` • 📍 ${match.venue}`}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                 </div>
               ) : (
                 <div className="text-center py-12 bg-gray-800/20 rounded-lg">
-                  <p className="text-gray-400">{t('highlights.noUpcomingMatches')}</p>
+                  <p className="text-gray-400">No upcoming matches scheduled</p>
                   <p className="text-sm text-gray-500 mt-2">
-                    {dataStatus === 'error' ? t('highlights.failedToLoadUpcoming') : t('highlights.checkBackLaterFixtures')}
+                    Check back later for upcoming fixtures
                   </p>
                 </div>
               )}
-            </>
-          )}
-
-          {/* Transfer News Tab */}
-          {activeTab === 'transfers' && (
-            <>
-              <div className="flex justify-between items-center mb-6">
-                <div>
-                  <h2 className="text-2xl font-bold">{t('highlights.transferMarket')}</h2>
-                  <p className="text-gray-400 text-sm">
-                    {t('highlights.latestConfirmedTransfers', { count: transferNews.length })}
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <span className="px-2 py-1 bg-red-900/30 text-red-400 rounded text-xs">{t('highlights.highImpact')}</span>
-                  <span className="px-2 py-1 bg-blue-900/30 text-blue-400 rounded text-xs">{t('highlights.confirmed')}</span>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {transferNews.map((transfer, idx) => (
-                  <EnhancedTransferCard key={idx} transfer={transfer} />
-                ))}
-              </div>
-              
-              {transferNews.length === 0 && (
-                <div className="text-center py-12 bg-gray-800/20 rounded-lg">
-                  <p className="text-gray-400">{t('highlights.noConfirmedTransfers')}</p>
-                  <p className="text-sm text-gray-500 mt-2">{t('highlights.checkBackLaterTransfers')}</p>
-                </div>
-              )}
-              
-              <div className="mt-8 p-4 bg-gray-800/30 rounded-lg border border-gray-700">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-300">{t('highlights.transferUpdates')}</p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {t('highlights.onlyConfirmed')}
-                    </p>
-                  </div>
-                  <button 
-                    onClick={() => {
-                      localStorage.removeItem('real_transfers_12');
-                      loadRealData();
-                    }}
-                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors"
-                  >
-                    {t('highlights.refreshTransfers')}
-                  </button>
-                </div>
-              </div>
             </>
           )}
         </div>
+
+        {/* Information about missing competitions */}
+        {(activeTab === 'results' && totalResults > 0) || (activeTab === 'upcoming' && totalUpcoming > 0) ? (
+          <div className="mt-8 p-4 bg-gray-800/30 rounded-lg border border-gray-700">
+            <p className="text-sm text-gray-400">
+              <span className="font-medium">Note:</span> Some cup competitions may not be displayed if they're not currently in season or if no matches are scheduled.
+              Currently showing {competitionsWithData.length} out of {COMPETITION_PRIORITY.length} supported competitions.
+            </p>
+          </div>
+        ) : null}
 
         {/* Refresh Button */}
         <div className="mt-12 pt-8 border-t border-gray-800 text-center">
           <button
             onClick={() => {
               clearMatchCache();
-              localStorage.removeItem('real_transfers_12');
               setLoading(true);
-              setErrorMessage('');
-              loadRealData();
+              loadData();
             }}
             className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold transition-colors"
           >
-            {t('highlights.refreshAllData')}
+            Refresh All Data
           </button>
           <p className="text-gray-500 text-sm mt-2">
-            {t('highlights.dataUpdates')}
+            Data updates every 15 minutes • Last updated: {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </p>
-          {dataStatus === 'error' && (
-            <p className="text-orange-400 text-sm mt-2">
-              {t('highlights.errorLoadingMatchData')}
-            </p>
-          )}
         </div>
       </div>
     </div>
