@@ -1,7 +1,7 @@
-// components/footballsearch.tsx - UPDATED WITH REAL-TIME VERIFICATION
+// components/footballsearch.tsx - SIMPLIFIED, RELIES ON GROQSERVICE FOR VERIFICATION
 'use client'
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 interface FootballSearchProps {
@@ -28,6 +28,7 @@ export default function FootballSearch({
   const [error, setError] = useState<string | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [confidence, setConfidence] = useState<number | null>(null);
+  const [verificationSource, setVerificationSource] = useState<string | null>(null);
   
   // Use refs to track the current search and prevent race conditions
   const searchControllerRef = useRef<AbortController | null>(null);
@@ -43,6 +44,8 @@ export default function FootballSearch({
     onVideoFound('');
     onAnalysisUpdate('');
     setConfidence(null);
+    setVerificationSource(null);
+    setError(null);
   }, [onPlayerSelect, onTeamSelect, onWorldCupUpdate, onTeamsUpdate, onVideoFound, onAnalysisUpdate]);
 
   // Cleanup function
@@ -84,365 +87,54 @@ export default function FootballSearch({
     const normalizedQuery = searchQuery.toLowerCase().trim();
     return worldCupTerms.some(term => normalizedQuery.includes(term));
   };
-// ADD this function right after the cleanupSearch function in FootballSearch.tsx:
-const verifyTeamDataWithSportsDB = async (teamName: string) => {
-  console.log(`🔍 [SPORTSDB-VERIFY] Starting verification for: ${teamName}`);
-  
-  try {
-    // Step 1: Search for team
-    const searchUrl = `https://www.thesportsdb.com/api/v1/json/3/searchteams.php?t=${encodeURIComponent(teamName)}`;
-    console.log(`[SPORTSDB-VERIFY] Searching: ${searchUrl}`);
-    
-    const searchResponse = await fetch(searchUrl);
-    if (!searchResponse.ok) {
-      console.warn(`[SPORTSDB-VERIFY] Search failed: ${searchResponse.status}`);
-      return null;
-    }
-    
-    const searchData = await searchResponse.json();
-    
-    if (!searchData.teams || searchData.teams.length === 0) {
-      console.log(`[SPORTSDB-VERIFY] No team found: ${teamName}`);
-      return null;
-    }
-    
-    const team = searchData.teams[0];
-    console.log(`✅ [SPORTSDB-VERIFY] Found: ${team.strTeam}, ID: ${team.idTeam}`);
-    
-    // Step 2: Get honors/trophies
-    let honors = [];
-    if (team.idTeam) {
-      try {
-        const honorsUrl = `https://www.thesportsdb.com/api/v1/json/3/lookuphonors.php?id=${team.idTeam}`;
-        console.log(`[SPORTSDB-VERIFY] Fetching honors: ${honorsUrl}`);
-        
-        const honorsResponse = await fetch(honorsUrl);
-        if (honorsResponse.ok) {
-          const honorsData = await honorsResponse.json();
-          honors = honorsData.honours || [];
-          console.log(`✅ [SPORTSDB-VERIFY] Found ${honors.length} honor records`);
-        }
-      } catch (e) {
-        console.error(`[SPORTSDB-VERIFY] Honors error:`, e);
-      }
-    }
-    
-    // Step 3: Analyze trophies
-    const trophyAnalysis = {
-      championsLeague: 0,
-      clubWorldCup: 0,
-      domesticLeague: 0,
-      domesticCup: 0,
-      superCup: 0
-    };
-    
-    // Count each trophy type
-    honors.forEach((honor: any) => {
-      if (!honor.strHonour) return;
-      
-      const honorName = honor.strHonour.toLowerCase();
-      
-      if (honorName.includes('champions league') || honorName.includes('european cup')) {
-        trophyAnalysis.championsLeague++;
-      } else if (honorName.includes('club world cup') || honorName.includes('intercontinental')) {
-        trophyAnalysis.clubWorldCup++;
-      } else if (honorName.includes('la liga') || honorName.includes('premier league') || 
-                 honorName.includes('bundesliga') || honorName.includes('serie a') || 
-                 honorName.includes('ligue 1')) {
-        trophyAnalysis.domesticLeague++;
-      } else if (honorName.includes('copa del rey') || honorName.includes('fa cup') || 
-                 honorName.includes('dfb-pokal') || honorName.includes('coppa italia')) {
-        trophyAnalysis.domesticCup++;
-      } else if (honorName.includes('supercopa') || honorName.includes('super cup')) {
-        trophyAnalysis.superCup++;
-      }
-    });
-    
-    console.log(`🏆 [SPORTSDB-VERIFY] Trophy analysis:`, trophyAnalysis);
-    
-    return {
-      verified: true,
-      coach: team.strManager,
-      stadium: team.strStadium,
-      founded: team.intFormedYear,
-      league: team.strLeague,
-      country: team.strCountry,
-      honors,
-      trophyAnalysis,
-      rawData: team
-    };
-    
-  } catch (error) {
-    console.error(`[SPORTSDB-VERIFY] Verification failed for ${teamName}:`, error);
-    return null;
-  }
-};
 
-// THEN in your handleSearch method, FIND this section and ADD the verification code:
-// Look for where you process team data (around line where you have: if ((data.type === 'club' || data.type === 'national') && data.teamInfo) {
-
-// Add this RIGHT AFTER you create teamData object but BEFORE onTeamSelect(teamData):
-if ((data.type === 'club' || data.type === 'national') && data.teamInfo) {
-  console.log('🏟️ Setting team data:', data.teamInfo.name);
-  
-  // ... your existing team data processing code ...
-  
-  // Create teamData object first (your existing code)
-  const teamData = {
-    // ... your existing teamData properties ...
-  };
-  
-  // ====== CRITICAL FIX: ADD VERIFICATION HERE ======
-  console.log('🔄 Starting SportsDB verification...');
-  const verifiedData = await verifyTeamDataWithSportsDB(data.teamInfo.name);
-  
-  if (verifiedData && verifiedData.verified) {
-    console.log('✅ SportsDB verification successful!');
+  // Confidence badge component
+  const ConfidenceBadge = ({ score, source }: { score: number | null; source: string | null }) => {
+    if (!score) return null;
     
-    // Update coach
-    if (verifiedData.coach && verifiedData.coach !== 'Unknown') {
-      teamData.currentManager = { name: verifiedData.coach };
-      teamData.currentCoach = verifiedData.coach;
-      teamData.coach = verifiedData.coach;
-      console.log(`✅ Coach updated to: ${verifiedData.coach}`);
+    let color = 'gray';
+    let text = 'Low Confidence';
+    let icon = '❓';
+    
+    if (score >= 90) {
+      color = 'green';
+      text = 'Verified Database';
+      icon = '✅';
+    } else if (score >= 80) {
+      color = 'green';
+      text = 'SportsDB Verified';
+      icon = '🔍';
+    } else if (score >= 60) {
+      color = 'yellow';
+      text = 'Wikipedia';
+      icon = '📚';
+    } else if (score >= 30) {
+      color = 'orange';
+      text = 'AI Generated';
+      icon = '🤖';
+    } else {
+      color = 'red';
+      text = 'Error Fallback';
+      icon = '⚠️';
     }
     
-    // Update stadium
-    if (verifiedData.stadium) {
-      teamData.stadium = verifiedData.stadium;
-      teamData.homeStadium = verifiedData.stadium;
-    }
-    
-    // Update founded year
-    if (verifiedData.founded) {
-      teamData.founded = verifiedData.founded;
-    }
-    
-    // ====== CRITICAL: FIX ACHIEVEMENTS ======
-    if (verifiedData.trophyAnalysis) {
-      const analysis = verifiedData.trophyAnalysis;
-      
-      // Clear and rebuild achievements with VERIFIED data
-      teamData.achievements = [];
-      teamData.majorAchievements = {
-        worldCup: [],
-        clubWorldCup: [],
-        international: [],
-        continental: [],
-        domestic: []
-      };
-      
-      // Add Champions League titles
-      if (analysis.championsLeague > 0) {
-        const uclEntry = `${analysis.championsLeague}x UEFA Champions League`;
-        teamData.achievements.push(uclEntry);
-        teamData.majorAchievements.international.push(uclEntry);
-        console.log(`✅ Champions League: ${analysis.championsLeague} titles`);
-      }
-      
-      // Add Club World Cup titles
-      if (analysis.clubWorldCup > 0) {
-        const cwcEntry = `${analysis.clubWorldCup}x FIFA Club World Cup`;
-        teamData.achievements.push(cwcEntry);
-        teamData.majorAchievements.international.push(cwcEntry);
-        console.log(`✅ Club World Cup: ${analysis.clubWorldCup} titles`);
-      }
-      
-      // Add domestic league titles
-      if (analysis.domesticLeague > 0) {
-        const leagueName = verifiedData.league || 'Domestic League';
-        const leagueEntry = `${analysis.domesticLeague}x ${leagueName}`;
-        teamData.achievements.push(leagueEntry);
-        teamData.majorAchievements.domestic.push(leagueEntry);
-        console.log(`✅ Domestic League: ${analysis.domesticLeague} titles`);
-      }
-      
-      // Add domestic cup titles
-      if (analysis.domesticCup > 0) {
-        const cupName = data.teamInfo.name.toLowerCase().includes('barcelona') 
-          ? 'Copa del Rey' 
-          : 'Domestic Cup';
-        const cupEntry = `${analysis.domesticCup}x ${cupName}`;
-        teamData.achievements.push(cupEntry);
-        teamData.majorAchievements.domestic.push(cupEntry);
-        console.log(`✅ Domestic Cup: ${analysis.domesticCup} titles`);
-      }
-      
-      // Add super cup titles
-      if (analysis.superCup > 0) {
-        const superCupEntry = `${analysis.superCup}x Super Cup`;
-        teamData.achievements.push(superCupEntry);
-        teamData.majorAchievements.domestic.push(superCupEntry);
-      }
-      
-      // Mark as verified
-      teamData._verified = true;
-      teamData._verificationSource = 'TheSportsDB';
-      teamData._verificationDate = new Date().toISOString();
-    }
-  } else {
-    console.log('⚠️ SportsDB verification failed or no data');
-  }
-  // ====== END OF CRITICAL FIX ======
-  
-  console.log('🏟️ Enhanced team data with verification');
-  onTeamSelect(teamData);
-}
-  // NEW: Enhanced verification function
-  const verifyTeamWithMultipleSources = async (teamName: string): Promise<any> => {
-    console.log(`[VERIFICATION] Verifying ${teamName} with multiple sources...`);
-    
-    const verificationResults = {
-      sportsDb: null as any,
-      footballData: null as any,
-      wikipedia: null as any,
-      confidence: 0
-    };
-    
-    try {
-      // Try SportsDB first (most reliable for current season)
-      const sportsDbResponse = await fetch(
-        `https://www.thesportsdb.com/api/v1/json/3/searchteams.php?t=${encodeURIComponent(teamName)}`
-      );
-      
-      if (sportsDbResponse.ok) {
-        const sportsDbData = await sportsDbResponse.json();
-        if (sportsDbData.teams && sportsDbData.teams.length > 0) {
-          verificationResults.sportsDb = sportsDbData.teams[0];
-          verificationResults.confidence += 40;
-          console.log(`[VERIFICATION] SportsDB found: ${verificationResults.sportsDb.strTeam}`);
-          
-          // Fetch honors if team ID available
-          if (verificationResults.sportsDb.idTeam) {
-            try {
-              const honorsResponse = await fetch(
-                `https://www.thesportsdb.com/api/v1/json/3/lookuphonors.php?id=${verificationResults.sportsDb.idTeam}`
-              );
-              if (honorsResponse.ok) {
-                const honorsData = await honorsResponse.json();
-                verificationResults.sportsDb.honors = honorsData.honours || [];
-              }
-            } catch (e) {
-              console.error("Error fetching honors:", e);
-            }
-          }
-        }
-      }
-    } catch (e) {
-      console.error("SportsDB verification failed:", e);
-    }
-    
-    // Try Football Data API
-    try {
-      const footballDataResponse = await fetch(`/api/football-data?team=${encodeURIComponent(teamName)}`);
-      if (footballDataResponse.ok) {
-        const footballData = await footballDataResponse.json();
-        verificationResults.footballData = footballData;
-        verificationResults.confidence += 30;
-        console.log(`[VERIFICATION] Football Data API found data`);
-      }
-    } catch (e) {
-      console.error("Football Data API verification failed:", e);
-    }
-    
-    // Try Wikipedia for additional info
-    try {
-      const wikipediaResponse = await fetch(
-        `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(teamName)}`
-      );
-      if (wikipediaResponse.ok) {
-        const wikipediaData = await wikipediaResponse.json();
-        verificationResults.wikipedia = wikipediaData;
-        verificationResults.confidence += 20;
-        console.log(`[VERIFICATION] Wikipedia found: ${wikipediaData.title}`);
-      }
-    } catch (e) {
-      console.error("Wikipedia verification failed:", e);
-    }
-    
-    return verificationResults;
-  };
-
-  // NEW: Enhanced achievement extraction from verified data
-  const extractVerifiedAchievements = (verificationData: any, teamData: any) => {
-    const achievements = {
-      worldCup: [] as string[],
-      clubWorldCup: [] as string[],
-      international: [] as string[],
-      continental: [] as string[],
-      domestic: [] as string[]
-    };
-    
-    // Start with SportsDB honors (most reliable for trophy counts)
-    if (verificationData.sportsDb?.honors && Array.isArray(verificationData.sportsDb.honors)) {
-      const honorCounts: Record<string, number> = {};
-      const honorYears: Record<string, string[]> = {};
-      
-      verificationData.sportsDb.honors.forEach((honor: any) => {
-        const honorName = honor.strHonour;
-        const season = honor.strSeason || '';
-        
-        // Extract year from season
-        const yearMatch = season.match(/\b(19|20)\d{2}\b/);
-        const year = yearMatch ? yearMatch[0] : '';
-        
-        if (!honorCounts[honorName]) {
-          honorCounts[honorName] = 0;
-          honorYears[honorName] = [];
-        }
-        
-        honorCounts[honorName]++;
-        if (year) {
-          honorYears[honorName].push(year);
-        }
-      });
-      
-      // Convert to categorized achievements
-      Object.entries(honorCounts).forEach(([honorName, count]) => {
-        const honorLower = honorName.toLowerCase();
-        const years = honorYears[honorName] || [];
-        const recentYear = years.length > 0 ? years[years.length - 1] : '';
-        
-        let achievementText = `${count}x ${honorName}`;
-        if (recentYear) {
-          achievementText += ` (last: ${recentYear})`;
-        }
-        
-        if (honorLower.includes('world cup') && !honorLower.includes('club')) {
-          achievements.worldCup.push(achievementText);
-        } else if (honorLower.includes('club world cup') || honorLower.includes('intercontinental')) {
-          achievements.clubWorldCup.push(achievementText);
-        } else if (honorLower.includes('champions league') || honorLower.includes('european cup')) {
-          achievements.international.push(achievementText);
-        } else if (honorLower.includes('uefa') || honorLower.includes('europa') || 
-                   honorLower.includes('libertadores') || honorLower.includes('concacaf')) {
-          achievements.continental.push(achievementText);
-        } else {
-          achievements.domestic.push(achievementText);
-        }
-      });
-    }
-    
-    // Fallback to AI achievements if no verified data
-    if (teamData.achievements && achievements.domestic.length === 0) {
-      teamData.achievements.forEach((ach: string) => {
-        const lower = ach.toLowerCase();
-        if (lower.includes('world cup') && !lower.includes('club')) {
-          achievements.worldCup.push(ach);
-        } else if (lower.includes('club world cup') || lower.includes('intercontinental')) {
-          achievements.clubWorldCup.push(ach);
-        } else if (lower.includes('champions league') || lower.includes('european cup')) {
-          achievements.international.push(ach);
-        } else if (lower.includes('uefa') || lower.includes('europa') || 
-                   lower.includes('libertadores') || lower.includes('concacaf')) {
-          achievements.continental.push(ach);
-        } else {
-          achievements.domestic.push(ach);
-        }
-      });
-    }
-    
-    return achievements;
+    return (
+      <div style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        padding: '0.25rem 0.75rem',
+        background: `rgba(${color === 'green' ? '34, 197, 94' : color === 'yellow' ? '234, 179, 8' : color === 'orange' ? '255, 165, 0' : '239, 68, 68'}, 0.1)`,
+        border: `1px solid rgba(${color === 'green' ? '34, 197, 94' : color === 'yellow' ? '234, 179, 8' : color === 'orange' ? '255, 165, 0' : '239, 68, 68'}, 0.3)`,
+        borderRadius: '999px',
+        fontSize: '0.75rem',
+        fontWeight: 500,
+        color: `rgb(${color === 'green' ? '34, 197, 94' : color === 'yellow' ? '234, 179, 8' : color === 'orange' ? '255, 165, 0' : '239, 68, 68'})`,
+        marginLeft: '0.5rem'
+      }}>
+        <span style={{ marginRight: '0.25rem' }}>{icon}</span>
+        {source ? `${text} (${source})` : text} • {score}%
+      </div>
+    );
   };
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -462,6 +154,7 @@ if ((data.type === 'club' || data.type === 'national') && data.teamInfo) {
     onLoadingChange(true);
     setError(null);
     setConfidence(null);
+    setVerificationSource(null);
     
     // Clean up any previous search
     cleanupSearch();
@@ -495,9 +188,16 @@ if ((data.type === 'club' || data.type === 'national') && data.teamInfo) {
       if (!searchControllerRef.current?.signal.aborted) {
         if (data.success) {
           console.log('✅ [API] Success! Type from API:', data.type);
+          console.log('✅ [API] Metadata:', data._metadata);
           
           // Clear all data again before setting new data
           clearAllPreviousData();
+          
+          // Set confidence from metadata
+          if (data._metadata?.confidence) {
+            setConfidence(data._metadata.confidence);
+            setVerificationSource(data._metadata.source || null);
+          }
           
           if (data.type === 'player' && data.playerInfo) {
             console.log('👤 Setting player data:', data.playerInfo.name);
@@ -554,106 +254,44 @@ if ((data.type === 'club' || data.type === 'national') && data.teamInfo) {
               lastUpdated: data.playerInfo.lastUpdated || new Date().toISOString(),
               language: data.language,
               isSpanish: data.isSpanish,
-              _confidence: data._metadata?.confidenceScore || 70
+              _confidence: data._metadata?.confidence || 70,
+              _source: data._metadata?.source || 'Unknown',
+              _verified: data._metadata?.verified || false,
+              _verificationSteps: data._metadata?.verificationSteps || []
             };
             
             console.log('👤 Enhanced player data prepared');
             onPlayerSelect(playerData);
-            setConfidence(data._metadata?.confidenceScore || 70);
           } 
           else if ((data.type === 'club' || data.type === 'national') && data.teamInfo) {
             console.log('🏟️ Setting team data:', data.teamInfo.name);
+            console.log('🏟️ Source:', data._metadata?.source);
+            console.log('🏟️ Confidence:', data._metadata?.confidence);
+            console.log('🏟️ Verified:', data._metadata?.verified);
             
             // Clear player data
             onPlayerSelect(null);
             
             // Initialize achievements structure
-            const majorAchievements = {
+            const majorAchievements = data.teamInfo.majorAchievements || {
               worldCup: [] as string[],
-              clubWorldCup: [] as string[],
               international: [] as string[],
               continental: [] as string[],
               domestic: [] as string[]
             };
             
             // Process team achievements from Groq data
-            let teamAchievements: string[] = [];
-            const isNationalTeam = data.teamInfo.type === 'national';
+            let teamAchievements: string[] = data.teamInfo.achievements || [];
             
-            if (data.teamInfo.achievementsSummary) {
-              const { achievementsSummary } = data.teamInfo;
-              
-              if (isNationalTeam) {
-                if (achievementsSummary.worldCupTitles > 0) {
-                  teamAchievements.push(`World Cup Titles: ${achievementsSummary.worldCupTitles}`);
-                }
-                if (achievementsSummary.continentalTitles > 0) {
-                  teamAchievements.push(`Continental Titles: ${achievementsSummary.continentalTitles}`);
-                }
-                if (achievementsSummary.olympicTitles > 0) {
-                  teamAchievements.push(`Olympic Titles: ${achievementsSummary.olympicTitles}`);
-                }
-              } else {
-                if (achievementsSummary.continentalTitles > 0) {
-                  teamAchievements.push(`Continental Titles: ${achievementsSummary.continentalTitles}`);
-                }
-                if (achievementsSummary.internationalTitles > 0) {
-                  teamAchievements.push(`International Titles: ${achievementsSummary.internationalTitles}`);
-                }
-                if (achievementsSummary.domesticTitles?.leagues > 0) {
-                  teamAchievements.push(`Domestic Leagues: ${achievementsSummary.domesticTitles.leagues}`);
-                }
-                if (achievementsSummary.domesticTitles?.cups > 0) {
-                  teamAchievements.push(`Domestic Cups: ${achievementsSummary.domesticTitles.cups}`);
-                }
-              }
+            // If no achievements array but we have majorAchievements, build it
+            if (teamAchievements.length === 0) {
+              teamAchievements = [
+                ...(majorAchievements.worldCup || []),
+                ...(majorAchievements.international || []),
+                ...(majorAchievements.continental || []),
+                ...(majorAchievements.domestic || [])
+              ];
             }
-            
-            // Add trophy details
-            if (data.teamInfo.trophies) {
-              const { trophies } = data.teamInfo;
-              
-              if (trophies.continental && Array.isArray(trophies.continental)) {
-                trophies.continental.forEach((trophy: any) => {
-                  teamAchievements.push(`${trophy.competition}: ${trophy.wins} wins (last: ${trophy.lastWin})`);
-                });
-              }
-              
-              if (trophies.international && Array.isArray(trophies.international)) {
-                trophies.international.forEach((trophy: any) => {
-                  teamAchievements.push(`${trophy.competition}: ${trophy.wins} wins (last: ${trophy.lastWin})`);
-                });
-              }
-              
-              if (trophies.domestic?.league && Array.isArray(trophies.domestic.league)) {
-                trophies.domestic.league.forEach((trophy: any) => {
-                  teamAchievements.push(`${trophy.competition}: ${trophy.wins} league titles (last: ${trophy.lastWin})`);
-                });
-              }
-              
-              if (trophies.domestic?.cup && Array.isArray(trophies.domestic.cup)) {
-                trophies.domestic.cup.forEach((trophy: any) => {
-                  teamAchievements.push(`${trophy.competition}: ${trophy.wins} cup titles (last: ${trophy.lastWin})`);
-                });
-              }
-            }
-            
-            // Categorize achievements
-            teamAchievements.forEach(ach => {
-              const lower = ach.toLowerCase();
-              if (lower.includes('world cup') && !lower.includes('club')) {
-                 majorAchievements.worldCup.push(ach);
-              } else if (lower.includes('club world cup') || lower.includes('intercontinental')) {
-                 majorAchievements.clubWorldCup.push(ach);
-              } else if (lower.includes('continental') || lower.includes('champions') || 
-                         lower.includes('uefa') || lower.includes('libertadores') || lower.includes('concacaf')) {
-                 majorAchievements.continental.push(ach);
-              } else if (lower.includes('international')) {
-                 majorAchievements.international.push(ach);
-              } else {
-                 majorAchievements.domestic.push(ach);
-              }
-            });
 
             const teamData = {
               id: Date.now(),
@@ -662,13 +300,10 @@ if ((data.type === 'club' || data.type === 'national') && data.teamInfo) {
               fifaRanking: data.teamInfo.fifaRanking,
               ranking: data.teamInfo.fifaRanking || 'N/A',
               currentManager: data.teamInfo.currentManager || null,
-              currentCoach: (typeof data.teamInfo.currentCoach === 'object' ? 
-                data.teamInfo.currentCoach.name : data.teamInfo.currentCoach) || null,
-              coach: data.teamInfo.currentManager?.name || 
-                (typeof data.teamInfo.currentCoach === 'object' ? 
-                 data.teamInfo.currentCoach.name : data.teamInfo.currentCoach) || 'Unknown',
+              currentCoach: data.teamInfo.currentCoach || 'Unknown',
+              coach: data.teamInfo.currentCoach || 'Unknown',
               stadium: data.teamInfo.stadium || null,
-              homeStadium: data.teamInfo.homeStadium,
+              homeStadium: data.teamInfo.homeStadium || data.teamInfo.stadium,
               league: data.teamInfo.league || 'Unknown',
               founded: data.teamInfo.founded || 'Unknown',
               achievementsSummary: data.teamInfo.achievementsSummary || null,
@@ -685,69 +320,16 @@ if ((data.type === 'club' || data.type === 'national') && data.teamInfo) {
               fifaCode: data.teamInfo.fifaCode,
               language: data.language,
               isSpanish: data.isSpanish,
-              _confidence: data._metadata?.confidenceScore || 70,
-              _verificationLevel: data._metadata?.verificationLevel || 'medium'
+              _confidence: data._metadata?.confidence || 70,
+              _source: data._metadata?.source || 'Unknown',
+              _verified: data._metadata?.verified || false,
+              _verificationSteps: data._metadata?.verificationSteps || [],
+              _hasSquad: data._metadata?.hasSquad || false,
+              _warning: data._metadata?.warning || null
             };
             
-            // ENHANCED: Real-time verification with multiple sources
-            console.log('🔄 Starting real-time verification...');
-            try {
-              const verificationResults = await verifyTeamWithMultipleSources(data.teamInfo.name);
-              
-              // Update confidence
-              const newConfidence = verificationResults.confidence || data._metadata?.confidenceScore || 70;
-              setConfidence(newConfidence);
-              teamData._confidence = newConfidence;
-              
-              // Update coach if verified data is available
-              if (verificationResults.sportsDb?.strManager) {
-                const verifiedCoach = verificationResults.sportsDb.strManager;
-                if (verifiedCoach !== teamData.coach && verifiedCoach !== 'Unknown') {
-                  console.log(`✅ Coach updated to verified: ${verifiedCoach}`);
-                  teamData.currentManager = { name: verifiedCoach };
-                  teamData.currentCoach = verifiedCoach;
-                  teamData.coach = verifiedCoach;
-                }
-              }
-              
-              // Update stadium
-              if (verificationResults.sportsDb?.strStadium) {
-                teamData.stadium = verificationResults.sportsDb.strStadium;
-                teamData.homeStadium = verificationResults.sportsDb.strStadium;
-              }
-              
-              // Update founded year
-              if (verificationResults.sportsDb?.intFormedYear) {
-                teamData.founded = verificationResults.sportsDb.intFormedYear;
-              }
-              
-              // Update league
-              if (verificationResults.sportsDb?.strLeague) {
-                teamData.league = verificationResults.sportsDb.strLeague;
-              }
-              
-              // Extract verified achievements
-              const verifiedAchievements = extractVerifiedAchievements(verificationResults, teamData);
-              
-              // Replace or merge achievements with verified ones
-              if (verifiedAchievements.domestic.length > 0 || verifiedAchievements.international.length > 0) {
-                teamData.majorAchievements = verifiedAchievements;
-                teamData.achievements = [
-                  ...verifiedAchievements.worldCup,
-                  ...verifiedAchievements.clubWorldCup,
-                  ...verifiedAchievements.international,
-                  ...verifiedAchievements.continental,
-                  ...verifiedAchievements.domestic
-                ];
-                
-                console.log(`✅ Achievements verified: ${teamData.achievements.length} entries`);
-              }
-              
-            } catch (verificationError) {
-              console.error('Verification failed:', verificationError);
-            }
+            console.log(`🏟️ Team data: ${teamData.name} | Confidence: ${teamData._confidence}% | Verified: ${teamData._verified} | Source: ${teamData._source}`);
             
-            console.log('🏟️ Enhanced team data with verification');
             onTeamSelect(teamData);
           }
           else if (data.type === 'worldcup' && data.worldCupInfo) {
@@ -821,6 +403,8 @@ if ((data.type === 'club' || data.type === 'national') && data.teamInfo) {
     const trimmedExample = example.trim();
     setQuery(trimmedExample);
     setError(null);
+    setConfidence(null);
+    setVerificationSource(null);
     
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
@@ -857,8 +441,14 @@ if ((data.type === 'club' || data.type === 'national') && data.teamInfo) {
         if (!searchControllerRef.current?.signal.aborted) {
           if (data.success) {
             console.log('✅ [API] Quick search success! Type:', data.type);
+            console.log('✅ [API] Metadata:', data._metadata);
             
             clearAllPreviousData();
+            
+            if (data._metadata?.confidence) {
+              setConfidence(data._metadata.confidence);
+              setVerificationSource(data._metadata.source || null);
+            }
             
             if (data.type === 'player' && data.playerInfo) {
               const playerData = {
@@ -874,11 +464,12 @@ if ((data.type === 'club' || data.type === 'national') && data.teamInfo) {
                 preferredFoot: data.playerInfo.preferredFoot || 'Unknown',
                 playingStyle: data.playerInfo.playingStyle || '',
                 careerStats: data.playerInfo.careerStats || null,
-                _confidence: data._metadata?.confidenceScore || 70
+                _confidence: data._metadata?.confidence || 70,
+                _source: data._metadata?.source || 'Unknown',
+                _verified: data._metadata?.verified || false
               };
               
               onPlayerSelect(playerData);
-              setConfidence(data._metadata?.confidenceScore || 70);
             } 
             else if ((data.type === 'club' || data.type === 'national') && data.teamInfo) {
               const teamData = {
@@ -891,15 +482,22 @@ if ((data.type === 'club' || data.type === 'national') && data.teamInfo) {
                 achievementsSummary: data.teamInfo.achievementsSummary || null,
                 stadium: data.teamInfo.stadium || null,
                 currentManager: data.teamInfo.currentManager || null,
-                currentCoach: data.teamInfo.currentCoach || null,
+                currentCoach: data.teamInfo.currentCoach || 'Unknown',
+                coach: data.teamInfo.currentCoach || 'Unknown',
                 trophies: data.teamInfo.trophies || null,
                 squad: data.teamInfo.squad || [],
-                _confidence: data._metadata?.confidenceScore || 70,
-                _verificationLevel: data._metadata?.verificationLevel || 'medium'
+                achievements: data.teamInfo.achievements || [],
+                majorAchievements: data.teamInfo.majorAchievements || {
+                  worldCup: [], international: [], continental: [], domestic: []
+                },
+                _confidence: data._metadata?.confidence || 70,
+                _source: data._metadata?.source || 'Unknown',
+                _verified: data._metadata?.verified || false,
+                _hasSquad: data._metadata?.hasSquad || false,
+                _warning: data._metadata?.warning || null
               };
               
               onTeamSelect(teamData);
-              setConfidence(data._metadata?.confidenceScore || 70);
             }
             
             if (data.analysis) onAnalysisUpdate(data.analysis);
@@ -926,75 +524,49 @@ if ((data.type === 'club' || data.type === 'national') && data.teamInfo) {
   };
 
   // Cleanup on unmount
-  useState(() => {
+  useEffect(() => {
     return () => {
       cleanupSearch();
     };
-  });
+  }, [cleanupSearch]);
 
   const quickSearches = [
-    'Lionel Messi', 
-    'Cristiano Ronaldo',
-    'Kylian Mbappé',
     'Real Madrid', 
+    'Argentina',
     'FC Barcelona',
+    'Manchester City',
+    'Brazil',
+    'Bayern Munich',
+    'Liverpool FC',
+    'Paris Saint-Germain',
     'Selección Española',
     'Selección Brasileña',
     'Selección Argentina',
     'Copa Mundial 2026',
-    'FIFA World Cup 2026',
-    'Manchester City',
-    'Bayern Munich',
-    'Liverpool FC',
-    'Paris Saint-Germain'
+    'FIFA World Cup 2026'
   ];
-
-  // NEW: Confidence badge component
-  const ConfidenceBadge = ({ score }: { score: number | null }) => {
-    if (!score) return null;
-    
-    let color = 'gray';
-    let text = 'Low Confidence';
-    
-    if (score >= 80) {
-      color = 'green';
-      text = 'High Confidence';
-    } else if (score >= 60) {
-      color = 'yellow';
-      text = 'Medium Confidence';
-    } else {
-      color = 'red';
-      text = 'Low Confidence';
-    }
-    
-    return (
-      <div style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        padding: '0.25rem 0.75rem',
-        background: `rgba(${color === 'green' ? '34, 197, 94' : color === 'yellow' ? '234, 179, 8' : '239, 68, 68'}, 0.1)`,
-        border: `1px solid rgba(${color === 'green' ? '34, 197, 94' : color === 'yellow' ? '234, 179, 8' : '239, 68, 68'}, 0.3)`,
-        borderRadius: '999px',
-        fontSize: '0.75rem',
-        fontWeight: 500,
-        color: `rgb(${color === 'green' ? '34, 197, 94' : color === 'yellow' ? '234, 179, 8' : '239, 68, 68'})`,
-        marginLeft: '0.5rem'
-      }}>
-        <span style={{ marginRight: '0.25rem' }}>
-          {score >= 80 ? '✅' : score >= 60 ? '⚠️' : '❓'}
-        </span>
-        {text} ({score}%)
-      </div>
-    );
-  };
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '1.5rem' }}>
-        <h2 style={{ fontSize: '1.75rem', fontWeight: 700, color: 'white', margin: 0 }}>
-          ⚽ Football AI Search
+      <div style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        marginBottom: '1.5rem',
+        flexWrap: 'wrap',
+        gap: '0.5rem'
+      }}>
+        <h2 style={{ 
+          fontSize: '1.75rem', 
+          fontWeight: 700, 
+          color: 'white', 
+          margin: 0,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem'
+        }}>
+          <span>⚽</span> Football AI Search
         </h2>
-        {confidence !== null && <ConfidenceBadge score={confidence} />}
+        <ConfidenceBadge score={confidence} source={verificationSource} />
       </div>
       
       {error && (
@@ -1133,7 +705,7 @@ if ((data.type === 'club' || data.type === 'national') && data.teamInfo) {
               setQuery(e.target.value);
               setError(null);
             }}
-            placeholder="Search players, teams, or type 'World Cup 2026'..."
+            placeholder="Search for any national team or football club..."
             disabled={isSearching}
             style={{
               width: '100%',
@@ -1186,73 +758,101 @@ if ((data.type === 'club' || data.type === 'national') && data.teamInfo) {
       
       <div style={{ marginTop: '1.5rem' }}>
         <p style={{ color: '#94a3b8', fontSize: '0.875rem', marginBottom: '0.75rem' }}>
-          Try current examples (2024):
+          Try searching for verified teams with real squad data:
         </p>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          {quickSearches.map((term) => (
-            <button
-              key={term}
-              type="button"
-              onClick={() => handleExampleClick(term)}
-              disabled={isSearching}
-              style={{
-                padding: '0.5rem 1rem',
-                background: term.toLowerCase().includes('2026') 
-                  ? 'rgba(255, 215, 0, 0.2)' 
-                  : 'rgba(255, 255, 255, 0.1)',
-                border: term.toLowerCase().includes('2026')
-                  ? '1px solid rgba(255, 215, 0, 0.5)'
-                  : '1px solid rgba(255, 255, 255, 0.2)',
-                borderRadius: '999px',
-                color: term.toLowerCase().includes('2026') ? '#FFD700' : 'white',
-                fontSize: '0.875rem',
-                cursor: isSearching ? 'not-allowed' : 'pointer',
-                transition: 'all 0.2s ease',
-                whiteSpace: 'nowrap',
-                opacity: isSearching ? 0.6 : 1,
-              }}
-              onMouseEnter={(e) => {
-                if (!isSearching) {
-                  e.currentTarget.style.background = term.toLowerCase().includes('2026')
-                    ? 'rgba(255, 215, 0, 0.3)'
-                    : 'rgba(74, 222, 128, 0.2)';
-                  e.currentTarget.style.borderColor = term.toLowerCase().includes('2026')
-                    ? '#FFD700'
-                    : '#4ade80';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isSearching) {
-                  e.currentTarget.style.background = term.toLowerCase().includes('2026') 
+          {quickSearches.map((term) => {
+            const isWorldCup = term.toLowerCase().includes('2026');
+            const isVerified = ['Real Madrid', 'Argentina', 'FC Barcelona', 'Manchester City', 'Brazil'].includes(term);
+            
+            return (
+              <button
+                key={term}
+                type="button"
+                onClick={() => handleExampleClick(term)}
+                disabled={isSearching}
+                style={{
+                  padding: '0.5rem 1rem',
+                  background: isWorldCup 
                     ? 'rgba(255, 215, 0, 0.2)' 
-                    : 'rgba(255, 255, 255, 0.1)';
-                  e.currentTarget.style.borderColor = term.toLowerCase().includes('2026')
+                    : isVerified
+                      ? 'rgba(34, 197, 94, 0.1)'
+                      : 'rgba(255, 255, 255, 0.1)',
+                  border: isWorldCup
                     ? '1px solid rgba(255, 215, 0, 0.5)'
-                    : '1px solid rgba(255, 255, 255, 0.2)';
-                }
-              }}
-            >
-              {term}
-            </button>
-          ))}
+                    : isVerified
+                      ? '1px solid rgba(34, 197, 94, 0.3)'
+                      : '1px solid rgba(255, 255, 255, 0.2)',
+                  borderRadius: '999px',
+                  color: isWorldCup ? '#FFD700' : isVerified ? '#4ade80' : 'white',
+                  fontSize: '0.875rem',
+                  cursor: isSearching ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.2s ease',
+                  whiteSpace: 'nowrap',
+                  opacity: isSearching ? 0.6 : 1,
+                }}
+                onMouseEnter={(e) => {
+                  if (!isSearching) {
+                    e.currentTarget.style.background = isWorldCup
+                      ? 'rgba(255, 215, 0, 0.3)'
+                      : isVerified
+                        ? 'rgba(34, 197, 94, 0.2)'
+                        : 'rgba(74, 222, 128, 0.2)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isSearching) {
+                    e.currentTarget.style.background = isWorldCup 
+                      ? 'rgba(255, 215, 0, 0.2)' 
+                      : isVerified
+                        ? 'rgba(34, 197, 94, 0.1)'
+                        : 'rgba(255, 255, 255, 0.1)';
+                  }
+                }}
+              >
+                {term}
+                {isVerified && <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem' }}>✅</span>}
+                {isWorldCup && <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem' }}>🌍</span>}
+              </button>
+            );
+          })}
         </div>
       </div>
       
-      <div style={{ marginTop: '1rem', fontSize: '0.875rem', color: '#94a3b8' }}>
-        <p>Get detailed stats, verified trophy counts, current managers, and AI analysis</p>
-        <div style={{
-          marginTop: '0.5rem',
+      <div style={{ 
+        marginTop: '1.5rem', 
+        padding: '1rem',
+        background: 'rgba(0, 0, 0, 0.3)',
+        borderRadius: '0.75rem',
+        border: '1px solid rgba(255, 255, 255, 0.1)'
+      }}>
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '1rem', 
+          flexWrap: 'wrap',
           fontSize: '0.75rem',
-          color: '#64748b',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
+          color: '#94a3b8'
         }}>
-          <span>🌐</span>
-          <span>Spanish searches will use Spanish Wikipedia for accurate data</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+            <span style={{ color: '#4ade80' }}>✅</span>
+            <span>Verified Database (95% confidence)</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+            <span style={{ color: '#60a5fa' }}>🔍</span>
+            <span>SportsDB API (80% confidence)</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+            <span style={{ color: '#fbbf24' }}>📚</span>
+            <span>Wikipedia (60% confidence)</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+            <span style={{ color: '#f97316' }}>🤖</span>
+            <span>AI Fallback (30% confidence)</span>
+          </div>
         </div>
-        <p style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: '#64748b' }}>
-          Powered by GROQ AI + SportsDB + Football Data API • Verified 2024-2025 data • Confidence scoring
+        <p style={{ marginTop: '0.75rem', fontSize: '0.75rem', color: '#64748b' }}>
+          Powered by GROQ AI + TheSportsDB • Verified 2024-2025 data • Real squad data for top teams
         </p>
       </div>
     </div>

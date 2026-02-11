@@ -1,15 +1,10 @@
-// components/EnhancedTeamResults.tsx - COMPLETE FIXED VERSION
+// components/EnhancedTeamResults.tsx - FIXED VERSION
 'use client';
 
 import { useState, useEffect } from 'react';
 import { searchYouTubeHighlights, YouTubeVideo } from '@/services/youtubeService';
-import { Team, Player, needsDataVerification, getDataSourceInfo, getHistoricalPlayers } from '@/services/groqService';
-import { getDataQualityBadge } from '@/services/dataEnhancerService';
-import PlayerCard from '@/components/PlayerCard';
-import { PlayerImageErrorBoundary, PlayerGridErrorBoundary } from '@/components/PlayerImageErrorBoundary';
-import { usePlayerImages } from '@/hooks/usePlayerImages';
-import { ValidatedPlayer } from '@/services/dataValidationService';
-import { getPlayerImages } from '@/services/playerImageService';
+import { Team, Player, getDataSourceInfo, getHistoricalPlayers } from '@/services/groqService';
+import { getPlayerImages } from '@/services/playerImageService'; // ✅ This now works
 
 interface EnhancedTeamResultsProps {
   teams: Team[];
@@ -20,9 +15,10 @@ interface EnhancedTeamResultsProps {
   language?: string;
   cacheStatus?: 'fresh' | 'cached' | 'none';
   lastRefreshed?: Date | null;
+  metadata?: any;
 }
 
-// ADD THIS COMPONENT AT THE TOP LEVEL (before the main component)
+// Achievement Item Component
 const AchievementItem = ({ achievement, index }: { achievement: string; index: number }) => (
   <div className="flex items-start gap-3 p-3 bg-gradient-to-r from-gray-900 to-gray-800 border border-gray-700 rounded-lg hover:border-yellow-500/50 transition">
     <div className="flex-shrink-0 pt-1">
@@ -34,9 +30,10 @@ const AchievementItem = ({ achievement, index }: { achievement: string; index: n
   </div>
 );
 
-// Also add the PlayerCard component since you might need it for historical players
+// Historical Player Card
 const HistoricalPlayerCard = ({ player, index }: { player: Player; index: number }) => {
-  const playerPhotoUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(player.name)}&background=random&color=fff&size=128&bold=true`;
+  const playerPhotoUrl = player._imageUrl || 
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(player.name)}&background=random&color=fff&size=128&bold=true`;
   
   return (
     <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-purple-700 rounded-xl p-4 hover:border-blue-500/50 transition-all hover:-translate-y-1">
@@ -47,6 +44,9 @@ const HistoricalPlayerCard = ({ player, index }: { player: Player; index: number
               src={playerPhotoUrl}
               alt={player.name}
               className="w-full h-full object-cover"
+              onError={(e) => {
+                e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(player.name)}&background=random&color=fff&size=128&bold=true`;
+              }}
             />
           </div>
         </div>
@@ -99,6 +99,110 @@ const HistoricalPlayerCard = ({ player, index }: { player: Player; index: number
   );
 };
 
+// Player Card Component with image fetching
+const PlayerCard = ({ player }: { player: Player }) => {
+  const [imageUrl, setImageUrl] = useState<string>(player._imageUrl || '');
+  const [loading, setLoading] = useState(!player._imageUrl);
+
+  useEffect(() => {
+    if (!player._imageUrl) {
+      const fetchImage = async () => {
+        try {
+          const result = await getPlayerImages([player.name]);
+          const url = result.get(player.name)?.url;
+          if (url) {
+            setImageUrl(url);
+          } else {
+            setImageUrl(`https://ui-avatars.com/api/?name=${encodeURIComponent(player.name)}&background=random&color=fff&size=300&bold=true`);
+          }
+        } catch (error) {
+          console.error(`Error fetching image for ${player.name}:`, error);
+          setImageUrl(`https://ui-avatars.com/api/?name=${encodeURIComponent(player.name)}&background=random&color=fff&size=300&bold=true`);
+        } finally {
+          setLoading(false);
+        }
+      };
+      fetchImage();
+    }
+  }, [player]);
+
+  const displayImage = imageUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(player.name)}&background=random&color=fff&size=300&bold=true`;
+
+  return (
+    <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 rounded-xl p-4 hover:border-blue-500/50 transition-all hover:-translate-y-1">
+      <div className="flex items-start gap-4">
+        <div className="flex-shrink-0">
+          <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-600 overflow-hidden">
+            {loading ? (
+              <div className="w-full h-full flex items-center justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+              </div>
+            ) : (
+              <img
+                src={displayImage}
+                alt={player.name}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(player.name)}&background=random&color=fff&size=128&bold=true`;
+                }}
+              />
+            )}
+          </div>
+        </div>
+        
+        <div className="flex-1">
+          <h4 className="font-bold text-white text-lg mb-1">{player.name}</h4>
+          
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            {player.position && (
+              <div>
+                <div className="text-gray-400 text-xs">Position</div>
+                <div className="text-white font-medium">{player.position}</div>
+              </div>
+            )}
+            {player.age && (
+              <div>
+                <div className="text-gray-400 text-xs">Age</div>
+                <div className="text-white font-medium">{player.age}</div>
+              </div>
+            )}
+            {player.nationality && (
+              <div className="col-span-2">
+                <div className="text-gray-400 text-xs">Nationality</div>
+                <div className="text-white font-medium">{player.nationality}</div>
+              </div>
+            )}
+          </div>
+          
+          {player._source && (
+            <div className="mt-2 text-xs text-gray-500">
+              Source: {player._source}
+            </div>
+          )}
+        </div>
+      </div>
+      
+      {player.majorAchievements && player.majorAchievements.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-gray-700">
+          <div className="text-gray-400 text-xs mb-1">Achievements</div>
+          <div className="flex flex-wrap gap-1">
+            {player.majorAchievements.slice(0, 2).map((achievement, i) => (
+              <span key={i} className="px-2 py-0.5 bg-yellow-900/30 text-yellow-300 text-xs rounded-full">
+                {achievement.length > 30 ? achievement.substring(0, 30) + '...' : achievement}
+              </span>
+            ))}
+            {player.majorAchievements.length > 2 && (
+              <span className="px-2 py-0.5 bg-gray-800 text-gray-400 text-xs rounded-full">
+                +{player.majorAchievements.length - 2} more
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // Helper for counting titles from achievement strings
 const countTitles = (achievements: string[] | undefined): number => {
   if (!achievements || achievements.length === 0) return 0;
@@ -128,7 +232,8 @@ export default function EnhancedTeamResults({
   getTeamFlagUrl,
   language = 'en',
   cacheStatus,
-  lastRefreshed
+  lastRefreshed,
+  metadata
 }: EnhancedTeamResultsProps) {
   const [youtubeVideos, setYoutubeVideos] = useState<YouTubeVideo[]>([]);
   const [loadingVideos, setLoadingVideos] = useState(false);
@@ -137,69 +242,15 @@ export default function EnhancedTeamResults({
   const [displayPlayers, setDisplayPlayers] = useState<Player[]>(players);
   const [legendaryPlayers, setLegendaryPlayers] = useState<Player[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
-  const [playerImageUrls, setPlayerImageUrls] = useState<Map<string, string>>(new Map());
-  const [loadingImages, setLoadingImages] = useState(false);
 
   // Get data from metadata if available
   const team = teams[0];
-  const teamMetadata = team?._dataCurrency;
+  const teamMetadata = metadata || team?._metadata;
 
-  // Fetch player images when players change
+  // Update display players when props change
   useEffect(() => {
-    const fetchPlayerImages = async () => {
-      if (displayPlayers.length > 0) {
-        setLoadingImages(true);
-        try {
-          // Get all unique player names
-          const playerNames = displayPlayers.map(p => p.name).filter(name => name && name.trim() !== '');
-          
-          if (playerNames.length > 0) {
-            const images = await getPlayerImages(playerNames);
-            
-            // Convert to simple URL map
-            const urlMap = new Map<string, string>();
-            images.forEach((result, name) => {
-              if (result.url) {
-                urlMap.set(name, result.url);
-              } else {
-                // Fallback to UI Avatar if no image found
-                urlMap.set(name, `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&color=fff&size=300&bold=true`);
-              }
-            });
-            
-            setPlayerImageUrls(urlMap);
-          }
-        } catch (error) {
-          console.error('Error fetching player images:', error);
-          // Create fallback avatars for all players
-          const urlMap = new Map<string, string>();
-          displayPlayers.forEach(player => {
-            urlMap.set(player.name, `https://ui-avatars.com/api/?name=${encodeURIComponent(player.name)}&background=random&color=fff&size=300&bold=true`);
-          });
-          setPlayerImageUrls(urlMap);
-        } finally {
-          setLoadingImages(false);
-        }
-      }
-    };
-
-    if (activeTab === 'squad') {
-      fetchPlayerImages();
-    }
-  }, [displayPlayers, activeTab]);
-
-  // FIXED: Use useLayoutEffect to avoid React warning about state updates during render
-  useEffect(() => {
-    if (team && players.length === 0) {
-      // Only show warning, don't generate fake data
-      console.warn(`No players returned for team: ${team.name}. GROQ AI returned empty player data.`);
-      
-      // Instead of generating fake data, set empty array
-      setDisplayPlayers([]);
-    } else {
-      setDisplayPlayers(players);
-    }
-  }, [team, players, language]);
+    setDisplayPlayers(players);
+  }, [players]);
 
   // Fetch YouTube videos when component mounts or query changes
   useEffect(() => {
@@ -311,7 +362,7 @@ export default function EnhancedTeamResults({
     era: team.type === 'club' 
       ? t('Most Successful Era', 'Era más exitosa') 
       : t('World Cup Winning Era', 'Era de Campeones del Mundo'),
-    years: hasLegendary && legendaryPlayers[0]._era 
+    years: hasLegendary && legendaryPlayers[0]?._era 
       ? legendaryPlayers[0]._era 
       : (team.type === 'club' ? "Historic" : "Golden Generation"),
     achievements: allAchievements.slice(0, 3),
@@ -337,6 +388,11 @@ export default function EnhancedTeamResults({
       event: `${title}`
     }));
   }).sort((a, b) => b.year - a.year);
+
+  // Get confidence level from metadata
+  const confidenceLevel = metadata?.confidence || team?._confidence || 0;
+  const source = metadata?.source || team?._source || 'Unknown';
+  const verified = metadata?.verified || team?._verified || false;
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 animate-fadeIn">
@@ -371,11 +427,25 @@ export default function EnhancedTeamResults({
                   {team.country}
                 </span>
               )}
+              {verified && (
+                <span className="px-3 py-1 rounded-full text-sm font-medium bg-green-900/50 text-green-400 border border-green-700/50">
+                  ✅ Verified ({confidenceLevel}%)
+                </span>
+              )}
+              {!verified && confidenceLevel > 0 && (
+                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                  confidenceLevel >= 80 ? 'bg-blue-900/50 text-blue-400 border border-blue-700/50' :
+                  confidenceLevel >= 60 ? 'bg-yellow-900/50 text-yellow-400 border border-yellow-700/50' :
+                  'bg-orange-900/50 text-orange-400 border border-orange-700/50'
+                }`}>
+                  {source} ({confidenceLevel}%)
+                </span>
+              )}
             </div>
 
             {/* Basic Info */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              {team.currentCoach && (
+              {team.currentCoach && team.currentCoach !== 'Unknown' && (
                 <div className="bg-gray-800/50 rounded-lg p-3">
                   <div className="text-xs text-gray-400 mb-1">
                     {t('Current Manager', 'Entrenador actual')}
@@ -424,10 +494,7 @@ export default function EnhancedTeamResults({
                 </div>
               )}
               <div className="px-3 py-1.5 bg-purple-900/30 text-purple-300 rounded-full text-sm border border-purple-700/30">
-                {displayPlayers.length > 0 ? `${displayPlayers.length} ${t('Players', 'Jugadores')}` : t('Squad Loading...', 'Cargando equipo...')}
-              </div>
-              <div className="px-3 py-1.5 bg-yellow-900/30 text-yellow-300 rounded-full text-sm border border-yellow-700/30">
-                {t('AI Analysis', 'Análisis IA')}
+                {displayPlayers.length > 0 ? `${displayPlayers.length} ${t('Players', 'Jugadores')}` : t('No Squad', 'Sin equipo')}
               </div>
             </div>
           </div>
@@ -502,7 +569,7 @@ export default function EnhancedTeamResults({
                         <span className="text-white font-medium">{team.foundedYear} ({new Date().getFullYear() - team.foundedYear} {t('years', 'años')})</span>
                       </div>
                     )}
-                    {team.currentCoach && (
+                    {team.currentCoach && team.currentCoach !== 'Unknown' && (
                       <div className="flex justify-between">
                         <span className="text-gray-400">{t('Current Manager:', 'Entrenador actual:')}</span>
                         <span className="text-white font-medium">{team.currentCoach}</span>
@@ -567,40 +634,45 @@ export default function EnhancedTeamResults({
             {teamMetadata && (
               <div className="bg-gradient-to-r from-purple-900/20 to-blue-900/20 border border-purple-700/30 rounded-xl p-6">
                 <h4 className="text-lg font-semibold text-white mb-3 flex items-center">
-                  <span className="mr-2">🤖</span> {t('AI Analysis Information', 'Información de análisis IA')}
+                  <span className="mr-2">🔍</span> {t('Data Source Information', 'Información de fuente de datos')}
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                   <div>
-                    <span className="text-gray-400">{t('Data Source:', 'Fuente de datos:')}</span>
-                    <span className="ml-2 text-white font-medium">
-                      {teamMetadata.verification?.source || 'GROQ AI + Wikipedia'}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-gray-400">{t('Confidence Level:', 'Nivel de confianza:')}</span>
+                    <span className="text-gray-400">{t('Source:', 'Fuente:')}</span>
                     <span className={`ml-2 font-medium ${
-                      teamMetadata.verification?.confidence === 'high' ? 'text-green-400' :
-                      teamMetadata.verification?.confidence === 'medium' ? 'text-yellow-400' :
-                      'text-red-400'
+                      verified ? 'text-green-400' : 
+                      source.includes('SportsDB') ? 'text-blue-400' :
+                      source.includes('Wikipedia') ? 'text-yellow-400' :
+                      source.includes('AI') ? 'text-orange-400' : 'text-gray-400'
                     }`}>
-                      {teamMetadata.verification?.confidence?.toUpperCase() || 'MEDIUM'}
+                      {source}
                     </span>
                   </div>
                   <div>
-                    <span className="text-gray-400">{t('Last Updated:', 'Última actualización:')}</span>
-                    <span className="ml-2 text-white font-medium">
-                      {teamMetadata.lastTrained ? new Date(teamMetadata.lastTrained).toLocaleDateString(language === 'es' ? 'es-ES' : 'en-US') : '2024'}
+                    <span className="text-gray-400">{t('Confidence:', 'Confianza:')}</span>
+                    <span className={`ml-2 font-medium ${
+                      confidenceLevel >= 80 ? 'text-green-400' :
+                      confidenceLevel >= 60 ? 'text-yellow-400' :
+                      confidenceLevel >= 30 ? 'text-orange-400' : 'text-red-400'
+                    }`}>
+                      {confidenceLevel}%
                     </span>
                   </div>
                   <div>
-                    <span className="text-gray-400">{t('Current Season:', 'Temporada actual:')}</span>
+                    <span className="text-gray-400">{t('Verified:', 'Verificado:')}</span>
+                    <span className={`ml-2 font-medium ${verified ? 'text-green-400' : 'text-yellow-400'}`}>
+                      {verified ? '✅ Yes' : '⚠️ No'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">{t('Season:', 'Temporada:')}</span>
                     <span className="ml-2 text-white font-medium">
-                      {teamMetadata.currentSeason || `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`}
+                      {metadata?.season || '2024/2025'}
                     </span>
                   </div>
                 </div>
-                {teamMetadata.disclaimer && (
-                  <p className="text-gray-400 text-sm mt-4 italic">{teamMetadata.disclaimer}</p>
+                {metadata?.warning && (
+                  <p className="text-yellow-400 text-sm mt-4 italic">{metadata.warning}</p>
                 )}
               </div>
             )}
@@ -612,18 +684,13 @@ export default function EnhancedTeamResults({
                   <span className="mr-2">⚠️</span> {t('Squad Data Unavailable', 'Datos del equipo no disponibles')}
                 </h4>
                 <p className="text-yellow-200 text-sm">
-                  {t('The GROQ AI service did not return player data for this team. This could be because:',
-                     'El servicio GROQ AI no devolvió datos de jugadores para este equipo. Esto podría deberse a:')}
+                  {t('No player data is available for this team. This is expected for:',
+                     'No hay datos de jugadores disponibles para este equipo. Esto es normal para:')}
                 </p>
                 <ul className="text-yellow-200 text-xs mt-2 list-disc list-inside">
-                  <li>{t('The team may not have current players in the database',
-                          'El equipo puede no tener jugadores actuales en la base de datos')}</li>
-                  <li>{t('There might be an issue with the AI response',
-                          'Puede haber un problema con la respuesta de la IA')}</li>
-                  <li>{t('Try searching for a more specific team name',
-                          'Intenta buscar un nombre de equipo más específico')}</li>
-                  <li>{t('The 2024-2025 squad data is still being updated',
-                          'Los datos del equipo 2024-2025 aún se están actualizando')}</li>
+                  <li>{t('Teams not in our verified database', 'Equipos que no están en nuestra base de datos verificada')}</li>
+                  <li>{t('Teams verified via Wikipedia (no squad data)', 'Equipos verificados vía Wikipedia (sin datos de plantilla)')}</li>
+                  <li>{t('AI fallback results (player generation disabled)', 'Resultados de IA de respaldo (generación de jugadores deshabilitada)')}</li>
                 </ul>
               </div>
             )}
@@ -644,117 +711,77 @@ export default function EnhancedTeamResults({
                   {displayPlayers.length > 0 
                     ? t(`Showing ${displayPlayers.length} key players for ${team.name}`,
                         `Mostrando ${displayPlayers.length} jugadores clave de ${team.name}`)
-                    : t('GROQ AI did not return player data for this team',
-                        'GROQ AI no devolvió datos de jugadores para este equipo')}
+                    : t('This team does not have squad data available',
+                        'Este equipo no tiene datos de plantilla disponibles')}
                 </p>
-              </div>
-              <div className="flex items-center gap-3">
-                {displayPlayers.length > 0 ? (
-                  <>
-                    <button className="px-4 py-2 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 text-sm">
-                      {t('Filter by Position', 'Filtrar por posición')}
-                    </button>
-                    <button className="px-4 py-2 bg-gradient-to-r from-blue-600 to-green-500 text-white rounded-lg hover:opacity-90 text-sm">
-                      {t('View Full Roster', 'Ver plantilla completa')}
-                    </button>
-                  </>
-                ) : (
-                  <button 
-                    onClick={() => window.location.reload()}
-                    className="px-4 py-2 bg-gradient-to-r from-yellow-600 to-orange-500 text-white rounded-lg hover:opacity-90 text-sm"
-                  >
-                    {t('Retry Search', 'Reintentar búsqueda')}
-                  </button>
-                )}
               </div>
             </div>
 
             {displayPlayers.length > 0 ? (
               <>
-                {loadingImages ? (
-                  <div className="flex justify-center items-center h-64">
-                    <div className="text-center">
-                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-                      <p className="text-gray-300">Loading player images...</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {displayPlayers.map((player, index) => (
+                    <PlayerCard 
+                      key={`${player.name}-${index}`}
+                      player={player}
+                    />
+                  ))}
+                </div>
+
+                {/* Squad Statistics */}
+                <div className="mt-8 pt-8 border-t border-gray-700">
+                  <h4 className="text-xl font-bold text-white mb-6">
+                    {t('Squad Statistics', 'Estadísticas del equipo')}
+                  </h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-gray-800/50 rounded-xl p-4 text-center">
+                      <div className="text-2xl font-bold text-blue-400">
+                        {Math.round(displayPlayers.reduce((avg, p) => avg + (p.age || 0), 0) / displayPlayers.length) || 0}
+                      </div>
+                      <div className="text-gray-400 text-sm mt-1">
+                        {t('Average Age', 'Edad promedio')}
+                      </div>
+                    </div>
+                    <div className="bg-gray-800/50 rounded-xl p-4 text-center">
+                      <div className="text-2xl font-bold text-green-400">
+                        {displayPlayers.filter(p => 
+                          p.position?.toLowerCase().includes('forward') || 
+                          p.position?.toLowerCase().includes('delantero') ||
+                          p.position?.toLowerCase().includes('atacante')
+                        ).length}
+                      </div>
+                      <div className="text-gray-400 text-sm mt-1">
+                        {t('Forwards', 'Delanteros')}
+                      </div>
+                    </div>
+                    <div className="bg-gray-800/50 rounded-xl p-4 text-center">
+                      <div className="text-2xl font-bold text-yellow-400">
+                        {displayPlayers.filter(p => 
+                          p.position?.toLowerCase().includes('midfielder') || 
+                          p.position?.toLowerCase().includes('centrocampista') ||
+                          p.position?.toLowerCase().includes('mediocampista')
+                        ).length}
+                      </div>
+                      <div className="text-gray-400 text-sm mt-1">
+                        {t('Midfielders', 'Centrocampistas')}
+                      </div>
+                    </div>
+                    <div className="bg-gray-800/50 rounded-xl p-4 text-center">
+                      <div className="text-2xl font-bold text-red-400">
+                        {displayPlayers.filter(p => 
+                          p.position?.toLowerCase().includes('defender') || 
+                          p.position?.toLowerCase().includes('defensa') ||
+                          p.position?.toLowerCase().includes('goalkeeper') ||
+                          p.position?.toLowerCase().includes('portero') ||
+                          p.position?.toLowerCase().includes('arquero')
+                        ).length}
+                      </div>
+                      <div className="text-gray-400 text-sm mt-1">
+                        {t('Defenders + GK', 'Defensas + Portero')}
+                      </div>
                     </div>
                   </div>
-                ) : (
-                  <>
-                    <PlayerGridErrorBoundary>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {displayPlayers.map((player, index) => {
-                          const imageUrl = playerImageUrls.get(player.name) || 
-                            `https://ui-avatars.com/api/?name=${encodeURIComponent(player.name)}&background=random&color=fff&size=300&bold=true`;
-                          
-                          return (
-                            <PlayerImageErrorBoundary key={`${player.name}-${index}`}>
-                              <PlayerCard 
-                                player={player as ValidatedPlayer}
-                                imageUrl={imageUrl}
-                                showValidationScore={false}
-                              />
-                            </PlayerImageErrorBoundary>
-                          );
-                        })}
-                      </div>
-                    </PlayerGridErrorBoundary>
-
-                    {/* Squad Statistics */}
-                    <div className="mt-8 pt-8 border-t border-gray-700">
-                      <h4 className="text-xl font-bold text-white mb-6">
-                        {t('Squad Statistics', 'Estadísticas del equipo')}
-                      </h4>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="bg-gray-800/50 rounded-xl p-4 text-center">
-                          <div className="text-2xl font-bold text-blue-400">
-                            {Math.round(displayPlayers.reduce((avg, p) => avg + (p.age || 0), 0) / displayPlayers.length) || 0}
-                          </div>
-                          <div className="text-gray-400 text-sm mt-1">
-                            {t('Average Age', 'Edad promedio')}
-                          </div>
-                        </div>
-                        <div className="bg-gray-800/50 rounded-xl p-4 text-center">
-                          <div className="text-2xl font-bold text-green-400">
-                            {displayPlayers.filter(p => 
-                              p.position?.toLowerCase().includes('forward') || 
-                              p.position?.toLowerCase().includes('delantero') ||
-                              p.position?.toLowerCase().includes('atacante')
-                            ).length}
-                          </div>
-                          <div className="text-gray-400 text-sm mt-1">
-                            {t('Forwards', 'Delanteros')}
-                          </div>
-                        </div>
-                        <div className="bg-gray-800/50 rounded-xl p-4 text-center">
-                          <div className="text-2xl font-bold text-yellow-400">
-                            {displayPlayers.filter(p => 
-                              p.position?.toLowerCase().includes('midfielder') || 
-                              p.position?.toLowerCase().includes('centrocampista') ||
-                              p.position?.toLowerCase().includes('mediocampista')
-                            ).length}
-                          </div>
-                          <div className="text-gray-400 text-sm mt-1">
-                            {t('Midfielders', 'Centrocampistas')}
-                          </div>
-                        </div>
-                        <div className="bg-gray-800/50 rounded-xl p-4 text-center">
-                          <div className="text-2xl font-bold text-red-400">
-                            {displayPlayers.filter(p => 
-                              p.position?.toLowerCase().includes('defender') || 
-                              p.position?.toLowerCase().includes('defensa') ||
-                              p.position?.toLowerCase().includes('goalkeeper') ||
-                              p.position?.toLowerCase().includes('portero') ||
-                              p.position?.toLowerCase().includes('arquero')
-                            ).length}
-                          </div>
-                          <div className="text-gray-400 text-sm mt-1">
-                            {t('Defenders + GK', 'Defensas + Portero')}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                )}
+                </div>
               </>
             ) : (
               <div className="text-center py-12 bg-gray-800/30 rounded-xl">
@@ -763,25 +790,13 @@ export default function EnhancedTeamResults({
                   {t('No Squad Data', 'Sin datos del equipo')}
                 </h4>
                 <p className="text-gray-400 max-w-md mx-auto">
-                  {t('The GROQ AI service did not return player data for this team. This is common for:',
-                     'El servicio GROQ AI no devolvió datos de jugadores para este equipo. Esto es común para:')}
+                  {t('This team does not have squad data available. Only verified teams (Real Madrid, Argentina, Brazil, etc.) have real player data.',
+                     'Este equipo no tiene datos de plantilla disponibles. Solo los equipos verificados (Real Madrid, Argentina, Brazil, etc.) tienen datos reales de jugadores.')}
                 </p>
-                <ul className="text-gray-400 text-sm mt-3 max-w-md mx-auto text-left">
-                  <li>• {t('Very new or obscure teams', 'Equipos muy nuevos o desconocidos')}</li>
-                  <li>• {t('Teams from lower divisions', 'Equipos de divisiones inferiores')}</li>
-                  <li>• {t('National teams with limited recent data', 'Selecciones con datos recientes limitados')}</li>
-                  <li>• {t('Teams whose 2024-2025 squad is still being compiled', 'Equipos cuya plantilla 2024-2025 aún se está compilando')}</li>
-                </ul>
                 <div className="mt-6 flex justify-center gap-4">
                   <button 
-                    onClick={() => window.location.reload()}
-                    className="px-4 py-2 bg-gradient-to-r from-blue-600 to-green-500 text-white rounded-lg hover:opacity-90"
-                  >
-                    {t('Try Again', 'Intentar de nuevo')}
-                  </button>
-                  <button 
                     onClick={() => setActiveTab('achievements')}
-                    className="px-4 py-2 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600"
+                    className="px-4 py-2 bg-gradient-to-r from-blue-600 to-green-500 text-white rounded-lg hover:opacity-90"
                   >
                     {t('View Achievements Instead', 'Ver logros en su lugar')}
                   </button>
@@ -830,7 +845,7 @@ export default function EnhancedTeamResults({
 
             {/* Achievement Categories */}
             <div className="space-y-6">
-              {/* International Achievements (Clubs) */}
+              {/* International Achievements */}
               {team.majorAchievements.international?.length > 0 && (
                 <div className="bg-gradient-to-br from-blue-900/20 to-gray-900 border border-blue-700/30 rounded-xl p-6">
                   <div className="flex items-center gap-3 mb-4">
@@ -878,7 +893,7 @@ export default function EnhancedTeamResults({
                 </div>
               )}
 
-              {/* Continental Achievements (National) */}
+              {/* Continental Achievements */}
               {team.majorAchievements.continental?.length > 0 && (
                 <div className="bg-gradient-to-br from-green-900/20 to-gray-900 border border-green-700/30 rounded-xl p-6">
                   <div className="flex items-center gap-3 mb-4">
@@ -1027,30 +1042,9 @@ export default function EnhancedTeamResults({
                     {t('No Historical Data Found', 'No se encontraron datos históricos')}
                   </h5>
                   <p className="text-gray-400 max-w-md mx-auto">
-                    {t('Could not load legendary players. Try searching again or check your connection.',
-                       'No se pudieron cargar jugadores legendarios. Intenta buscar de nuevo o verifica tu conexión.')}
+                    {t('Historical player data is currently unavailable for this team.',
+                       'Los datos de jugadores históricos no están disponibles actualmente para este equipo.')}
                   </p>
-                  <button
-                    onClick={() => {
-                      if (loadingHistory) return; // guard against multiple concurrent requests
-                      setLegendaryPlayers([]);
-                      setLoadingHistory(true);
-                      (async () => {
-                        try {
-                          if (!team) return;
-                          const historical = await getHistoricalPlayers(team.name, team.type, language);
-                          setLegendaryPlayers(historical || []);
-                        } catch (err) {
-                          console.error('Error fetching historical players (onRetry):', err);
-                        } finally {
-                          setLoadingHistory(false);
-                        }
-                      })();
-                    }}
-                    className="mt-4 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-500 text-white rounded-lg hover:opacity-90"
-                  >
-                    {t('Retry Loading', 'Reintentar carga')}
-                  </button>
                 </div>
               )}
             </div>
@@ -1214,7 +1208,6 @@ export default function EnhancedTeamResults({
                 <div className="mt-6">
                   <button
                     onClick={() => {
-                      // Refresh videos
                       setLoadingVideos(true);
                       const fetchVideos = async () => {
                         const apiKey = process.env.NEXT_PUBLIC_YOUTUBE_API_KEY;
@@ -1241,41 +1234,14 @@ export default function EnhancedTeamResults({
                   {t('About These Videos', 'Acerca de estos videos')}
                 </h5>
                 <p className="text-gray-400 text-sm">
-                  {t(`Videos are fetched from YouTube using the search query "${youtubeQuery}". The system looks for:`,
-                     `Los videos se obtienen de YouTube usando la búsqueda "${youtubeQuery}". El sistema busca:`)}
+                  {t(`Videos are fetched from YouTube using the search query "${youtubeQuery}".`,
+                     `Los videos se obtienen de YouTube usando la búsqueda "${youtubeQuery}".`)}
                 </p>
-                <ul className="text-gray-400 text-sm mt-2 list-disc list-inside">
-                  <li>{t('Official match highlights', 'Destacados oficiales de partidos')}</li>
-                  <li>{t('Goal compilations', 'Compilaciones de goles')}</li>
-                  <li>{t('Historic moments and trophy celebrations', 'Momentos históricos y celebraciones de trofeos')}</li>
-                  <li>{t('Player interviews and team features', 'Entrevistas a jugadores y reportajes del equipo')}</li>
-                </ul>
               </div>
             </div>
           </div>
         )}
       </div>
-
-      {/* Data Quality Notice */}
-      {needsDataVerification({ players, teams, youtubeQuery: '' }) && (
-        <div className="mt-8 p-4 bg-yellow-900/20 border border-yellow-700/30 rounded-xl">
-          <div className="flex items-center gap-3">
-            <span className="text-yellow-500 text-xl">⚠️</span>
-            <div>
-              <p className="text-yellow-300 text-sm">
-                <span className="font-bold">
-                  {t('Data Quality Notice:', 'Aviso de calidad de datos:')}
-                </span> {t('Some information may require verification.',
-                           'Alguna información puede requerir verificación.')}
-              </p>
-              <p className="text-yellow-200 text-xs mt-1">
-                {t('AI-generated data is based on available sources and may contain inaccuracies.',
-                   'Los datos generados por IA se basan en fuentes disponibles y pueden contener inexactitudes.')}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
