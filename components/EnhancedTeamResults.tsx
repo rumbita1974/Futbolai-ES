@@ -1,10 +1,10 @@
-// components/EnhancedTeamResults.tsx - FIXED VERSION
+// components/EnhancedTeamResults.tsx - CLEANED VERSION
 'use client';
 
 import { useState, useEffect } from 'react';
 import { searchYouTubeHighlights, YouTubeVideo } from '@/services/youtubeService';
-import { Team, Player, getDataSourceInfo, getHistoricalPlayers } from '@/services/groqService';
-import { getPlayerImages } from '@/services/playerImageService'; // ✅ This now works
+import { Team, Player, getHistoricalPlayers } from '@/services/groqService';
+import { getPlayerImages } from '@/services/playerImageService';
 
 interface EnhancedTeamResultsProps {
   teams: Team[];
@@ -173,12 +173,6 @@ const PlayerCard = ({ player }: { player: Player }) => {
               </div>
             )}
           </div>
-          
-          {player._source && (
-            <div className="mt-2 text-xs text-gray-500">
-              Source: {player._source}
-            </div>
-          )}
         </div>
       </div>
       
@@ -207,19 +201,14 @@ const PlayerCard = ({ player }: { player: Player }) => {
 const countTitles = (achievements: string[] | undefined): number => {
   if (!achievements || achievements.length === 0) return 0;
   return achievements.reduce((sum, entry) => {
-    // Match "(15 titles)" or "(15 wins)"
     const explicitMatch = entry.match(/\((\d+)\s*(?:titles?|wins?|trophies?)\)/i);
     if (explicitMatch) {
       return sum + parseInt(explicitMatch[1], 10);
     }
-    
-    // Count years if no explicit count (e.g. "FIFA Club World Cup (2014, 2016, 2017, 2018)")
     const yearMatches = entry.match(/\b(19|20)\d{2}\b/g);
     if (yearMatches && yearMatches.length > 0) {
       return sum + yearMatches.length;
     }
-    
-    // Default to 1
     return sum + 1;
   }, 0);
 };
@@ -243,39 +232,31 @@ export default function EnhancedTeamResults({
   const [legendaryPlayers, setLegendaryPlayers] = useState<Player[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
-  // Get data from metadata if available
   const team = teams[0];
-  const teamMetadata = metadata || team?._metadata;
 
-  // Update display players when props change
   useEffect(() => {
     setDisplayPlayers(players);
   }, [players]);
 
-  // Fetch YouTube videos when component mounts or query changes
+  // Fetch YouTube videos
   useEffect(() => {
     const fetchVideos = async () => {
       if (!youtubeQuery) return;
-
       setLoadingVideos(true);
       setVideoError(null);
-
       const apiKey = process.env.NEXT_PUBLIC_YOUTUBE_API_KEY;
       const result = await searchYouTubeHighlights(youtubeQuery, apiKey || '');
-
       if (result.error) {
         setVideoError(result.error);
       } else {
         setYoutubeVideos(result.videos);
       }
-
       setLoadingVideos(false);
     };
-
     fetchVideos();
   }, [youtubeQuery]);
 
-  // Fetch historical players when history tab is selected
+  // Fetch historical players
   useEffect(() => {
     const fetchHistoricalPlayers = async () => {
       if (activeTab === 'history' && team && legendaryPlayers.length === 0 && !loadingHistory) {
@@ -292,28 +273,22 @@ export default function EnhancedTeamResults({
         }
       }
     };
-
     fetchHistoricalPlayers();
   }, [activeTab, team, language]);
 
-  // Helper function for translations
   const t = (en: string, es: string) => language === 'es' ? es : en;
 
-  // Format date for YouTube videos
   const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString);
       const now = new Date();
       const diffTime = Math.abs(now.getTime() - date.getTime());
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
       if (diffDays <= 7) {
-        return t(`${diffDays} day${diffDays !== 1 ? 's' : ''} ago`, 
-                 `Hace ${diffDays} día${diffDays !== 1 ? 's' : ''}`);
+        return t(`${diffDays} day${diffDays !== 1 ? 's' : ''} ago`, `Hace ${diffDays} día${diffDays !== 1 ? 's' : ''}`);
       } else if (diffDays <= 30) {
         const weeks = Math.floor(diffDays / 7);
-        return t(`${weeks} week${weeks !== 1 ? 's' : ''} ago`, 
-                 `Hace ${weeks} semana${weeks !== 1 ? 's' : ''}`);
+        return t(`${weeks} week${weeks !== 1 ? 's' : ''} ago`, `Hace ${weeks} semana${weeks !== 1 ? 's' : ''}`);
       } else {
         return date.toLocaleDateString(language === 'es' ? 'es-ES' : 'en-US', {
           year: 'numeric',
@@ -341,7 +316,6 @@ export default function EnhancedTeamResults({
     );
   }
 
-  // Format achievements
   const allAchievements = [
     ...(team.majorAchievements?.worldCup || []),
     ...(team.majorAchievements?.international || []),
@@ -349,14 +323,12 @@ export default function EnhancedTeamResults({
     ...(team.majorAchievements?.domestic || [])
   ];
 
-  // Calculate team type display
   const teamTypeDisplay = team.type === 'national' 
     ? t('National Team', 'Selección Nacional') 
     : t('Football Club', 'Club de Fútbol');
   
   const teamColor = team.type === 'national' ? 'from-blue-500 to-green-500' : 'from-purple-500 to-pink-500';
 
-  // Most successful squad data
   const hasLegendary = legendaryPlayers.length > 0;
   const successfulSquad = {
     era: team.type === 'club' 
@@ -373,7 +345,6 @@ export default function EnhancedTeamResults({
       : [t('Legendary players would appear here', 'Jugadores legendarios aparecerían aquí')]
   };
 
-  // Generate timeline events from achievements
   const timelineEvents = [
     ...(team.majorAchievements.worldCup || []),
     ...(team.majorAchievements.international || []),
@@ -389,17 +360,11 @@ export default function EnhancedTeamResults({
     }));
   }).sort((a, b) => b.year - a.year);
 
-  // Get confidence level from metadata
-  const confidenceLevel = metadata?.confidence || team?._confidence || 0;
-  const source = metadata?.source || team?._source || 'Unknown';
-  const verified = metadata?.verified || team?._verified || false;
-
   return (
     <div className="max-w-6xl mx-auto space-y-8 animate-fadeIn">
       {/* Team Header */}
       <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl border border-gray-700 p-6 md:p-8">
         <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
-          {/* Team Flag/Crest */}
           <div className="flex-shrink-0">
             <div className="w-24 h-24 md:w-32 md:h-32 rounded-xl bg-gradient-to-br from-gray-800 to-gray-900 border-2 border-gray-700 flex items-center justify-center p-2">
               <img
@@ -413,7 +378,6 @@ export default function EnhancedTeamResults({
             </div>
           </div>
 
-          {/* Team Info */}
           <div className="flex-1">
             <div className="flex flex-wrap items-center gap-3 mb-4">
               <h2 className="text-3xl md:text-4xl font-bold text-white">
@@ -425,20 +389,6 @@ export default function EnhancedTeamResults({
               {team.country && team.type === 'club' && (
                 <span className="px-3 py-1 rounded-full text-sm font-medium bg-gray-800 text-gray-300">
                   {team.country}
-                </span>
-              )}
-              {verified && (
-                <span className="px-3 py-1 rounded-full text-sm font-medium bg-green-900/50 text-green-400 border border-green-700/50">
-                  ✅ Verified ({confidenceLevel}%)
-                </span>
-              )}
-              {!verified && confidenceLevel > 0 && (
-                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                  confidenceLevel >= 80 ? 'bg-blue-900/50 text-blue-400 border border-blue-700/50' :
-                  confidenceLevel >= 60 ? 'bg-yellow-900/50 text-yellow-400 border border-yellow-700/50' :
-                  'bg-orange-900/50 text-orange-400 border border-orange-700/50'
-                }`}>
-                  {source} ({confidenceLevel}%)
                 </span>
               )}
             </div>
@@ -542,7 +492,6 @@ export default function EnhancedTeamResults({
         {/* Overview Tab */}
         {activeTab === 'overview' && (
           <div className="space-y-8">
-            {/* Team Summary */}
             <div>
               <h3 className="text-2xl font-bold text-white mb-4 flex items-center">
                 <span className="mr-3">📊</span> {t('Team Overview', 'Resumen del equipo')}
@@ -630,53 +579,6 @@ export default function EnhancedTeamResults({
               </div>
             </div>
 
-            {/* Team Data Source */}
-            {teamMetadata && (
-              <div className="bg-gradient-to-r from-purple-900/20 to-blue-900/20 border border-purple-700/30 rounded-xl p-6">
-                <h4 className="text-lg font-semibold text-white mb-3 flex items-center">
-                  <span className="mr-2">🔍</span> {t('Data Source Information', 'Información de fuente de datos')}
-                </h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="text-gray-400">{t('Source:', 'Fuente:')}</span>
-                    <span className={`ml-2 font-medium ${
-                      verified ? 'text-green-400' : 
-                      source.includes('SportsDB') ? 'text-blue-400' :
-                      source.includes('Wikipedia') ? 'text-yellow-400' :
-                      source.includes('AI') ? 'text-orange-400' : 'text-gray-400'
-                    }`}>
-                      {source}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-gray-400">{t('Confidence:', 'Confianza:')}</span>
-                    <span className={`ml-2 font-medium ${
-                      confidenceLevel >= 80 ? 'text-green-400' :
-                      confidenceLevel >= 60 ? 'text-yellow-400' :
-                      confidenceLevel >= 30 ? 'text-orange-400' : 'text-red-400'
-                    }`}>
-                      {confidenceLevel}%
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-gray-400">{t('Verified:', 'Verificado:')}</span>
-                    <span className={`ml-2 font-medium ${verified ? 'text-green-400' : 'text-yellow-400'}`}>
-                      {verified ? '✅ Yes' : '⚠️ No'}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-gray-400">{t('Season:', 'Temporada:')}</span>
-                    <span className="ml-2 text-white font-medium">
-                      {metadata?.season || '2024/2025'}
-                    </span>
-                  </div>
-                </div>
-                {metadata?.warning && (
-                  <p className="text-yellow-400 text-sm mt-4 italic">{metadata.warning}</p>
-                )}
-              </div>
-            )}
-
             {/* No Players Warning */}
             {displayPlayers.length === 0 && (
               <div className="bg-yellow-900/20 border border-yellow-700/30 rounded-xl p-6">
@@ -728,7 +630,6 @@ export default function EnhancedTeamResults({
                   ))}
                 </div>
 
-                {/* Squad Statistics */}
                 <div className="mt-8 pt-8 border-t border-gray-700">
                   <h4 className="text-xl font-bold text-white mb-6">
                     {t('Squad Statistics', 'Estadísticas del equipo')}
@@ -790,8 +691,8 @@ export default function EnhancedTeamResults({
                   {t('No Squad Data', 'Sin datos del equipo')}
                 </h4>
                 <p className="text-gray-400 max-w-md mx-auto">
-                  {t('This team does not have squad data available. Only verified teams (Real Madrid, Argentina, Brazil, etc.) have real player data.',
-                     'Este equipo no tiene datos de plantilla disponibles. Solo los equipos verificados (Real Madrid, Argentina, Brazil, etc.) tienen datos reales de jugadores.')}
+                  {t('This team does not have squad data available. Only verified teams have real player data.',
+                     'Este equipo no tiene datos de plantilla disponibles. Solo los equipos verificados tienen datos reales de jugadores.')}
                 </p>
                 <div className="mt-6 flex justify-center gap-4">
                   <button 
@@ -843,9 +744,7 @@ export default function EnhancedTeamResults({
               </div>
             </div>
 
-            {/* Achievement Categories */}
             <div className="space-y-6">
-              {/* International Achievements */}
               {team.majorAchievements.international?.length > 0 && (
                 <div className="bg-gradient-to-br from-blue-900/20 to-gray-900 border border-blue-700/30 rounded-xl p-6">
                   <div className="flex items-center gap-3 mb-4">
@@ -869,7 +768,6 @@ export default function EnhancedTeamResults({
                 </div>
               )}
 
-              {/* World Cup Achievements */}
               {team.majorAchievements.worldCup?.length > 0 && (
                 <div className="bg-gradient-to-br from-yellow-900/20 to-gray-900 border border-yellow-700/30 rounded-xl p-6">
                   <div className="flex items-center gap-3 mb-4">
@@ -893,7 +791,6 @@ export default function EnhancedTeamResults({
                 </div>
               )}
 
-              {/* Continental Achievements */}
               {team.majorAchievements.continental?.length > 0 && (
                 <div className="bg-gradient-to-br from-green-900/20 to-gray-900 border border-green-700/30 rounded-xl p-6">
                   <div className="flex items-center gap-3 mb-4">
@@ -917,7 +814,6 @@ export default function EnhancedTeamResults({
                 </div>
               )}
 
-              {/* Domestic Achievements */}
               {team.majorAchievements.domestic?.length > 0 && (
                 <div className="bg-gradient-to-br from-yellow-900/20 to-gray-900 border border-yellow-700/30 rounded-xl p-6">
                   <div className="flex items-center gap-3 mb-4">
@@ -968,7 +864,6 @@ export default function EnhancedTeamResults({
               </p>
             </div>
 
-            {/* Most Successful Squad */}
             <div className="bg-gradient-to-r from-purple-900/20 to-gray-900 border border-purple-700/30 rounded-xl p-6 mb-8">
               <div className="flex items-center gap-3 mb-6">
                 <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-900 to-purple-800 flex items-center justify-center">
@@ -1012,7 +907,6 @@ export default function EnhancedTeamResults({
               </div>
             </div>
 
-            {/* Legendary Players */}
             <div>
               <h4 className="text-xl font-bold text-white mb-6">
                 {t('Legendary Players', 'Jugadores legendarios')}
@@ -1049,7 +943,6 @@ export default function EnhancedTeamResults({
               )}
             </div>
 
-            {/* Historical Timeline */}
             <div className="mt-8 pt-8 border-t border-gray-700">
               <h4 className="text-xl font-bold text-white mb-6">
                 {t('Historical Timeline', 'Línea de tiempo histórica')}
@@ -1113,7 +1006,6 @@ export default function EnhancedTeamResults({
               </div>
             </div>
 
-            {/* YouTube Videos */}
             {loadingVideos ? (
               <div className="text-center py-12">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500 mx-auto mb-4"></div>
@@ -1148,7 +1040,6 @@ export default function EnhancedTeamResults({
                     className="group block"
                   >
                     <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 rounded-xl overflow-hidden hover:border-red-500/50 transition-all hover:-translate-y-1">
-                      {/* Thumbnail */}
                       <div className="relative aspect-video overflow-hidden bg-gray-900">
                         <img
                           src={video.thumbnail}
@@ -1171,7 +1062,6 @@ export default function EnhancedTeamResults({
                         </div>
                       </div>
                       
-                      {/* Video Info */}
                       <div className="p-4">
                         <h4 className="font-bold text-white mb-2 line-clamp-2 group-hover:text-red-400 transition">
                           {video.title}
@@ -1226,19 +1116,6 @@ export default function EnhancedTeamResults({
                 </div>
               </div>
             )}
-
-            {/* Video Search Info */}
-            <div className="mt-8 pt-8 border-t border-gray-700">
-              <div className="bg-gray-800/30 rounded-xl p-6">
-                <h5 className="text-lg font-semibold text-white mb-3">
-                  {t('About These Videos', 'Acerca de estos videos')}
-                </h5>
-                <p className="text-gray-400 text-sm">
-                  {t(`Videos are fetched from YouTube using the search query "${youtubeQuery}".`,
-                     `Los videos se obtienen de YouTube usando la búsqueda "${youtubeQuery}".`)}
-                </p>
-              </div>
-            </div>
           </div>
         )}
       </div>

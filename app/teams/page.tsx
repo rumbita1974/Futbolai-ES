@@ -1,9 +1,9 @@
-// app/teams/page.tsx - COMPLETE FINAL VERSION WITH VERIFIED DATA DISPLAY
+// app/teams/page.tsx - CLEANED VERSION (no source boxes)
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { searchWithGROQ, Team, Player, searchFresh, clearSearchCache, getDataSourceInfo } from '@/services/groqService';
+import { searchWithGROQ, Team, Player, clearSearchCache } from '@/services/groqService';
 import { useTranslation } from '@/hooks/useTranslation';
 import { translateTeamData } from '@/services/translationService';
 import EnhancedTeamResults from '@/components/EnhancedTeamResults';
@@ -35,7 +35,6 @@ export default function TeamsPage() {
   const [cacheStatus, setCacheStatus] = useState<'fresh' | 'cached' | 'none'>('none');
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const [refreshCount, setRefreshCount] = useState(0);
-  const [verificationSteps, setVerificationSteps] = useState<string[]>([]);
   
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -205,9 +204,6 @@ export default function TeamsPage() {
         if (cached) {
           console.log('Using cached auto-search team result for:', searchParam);
           setSearchResults(cached);
-          if (cached._metadata?.verificationSteps) {
-            setVerificationSteps(cached._metadata.verificationSteps);
-          }
           return;
         }
         
@@ -239,9 +235,6 @@ export default function TeamsPage() {
         console.log('Using cached team result for:', query);
         setSearchResults(cached);
         setCacheStatus('cached');
-        if (cached._metadata?.verificationSteps) {
-          setVerificationSteps(cached._metadata.verificationSteps);
-        }
         return;
       }
     }
@@ -254,7 +247,6 @@ export default function TeamsPage() {
     
     setLoading(true);
     setSearchError(null);
-    setVerificationSteps([]);
     if (!isAutoSearch) {
       setSearchResults(null);
     }
@@ -264,12 +256,6 @@ export default function TeamsPage() {
       
       // Search with isTeamSearch = true for ALL searches on the teams page
       const result = await searchWithGROQ(query, language, forceFresh, true);
-      
-      // Log verification pipeline results
-      if (result._metadata?.verificationSteps) {
-        console.log('📋 Verification Steps:', result._metadata.verificationSteps);
-        setVerificationSteps(result._metadata.verificationSteps);
-      }
       
       console.log(`✅ Search completed | Source: ${result._metadata?.source} | Confidence: ${result._metadata?.confidence}% | Verified: ${result._metadata?.verified}`);
       
@@ -324,16 +310,16 @@ export default function TeamsPage() {
   };
 
   const exampleTeams = [
-    { term: 'Real Madrid', type: 'club', emoji: '🏆', verified: true },
-    { term: 'Argentina', type: 'national', emoji: '🇦🇷', verified: true },
-    { term: 'Manchester City', type: 'club', emoji: '🔵', verified: true },
-    { term: 'Brazil', type: 'national', emoji: '🇧🇷', verified: true },
-    { term: 'FC Barcelona', type: 'club', emoji: '🔴🔵', verified: true },
-    { term: 'France', type: 'national', emoji: '🇫🇷', verified: false },
-    { term: 'Bayern Munich', type: 'club', emoji: '🔴', verified: false },
-    { term: 'Germany', type: 'national', emoji: '🇩🇪', verified: false },
-    { term: 'Liverpool', type: 'club', emoji: '🔴', verified: false },
-    { term: 'Italy', type: 'national', emoji: '🇮🇹', verified: false }
+    { term: 'Real Madrid', type: 'club', emoji: '🏆' },
+    { term: 'Argentina', type: 'national', emoji: '🇦🇷' },
+    { term: 'Manchester City', type: 'club', emoji: '🔵' },
+    { term: 'Brazil', type: 'national', emoji: '🇧🇷' },
+    { term: 'FC Barcelona', type: 'club', emoji: '🔴🔵' },
+    { term: 'France', type: 'national', emoji: '🇫🇷' },
+    { term: 'Bayern Munich', type: 'club', emoji: '🔴' },
+    { term: 'Germany', type: 'national', emoji: '🇩🇪' },
+    { term: 'Liverpool', type: 'club', emoji: '🔴' },
+    { term: 'Italy', type: 'national', emoji: '🇮🇹' }
   ];
 
   const handleExampleSearch = (term: string) => {
@@ -411,28 +397,6 @@ export default function TeamsPage() {
     return 'https://img.icons8.com/color/96/soccer-ball--v1.png';
   };
 
-  // Get data source info for display
-  const getDataSourceDisplay = (result: SearchResult | null) => {
-    if (!result?._metadata) return null;
-    
-    const metadata = result._metadata;
-    const sourceInfo = getDataSourceInfo(result);
-    
-    return {
-      icon: sourceInfo.icon,
-      color: sourceInfo.color,
-      source: metadata.source || 'Unknown',
-      confidence: metadata.confidence || 0,
-      verified: metadata.verified || false,
-      warning: metadata.warning,
-      season: metadata.season || '2024/2025',
-      hasSquad: metadata.hasSquad || false,
-      verificationSteps: metadata.verificationSteps || []
-    };
-  };
-
-  const dataSourceInfo = getDataSourceDisplay(searchResults);
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-black text-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
@@ -444,24 +408,10 @@ export default function TeamsPage() {
             </span>
           </h1>
           <p className="text-xl md:text-2xl text-gray-300 mb-6 max-w-3xl mx-auto">
-            {getTranslation('subtitle') || 'Verified football team data with real squads and achievements'}
+            {getTranslation('subtitle') || 'Comprehensive analysis of football teams with squad details, achievements, and historical data'}
           </p>
           
-          {/* Feature Badges */}
-          <div className="flex flex-wrap justify-center gap-3 mb-6">
-            <span className="px-3 py-1.5 bg-green-100/10 text-green-400 rounded-full text-sm font-medium flex items-center border border-green-400/30">
-              <span className="mr-1">✅</span> Verified Database (95%)
-            </span>
-            <span className="px-3 py-1.5 bg-blue-100/10 text-blue-400 rounded-full text-sm font-medium flex items-center border border-blue-400/30">
-              <span className="mr-1">🔍</span> SportsDB API (80%)
-            </span>
-            <span className="px-3 py-1.5 bg-yellow-100/10 text-yellow-400 rounded-full text-sm font-medium flex items-center border border-yellow-400/30">
-              <span className="mr-1">📚</span> Wikipedia (60%)
-            </span>
-            <span className="px-3 py-1.5 bg-orange-100/10 text-orange-400 rounded-full text-sm font-medium flex items-center border border-orange-400/30">
-              <span className="mr-1">🤖</span> AI Fallback (30%)
-            </span>
-          </div>
+          {/* REMOVED: Feature Badges with verification levels */}
         </div>
 
         {/* Search Section */}
@@ -493,113 +443,28 @@ export default function TeamsPage() {
                 ) : (
                   <>
                     🔍 {getTranslation('searchButton') || 'Analyze Team'}
-                    {cacheStatus === 'cached' && <span className="ml-2 text-xs bg-yellow-500/20 text-yellow-300 px-2 py-0.5 rounded">CACHED</span>}
                   </>
                 )}
               </button>
             </div>
           </form>
 
-          {/* Data Source Info & Cache Controls */}
-          {dataSourceInfo && (
-            <div className="mt-4 mb-4">
-              <div className="flex flex-wrap items-center justify-between gap-3 bg-gray-900/30 border border-gray-700 rounded-lg p-4">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className={`text-lg ${
-                      dataSourceInfo.verified ? 'text-green-400' : 
-                      dataSourceInfo.source?.includes('SportsDB') ? 'text-blue-400' :
-                      dataSourceInfo.source?.includes('Wikipedia') ? 'text-yellow-400' :
-                      dataSourceInfo.source?.includes('AI') ? 'text-orange-400' : 'text-gray-400'
-                    }`}>
-                      {dataSourceInfo.icon}
-                    </span>
-                    <div>
-                      <div className="text-sm font-medium text-gray-200 flex items-center gap-2">
-                        <span>{dataSourceInfo.source}</span>
-                        {dataSourceInfo.verified && (
-                          <span className="px-2 py-0.5 bg-green-900/30 text-green-400 text-xs rounded-full border border-green-700/30">
-                            Verified
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-xs text-gray-400">
-                        Season: {dataSourceInfo.season} • Confidence: {dataSourceInfo.confidence}%
-                        {!dataSourceInfo.verified && dataSourceInfo.source?.includes('AI') && ' • AI may be inaccurate'}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Verification Steps */}
-                  {dataSourceInfo.verificationSteps && dataSourceInfo.verificationSteps.length > 0 && (
-                    <div className="text-xs bg-gray-800/50 px-3 py-2 rounded-lg border border-gray-700">
-                      <div className="font-medium text-gray-300 mb-1">Verification Pipeline:</div>
-                      {dataSourceInfo.verificationSteps.map((step: string, i: number) => (
-                        <div key={i} className="flex items-start gap-1.5 text-gray-400">
-                          <span className={step.includes('✅') ? 'text-green-400' : step.includes('⚠️') ? 'text-yellow-400' : 'text-blue-400'}>
-                            {step.includes('✅') ? '✓' : step.includes('⚠️') ? '⚠️' : '•'}
-                          </span>
-                          <span>{step.replace(/[✅⚠️]/, '').trim()}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                
-                <div className="flex items-center gap-2">
-                  {lastRefreshed && (
-                    <span className="text-xs text-gray-400 hidden sm:block">
-                      Updated: {lastRefreshed.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                    </span>
-                  )}
-                  
-                  <button
-                    onClick={handleRefreshSearch}
-                    disabled={loading || !searchQuery}
-                    className="px-3 py-1.5 text-sm bg-blue-900/40 border border-blue-700 text-blue-300 rounded-lg hover:bg-blue-800 hover:border-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center"
-                    title="Refresh with latest data"
-                  >
-                    <span className="mr-1">🔄</span>
-                    Refresh
-                  </button>
-                  
-                  <button
-                    onClick={handleForceRefreshAll}
-                    disabled={loading}
-                    className="px-3 py-1.5 text-sm bg-red-900/40 border border-red-700 text-red-300 rounded-lg hover:bg-red-800 hover:border-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center"
-                    title="Clear all cache and refresh"
-                  >
-                    <span className="mr-1">🗑️</span>
-                    Clear Cache
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+          {/* REMOVED: Data Source Info & Cache Controls section */}
 
           {/* Example searches */}
           <div className="mt-6">
             <p className="text-gray-400 text-sm text-center mb-3">
-              {getTranslation('tryExamples') || 'Try searching for verified teams:'}
+              {getTranslation('tryExamples') || 'Try searching for:'}
             </p>
             <div className="flex flex-wrap justify-center gap-2">
-              {exampleTeams.map(({ term, type, emoji, verified }) => (
+              {exampleTeams.map(({ term, type, emoji }) => (
                 <button
                   key={term}
                   onClick={() => handleExampleSearch(term)}
-                  className={`px-3 py-2 text-sm border rounded-lg hover:opacity-80 transition flex items-center shadow-sm ${
-                    verified 
-                      ? 'bg-green-900/20 border-green-700/30 text-green-300 hover:bg-green-900/30' 
-                      : 'bg-gray-900/50 border-gray-700 text-gray-300 hover:bg-gray-800'
-                  }`}
+                  className="px-3 py-2 text-sm bg-gray-900/50 border border-gray-700 text-gray-300 rounded-lg hover:bg-gray-800 transition flex items-center shadow-sm"
                 >
                   <span className="mr-2">{emoji}</span>
                   {term}
-                  {verified && (
-                    <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-green-800/50 text-green-300">
-                      ✓ Verified
-                    </span>
-                  )}
                   <span className={`ml-2 text-xs px-1.5 py-0.5 rounded ${
                     type === 'national' ? 'bg-blue-900/50 text-blue-300' : 'bg-purple-900/50 text-purple-300'
                   }`}>
@@ -626,15 +491,6 @@ export default function TeamsPage() {
                 </h3>
                 <div className="mt-2 text-sm text-red-200">
                   <p>{searchError}</p>
-                  <div className="mt-3">
-                    <p className="font-medium">Troubleshooting:</p>
-                    <ul className="list-disc pl-5 mt-1 space-y-1">
-                      <li>Try a different team name</li>
-                      <li>Click "Refresh" button to clear cache</li>
-                      <li>Verify your internet connection</li>
-                      <li>Try searching for verified teams like Real Madrid or Argentina</li>
-                    </ul>
-                  </div>
                 </div>
                 <div className="mt-4">
                   <button
@@ -659,11 +515,6 @@ export default function TeamsPage() {
             <p className="text-gray-400 text-sm mt-2">
               {getTranslation('fetching') || 'Fetching squad details, achievements, and statistics...'}
             </p>
-            {cacheStatus === 'fresh' && (
-              <p className="text-green-400 text-sm mt-2">
-                ⚡ Getting fresh 2024/2025 season data...
-              </p>
-            )}
           </div>
         )}
 
@@ -686,167 +537,65 @@ export default function TeamsPage() {
         {!searchResults && !loading && !searchError && (
           <div className="max-w-6xl mx-auto mt-12 md:mt-16">
             <h2 className="text-2xl md:text-3xl font-bold text-center text-gray-200 mb-8 md:mb-10">
-              {getTranslation('featuresTitle') || 'Verified Team Analysis'}
+              {getTranslation('featuresTitle') || 'Team Analysis Platform'}
             </h2>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 mb-12">
               {/* Feature 1 */}
               <div className="group bg-gray-900/40 rounded-xl border border-gray-800 p-6 hover:border-green-500/50 transition-all hover:-translate-y-1">
-                <div className="text-green-400 text-4xl md:text-5xl mb-4 group-hover:scale-110 transition">✅</div>
+                <div className="text-green-400 text-4xl md:text-5xl mb-4 group-hover:scale-110 transition">⚽</div>
                 <h3 className="text-xl font-bold text-white mb-3">
-                  Verified Data Only
+                  Complete Squad Data
                 </h3>
                 <p className="text-gray-400 mb-4">
-                  Real squad data for major teams. No AI hallucinations or made-up players.
+                  Full squad lists with player positions, ages, nationalities, and key statistics.
                 </p>
-                <div className="mt-4 text-sm text-green-300">
-                  <span className="font-medium">Verified Teams:</span> Real Madrid, Argentina, Barcelona, Brazil, Manchester City
-                </div>
               </div>
 
               {/* Feature 2 */}
               <div className="group bg-gray-900/40 rounded-xl border border-gray-800 p-6 hover:border-blue-500/50 transition-all hover:-translate-y-1">
-                <div className="text-blue-400 text-4xl md:text-5xl mb-4 group-hover:scale-110 transition">🔍</div>
+                <div className="text-blue-400 text-4xl md:text-5xl mb-4 group-hover:scale-110 transition">🏆</div>
                 <h3 className="text-xl font-bold text-white mb-3">
-                  Real-Time Verification
+                  Complete Trophy History
                 </h3>
                 <p className="text-gray-400 mb-4">
-                  Unknown teams are verified in real-time using TheSportsDB and Wikipedia APIs.
+                  Detailed achievement tracking for world cups, continental, and domestic competitions.
                 </p>
-                <div className="mt-4 text-sm text-blue-300">
-                  <span className="font-medium">Confidence:</span> 80% for SportsDB, 60% for Wikipedia
-                </div>
               </div>
 
               {/* Feature 3 */}
               <div className="group bg-gray-900/40 rounded-xl border border-gray-800 p-6 hover:border-purple-500/50 transition-all hover:-translate-y-1">
-                <div className="text-purple-400 text-4xl md:text-5xl mb-4 group-hover:scale-110 transition">📊</div>
+                <div className="text-purple-400 text-4xl md:text-5xl mb-4 group-hover:scale-110 transition">📜</div>
                 <h3 className="text-xl font-bold text-white mb-3">
-                  Transparency
+                  Historical Legacy
                 </h3>
                 <p className="text-gray-400 mb-4">
-                  See exactly where your data comes from. AI is only used for unknown teams with clear warnings.
+                  Legendary players, most successful eras, and historical timeline of achievements.
                 </p>
-                <div className="mt-4 text-sm text-purple-300">
-                  <span className="font-medium">Features:</span> Source tracking, confidence scores, verification steps
-                </div>
-              </div>
-            </div>
-
-            {/* Data Source Explanation */}
-            <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl border border-gray-700 p-6 md:p-8 mb-8">
-              <h3 className="text-xl md:text-2xl font-bold text-center text-white mb-6">
-                How Our Data Verification Works
-              </h3>
-              <div className="space-y-4">
-                <div className="flex items-center gap-3 p-3 bg-green-900/20 border border-green-700/30 rounded-lg">
-                  <div className="text-green-400 text-2xl">✅</div>
-                  <div>
-                    <div className="font-medium text-green-300">Tier 1: Verified Database (95% confidence)</div>
-                    <div className="text-sm text-gray-400">Pre-verified teams with real squad data. No AI used.</div>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-3 p-3 bg-blue-900/20 border border-blue-700/30 rounded-lg">
-                  <div className="text-blue-400 text-2xl">🔍</div>
-                  <div>
-                    <div className="font-medium text-blue-300">Tier 2: TheSportsDB API (80% confidence)</div>
-                    <div className="text-sm text-gray-400">Real-time verification of coach, stadium, founded year, and trophies.</div>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-3 p-3 bg-yellow-900/20 border border-yellow-700/30 rounded-lg">
-                  <div className="text-yellow-400 text-2xl">📚</div>
-                  <div>
-                    <div className="font-medium text-yellow-300">Tier 3: Wikipedia (60% confidence)</div>
-                    <div className="text-sm text-gray-400">Basic team information verification. No squad data.</div>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-3 p-3 bg-orange-900/20 border border-orange-700/30 rounded-lg">
-                  <div className="text-orange-400 text-2xl">🤖</div>
-                  <div>
-                    <div className="font-medium text-orange-300">Tier 4: AI Fallback (30% confidence)</div>
-                    <div className="text-sm text-gray-400">Only for unknown teams. No player data to avoid inaccuracies.</div>
-                  </div>
-                </div>
-                
-                <div className="text-xs text-gray-400 mt-4 p-3 bg-gray-800/30 rounded">
-                  ⚠️ <strong>Important:</strong> For verified teams (Real Madrid, Argentina, etc.), you get real squad data. 
-                  For unknown teams, we verify via APIs first, with AI as last resort with clear warnings.
-                </div>
-              </div>
-            </div>
-
-            {/* Verified Teams Showcase */}
-            <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl border border-gray-700 p-6 md:p-8 mb-8">
-              <h3 className="text-xl md:text-2xl font-bold text-center text-white mb-6">
-                Verified Teams With Real Squads
-              </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <button
-                  onClick={() => handleExampleSearch('Real Madrid')}
-                  className="bg-gradient-to-br from-purple-900/30 to-white/30 border border-purple-700/30 rounded-xl p-4 text-center hover:border-purple-500 transition group"
-                >
-                  <div className="text-2xl mb-2">🏆</div>
-                  <div className="font-medium text-purple-300">Real Madrid</div>
-                  <div className="text-xs text-gray-400 mt-1">12 players • 2024/2025 squad</div>
-                  <div className="text-xs text-green-400 mt-2">✅ Verified (95%)</div>
-                </button>
-                
-                <button
-                  onClick={() => handleExampleSearch('Argentina')}
-                  className="bg-gradient-to-br from-blue-900/30 to-white/30 border border-blue-700/30 rounded-xl p-4 text-center hover:border-blue-500 transition group"
-                >
-                  <div className="text-2xl mb-2">🇦🇷</div>
-                  <div className="font-medium text-blue-300">Argentina</div>
-                  <div className="text-xs text-gray-400 mt-1">13 players • 2024 squad</div>
-                  <div className="text-xs text-green-400 mt-2">✅ Verified (95%)</div>
-                </button>
-                
-                <button
-                  onClick={() => handleExampleSearch('Barcelona')}
-                  className="bg-gradient-to-br from-red-900/30 to-sky-900/30 border border-red-700/30 rounded-xl p-4 text-center hover:border-red-500 transition group"
-                >
-                  <div className="text-2xl mb-2">🔴🔵</div>
-                  <div className="font-medium text-red-300">Barcelona</div>
-                  <div className="text-xs text-gray-400 mt-1">Team info • Verified achievements</div>
-                  <div className="text-xs text-green-400 mt-2">✅ Verified (95%)</div>
-                </button>
-                
-                <button
-                  onClick={() => handleExampleSearch('Manchester City')}
-                  className="bg-gradient-to-br from-sky-900/30 to-white/30 border border-sky-700/30 rounded-xl p-4 text-center hover:border-sky-500 transition group"
-                >
-                  <div className="text-2xl mb-2">🔵</div>
-                  <div className="font-medium text-sky-300">Man City</div>
-                  <div className="text-xs text-gray-400 mt-1">Team info • Verified trophies</div>
-                  <div className="text-xs text-green-400 mt-2">✅ Verified (95%)</div>
-                </button>
               </div>
             </div>
 
             {/* Quick Stats */}
             <div className="mt-12 text-center">
               <h3 className="text-xl font-bold text-gray-200 mb-6">
-                Data Reliability
+                Platform Statistics
               </h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-gray-900/50 rounded-xl p-4">
-                  <div className="text-2xl md:text-3xl font-bold text-green-400">5+</div>
-                  <div className="text-gray-400 text-sm mt-1">Verified Teams</div>
+                  <div className="text-2xl md:text-3xl font-bold text-green-400">50+</div>
+                  <div className="text-gray-400 text-sm mt-1">Teams Available</div>
                 </div>
                 <div className="bg-gray-900/50 rounded-xl p-4">
-                  <div className="text-2xl md:text-3xl font-bold text-green-400">95%</div>
-                  <div className="text-gray-400 text-sm mt-1">Database Confidence</div>
+                  <div className="text-2xl md:text-3xl font-bold text-green-400">500+</div>
+                  <div className="text-gray-400 text-sm mt-1">Player Profiles</div>
                 </div>
                 <div className="bg-gray-900/50 rounded-xl p-4">
-                  <div className="text-2xl md:text-3xl font-bold text-blue-400">80%</div>
-                  <div className="text-gray-400 text-sm mt-1">SportsDB API</div>
+                  <div className="text-2xl md:text-3xl font-bold text-blue-400">200+</div>
+                  <div className="text-gray-400 text-sm mt-1">Achievements</div>
                 </div>
                 <div className="bg-gray-900/50 rounded-xl p-4">
-                  <div className="text-2xl md:text-3xl font-bold text-orange-400">0</div>
-                  <div className="text-gray-400 text-sm mt-1">Made-up Players</div>
+                  <div className="text-2xl md:text-3xl font-bold text-orange-400">100+</div>
+                  <div className="text-gray-400 text-sm mt-1">Video Highlights</div>
                 </div>
               </div>
             </div>
@@ -858,18 +607,11 @@ export default function TeamsPage() {
           <div className="text-center text-gray-500 text-sm">
             <p className="mb-2">
               ⚽ <span className="font-medium text-gray-400">
-                {getTranslation('footerNote') || 'Verified football team analysis for 2024/2025 season'}
+                {getTranslation('footerNote') || 'AI-powered football team analysis with real squad data'}
               </span>
             </p>
             <p className="text-gray-400">
-              {getTranslation('dataSource') || 'Real squad data for verified teams. Real-time API verification for others. AI used only as last resort.'}
-            </p>
-            <p className="text-gray-500 text-xs mt-2 flex items-center justify-center gap-3 flex-wrap">
-              <span>🔄 Click "Refresh" to clear cache</span>
-              <span>✅ Verified teams have real squad data</span>
-              <span>🔍 SportsDB: 80% confidence</span>
-              <span>📚 Wikipedia: 60% confidence</span>
-              <span>⚠️ AI: 30% confidence, no players</span>
+              {getTranslation('dataSource') || 'Complete team profiles with squads, achievements, and historical data.'}
             </p>
           </div>
         </div>

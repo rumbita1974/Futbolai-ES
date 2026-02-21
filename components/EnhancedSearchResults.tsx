@@ -171,40 +171,34 @@ export default function EnhancedSearchResults({
       });
       
       if (managerFromPlayers) {
-        console.log(`✅ [MANAGER] Found in TheSportsDB: ${managerFromPlayers.name} for ${teamName}`);
         return managerFromPlayers.name;
       }
     }
     
     // PRIORITY 2: Check team.currentCoach from football-data
     if (team.currentCoach && team.currentCoach !== 'Unknown' && team.currentCoach !== '') {
-      console.log(`✅ [MANAGER] Found in football-data: ${team.currentCoach} for ${teamName}`);
       return team.currentCoach;
     }
     
     // PRIORITY 3: Check Wikipedia/GROQ data in _metadata
     if (_metadata?.managers && _metadata.managers[teamName]) {
-      console.log(`✅ [MANAGER] Found in Wikipedia/GROQ: ${_metadata.managers[teamName]} for ${teamName}`);
       return _metadata.managers[teamName];
     }
     
     // PRIORITY 4: Check local database (fallback)
     const exactMatch = MANAGER_DATABASE[teamName];
     if (exactMatch) {
-      console.log(`✅ [MANAGER] Found in local database: ${exactMatch} for ${teamName}`);
       return exactMatch;
     }
     
     // Try partial match for local database
     for (const [key, value] of Object.entries(MANAGER_DATABASE)) {
       if (teamNameLower.includes(key.toLowerCase()) || key.toLowerCase().includes(teamNameLower)) {
-        console.log(`✅ [MANAGER] Found in local database (partial): ${value} for ${teamName}`);
         return value;
       }
     }
     
     // PRIORITY 5: Unknown
-    console.log(`❌ [MANAGER] No manager found for ${teamName}`);
     return 'Unknown';
   };
 
@@ -434,31 +428,7 @@ export default function EnhancedSearchResults({
   if (isTeamSearch) {
     return (
       <div className="space-y-8 mt-8">
-        {/* Data Source Info */}
-        {_metadata && Object.keys(_metadata).length > 0 && (
-          <div className="bg-white rounded-xl shadow-md p-4 mb-4 border border-gray-200">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">{getDataSourceInfo(_metadata).icon}</span>
-                <div>
-                  <p className="text-sm font-medium text-gray-700">
-                    Source: <span className="text-blue-600">{getDataSourceInfo(_metadata).source}</span>
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    Confidence: {getDataSourceInfo(_metadata).confidence}% • Season: {getDataSourceInfo(_metadata).season}
-                  </p>
-                </div>
-              </div>
-              {_metadata.correctedQuery && (
-                <div className="text-sm bg-yellow-50 px-3 py-1 rounded-full">
-                  🔄 Did you mean: <span className="font-bold">{_metadata.correctedQuery}</span>?
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* TEAM RESULTS */}
+        {/* TEAM RESULTS - REMOVED Data Source Info */}
         {safeTeams.map((team, idx) => {
           const isNational = isNationalTeam(team);
           const fifaRanking = isNational ? getFifaRanking(team.name) : undefined;
@@ -581,12 +551,7 @@ export default function EnhancedSearchResults({
                   </div>
                 </div>
 
-                {/* Data Source */}
-                {team._source && (
-                  <div className="mt-4 pt-4 border-t border-gray-100 text-xs text-gray-400">
-                    Source: {team._source} • Last verified: {team._lastVerified ? new Date(team._lastVerified).toLocaleDateString() : 'N/A'}
-                  </div>
-                )}
+                {/* REMOVED Data Source section */}
               </div>
             </div>
           );
@@ -665,31 +630,8 @@ export default function EnhancedSearchResults({
   // PLAYER SEARCH - Only show players
   return (
     <div className="space-y-8 mt-8">
-      {/* Data Source Info */}
-      {_metadata && Object.keys(_metadata).length > 0 && (
-        <div className="bg-white rounded-xl shadow-md p-4 mb-4 border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">{getDataSourceInfo(_metadata).icon}</span>
-              <div>
-                <p className="text-sm font-medium text-gray-700">
-                  Source: <span className="text-blue-600">{getDataSourceInfo(_metadata).source}</span>
-                </p>
-                <p className="text-xs text-gray-500">
-                  Confidence: {getDataSourceInfo(_metadata).confidence}% • Season: {getDataSourceInfo(_metadata).season}
-                </p>
-              </div>
-            </div>
-            {_metadata.correctedQuery && (
-              <div className="text-sm bg-yellow-50 px-3 py-1 rounded-full">
-                🔄 Did you mean: <span className="font-bold">{_metadata.correctedQuery}</span>?
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* PLAYER RESULTS */}
+      {/* PLAYER RESULTS - REMOVED Data Source Info */}
+      
       {safePlayers.length > 0 ? (
         safePlayers.map((player, idx) => {
           const enrichedPlayer = enrichPlayerData(player);
@@ -843,13 +785,7 @@ export default function EnhancedSearchResults({
                   </div>
                 </div>
 
-                {/* Data Source */}
-                {enrichedPlayer._source && (
-                  <div className="mt-4 pt-4 border-t border-gray-100 text-xs text-gray-400">
-                    Source: {enrichedPlayer._source} • Last verified: {enrichedPlayer._lastVerified ? new Date(enrichedPlayer._lastVerified).toLocaleDateString() : 'N/A'}
-                    {enrichedPlayer._era && ` • Era: ${enrichedPlayer._era}`}
-                  </div>
-                )}
+                {/* REMOVED Data Source section */}
               </div>
             </div>
           );
