@@ -25,9 +25,11 @@ const COMPETITION_MAP: Record<string, { id: string; name: string; fallbackId?: s
   'CL': { id: 'CL', name: 'UEFA Champions League' },
   'CLI': { id: 'CLI', name: 'Copa Libertadores' }
 };
-export const dynamic = 'force-dynamic'; // Add this at the top
 
-// Rest of your code
+// REMOVED: export const dynamic = 'force-dynamic'; - This conflicts with static export
+// Instead, mark this route as static but allow dynamic params
+export const dynamic = 'error'; // This will prevent static generation and show clear error
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const endpoint = searchParams.get('endpoint') || '';
@@ -63,7 +65,7 @@ export async function GET(request: Request) {
       competition: COMPETITION_MAP[competitionCode]?.name || competitionCode,
       matches: [],
       message: 'Please configure FOOTBALL_DATA_API_KEY in .env.local'
-    }, { status: 200 }); // Return 200 so client can handle gracefully
+    });
   }
 
   try {
@@ -78,7 +80,7 @@ export async function GET(request: Request) {
         'X-Auth-Token': FOOTBALL_DATA_API_KEY,
         'Content-Type': 'application/json',
       },
-      next: { revalidate: 300 } // 5 minutes cache
+      cache: 'no-store' // Ensure fresh data
     });
 
     if (!response.ok) {
@@ -112,7 +114,7 @@ export async function GET(request: Request) {
         fallback: true,
         competition: COMPETITION_MAP[competitionCode]?.name || competitionCode,
         matches: []
-      }, { status: 200 });
+      });
     }
 
     const data = await response.json();
@@ -131,6 +133,9 @@ export async function GET(request: Request) {
       competition: COMPETITION_MAP[competitionCode]?.name || competitionCode,
       matches: [],
       timestamp: new Date().toISOString()
-    }, { status: 200 });
+    });
   }
 }
+
+// Optional: Add runtime config for better performance
+export const runtime = 'nodejs';

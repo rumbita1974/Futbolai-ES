@@ -1,9 +1,26 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',
-
+  // REMOVED: output: 'export', - This was causing API routes to fail
+  
   images: {
-    unoptimized: true,
+    // Allow remote images from TheSportsDB and other sources
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'www.thesportsdb.com',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'img.a.transfermarkt.technology',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'flagcdn.com',
+        pathname: '/**',
+      },
+    ],
   },
 
   eslint: {
@@ -19,4 +36,4 @@ const nextConfig = {
   trailingSlash: false,
 }
 
-module.exports = nextConfig;
+module.exports = nextConfig
