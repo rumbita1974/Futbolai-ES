@@ -581,6 +581,16 @@ async function searchTeamWithBSD(query: string): Promise<{ team: Team; players: 
     console.error('[BSD] Fatal error in searchTeamWithBSD:', error);
     return null;
   }
+const knownNationalTeams = [
+  'Brazil', 'Argentina', 'Portugal', 'Colombia', 'Uruguay', 'Chile', 
+  'Mexico', 'Netherlands', 'Belgium', 'Croatia', 'Spain', 'France', 
+  'Germany', 'Italy', 'England', 'Netherlands', 'Portugal'
+];
+
+const isNational = teamData.type === 'national' || 
+                   teamData.country === teamData.name ||
+                   query.toLowerCase() === teamData.country?.toLowerCase() ||
+                   knownNationalTeams.includes(teamData.name);  
 }
 
 // ============================================================================
@@ -596,14 +606,18 @@ async function correctQueryWithAI(query: string, type: 'team' | 'player'): Promi
   
   const systemPrompt = `You are a football database expert. Correct misspelled ${type} names to their official name.
   
-Return ONLY the corrected name, nothing else. Fix typos and common misspellings.
+CRITICAL RULES:
+1. For national teams, return ONLY the country name (e.g., "Brazil", not "Brazil national football team")
+2. For clubs, return the club name (e.g., "Real Madrid", "Liverpool")
+3. Fix typos and common misspellings
 
 Examples:
+- "brazil national team" -> "Brazil"
+- "brazil" -> "Brazil"
 - "real madird" -> "Real Madrid"
 - "barca" -> "Barcelona"
-- "vini jr" -> "Vinicius Junior"
-- "belli" -> "Jude Bellingham"
-- "atletico de mardrid" -> "Atletico Madrid"
+- "selecao" -> "Brazil"
+- "albiceleste" -> "Argentina"
 
 Return ONLY the corrected name, no punctuation, no explanation.`;
 
@@ -618,7 +632,12 @@ Return ONLY the corrected name, no punctuation, no explanation.`;
       max_tokens: 50,
     });
 
-    const corrected = completion.choices[0]?.message?.content?.trim() || query;
+    let corrected = completion.choices[0]?.message?.content?.trim() || query;
+    
+    // Clean up any "national football team" suffixes
+    corrected = corrected.replace(/ national football team$/i, '');
+    corrected = corrected.replace(/ national team$/i, '');
+    
     const confidence = corrected.toLowerCase() === query.toLowerCase() ? 100 : 85;
     
     console.log(`🤖 [AI FUZZY] "${query}" -> "${corrected}" (${confidence}% confidence)`);
