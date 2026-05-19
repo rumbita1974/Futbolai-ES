@@ -440,41 +440,53 @@ async function getClubAchievements(teamName: string): Promise<Team['majorAchieve
 // BSD API v2 - TEAM SEARCH & SQUAD DATA (Works for both Clubs and National Teams)
 // ============================================================================
 
+// Complete fixed searchTeamWithBSD function
+
 async function searchTeamWithBSD(query: string): Promise<{ team: Team; players: Player[] } | null> {
   try {
     console.log(`📡 [BSD] Searching for team: ${query}`);
     
-    // Step 1: Search for the team using BSD API
-    const searchResponse = await fetch(
-      `/api/bsd-proxy?endpoint=/teams/?name=${encodeURIComponent(query)}`
-    );
+    // Step 1: Try multiple search variations
+    let searchData = null;
+    let teamData = null;
     
-    if (!searchResponse.ok) {
-      console.error(`[BSD] Search failed with status ${searchResponse.status}`);
-      return null;
+    // List of search variations to try
+    const searchVariations = [
+      query,                                    // Original: "Brazil"
+      query.replace(' national football team', ''), // Remove " national football team"
+      query.split(' ')[0],                      // First word only: "Brazil"
+    ];
+    
+    for (const searchTerm of searchVariations) {
+      if (searchTerm === query && searchVariations.indexOf(searchTerm) > 0) continue;
+      
+      const searchResponse = await fetch(
+        `/api/bsd-proxy?endpoint=/teams/?name=${encodeURIComponent(searchTerm)}`
+      );
+      
+      if (searchResponse.ok) {
+        const data = await searchResponse.json();
+        if (data.results && data.results.length > 0) {
+          searchData = data;
+          teamData = data.results[0];
+          console.log(`✅ [BSD] Found team with search term "${searchTerm}": ${teamData.name}`);
+          break;
+        }
+      }
     }
     
-    const searchData = await searchResponse.json();
-    
-    // Check for API errors
-    if (searchData.error) {
-      console.error(`[BSD] API Error: ${searchData.detail}`);
-      return null;
-    }
-    
-    // v2 returns 'results' array
-    if (!searchData.results || searchData.results.length === 0) {
+    if (!teamData) {
       console.log(`[BSD] No team found for: ${query}`);
       return null;
     }
     
-    const teamData = searchData.results[0];
     console.log(`✅ [BSD] Found team: ${teamData.name} (ID: ${teamData.id})`);
     
     // Step 2: Determine if this is a national team
     const isNational = teamData.type === 'national' || 
                        teamData.country === teamData.name ||
-                       query.toLowerCase() === teamData.country?.toLowerCase();
+                       query.toLowerCase() === teamData.country?.toLowerCase() ||
+                       (teamData.country && ['Brazil', 'Argentina', 'Portugal', 'Colombia', 'Uruguay', 'Chile', 'Mexico', 'Netherlands', 'Belgium', 'Croatia'].includes(teamData.name));
     
     // Step 3: Try to get players from BSD first
     let players: Player[] = [];
@@ -513,8 +525,11 @@ async function searchTeamWithBSD(query: string): Promise<{ team: Team; players: 
     if (players.length === 0 && isNational) {
       console.log(`📡 [BSD] No players found, falling back to TheSportsDB for national team`);
       
+      // Try different name variations for TheSportsDB search
+      const sportsDBName = teamData.country || teamData.name;
+      
       try {
-        const thesportsdbPlayers = await fetchNationalTeamSquadFromTheSportsDB(teamData.name);
+        const thesportsdbPlayers = await fetchNationalTeamSquadFromTheSportsDB(sportsDBName);
         if (thesportsdbPlayers.length > 0) {
           players = thesportsdbPlayers;
           console.log(`✅ [TheSportsDB] Retrieved ${players.length} players for ${teamData.name}`);
