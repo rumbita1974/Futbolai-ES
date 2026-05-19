@@ -113,9 +113,10 @@ async function fetchPlayerImageFromTheSportsDB(playerId: string): Promise<string
   if (!playerId) return undefined;
   
   try {
-    // Direct lookup endpoint - still works even with free key!
-    const url = `https://www.thesportsdb.com/api/v1/json/${SPORTSDB_API_KEY}/lookupplayer.php?id=${playerId}`;
-    const response = await fetch(url);
+    // Use your local proxy instead of calling TheSportsDB directly
+    const response = await fetch(
+      `/api/thesportsdb-proxy?endpoint=lookupplayer.php?id=${playerId}`
+    );
     
     if (!response.ok) return undefined;
     
@@ -123,7 +124,6 @@ async function fetchPlayerImageFromTheSportsDB(playerId: string): Promise<string
     
     if (data.players && data.players.length > 0) {
       const player = data.players[0];
-      // Return the cutout image (best quality), fallback to thumb
       return player.strCutout || player.strThumb || player.strRender;
     }
     return undefined;
@@ -167,7 +167,55 @@ async function enrichPlayersWithImages(players: Player[]): Promise<Player[]> {
   console.log(`✅ [TheSportsDB] Found images for ${imagesFound}/${players.length} players`);
   return enrichedPlayers;
 }
-
+// Add this to groqService.ts
+async function fetchNationalTeamSquadFromTheSportsDB(teamName: string): Promise<Player[]> {
+  try {
+    console.log(`📡 [TheSportsDB] Fetching squad for national team: ${teamName}`);
+    
+    // First, search for the team to get its ID
+    const searchResponse = await fetch(
+      `/api/thesportsdb-proxy?endpoint=searchteams.php?t=${encodeURIComponent(teamName)}`
+    );
+    const searchData = await searchResponse.json();
+    
+    if (!searchData.teams || searchData.teams.length === 0) {
+      console.log(`[TheSportsDB] Team not found: ${teamName}`);
+      return [];
+    }
+    
+    const teamId = searchData.teams[0].idTeam;
+    
+    // Then, get all players for that team
+    const squadResponse = await fetch(
+      `/api/thesportsdb-proxy?endpoint=lookup_all_players.php?id=${teamId}`
+    );
+    const squadData = await squadResponse.json();
+    
+    if (!squadData.player || squadData.player.length === 0) {
+      console.log(`[TheSportsDB] No players found for ${teamName}`);
+      return [];
+    }
+    
+    // Transform to your Player interface
+    return squadData.player.map((player: any) => ({
+      id: player.idPlayer,
+      name: player.strPlayer,
+      position: player.strPosition || 'Unknown',
+      nationality: player.strNationality || '',
+      age: player.dateBorn ? calculateAge(player.dateBorn) : undefined,
+      currentTeam: teamName,
+      majorAchievements: [],
+      careerSummary: `${player.strPlayer} represents ${teamName}.`,
+      _source: 'TheSportsDB',
+      _imageUrl: player.strCutout || player.strThumb,
+      _lastVerified: new Date().toISOString()
+    }));
+    
+  } catch (error) {
+    console.error('[TheSportsDB] Error fetching national team squad:', error);
+    return [];
+  }
+}
 // ============================================================================
 // NATIONAL TEAM ACHIEVEMENTS (World Cup, Continental Titles)
 // ============================================================================
@@ -396,10 +444,15 @@ async function searchTeamWithBSD(query: string): Promise<{ team: Team; players: 
   try {
     console.log(`📡 [BSD] Searching for team: ${query}`);
     
-    // Use the correct v2 endpoint with 'name' parameter
+    // Step 1: Search for the team using BSD API
     const searchResponse = await fetch(
       `/api/bsd-proxy?endpoint=/teams/?name=${encodeURIComponent(query)}`
     );
+    
+    if (!searchResponse.ok) {
+      console.error(`[BSD] Search failed with status ${searchResponse.status}`);
+      return null;
+    }
     
     const searchData = await searchResponse.json();
     
@@ -416,48 +469,79 @@ async function searchTeamWithBSD(query: string): Promise<{ team: Team; players: 
     }
     
     const teamData = searchData.results[0];
-    
     console.log(`✅ [BSD] Found team: ${teamData.name} (ID: ${teamData.id})`);
     
-    // Determine if this is a national team
+    // Step 2: Determine if this is a national team
     const isNational = teamData.type === 'national' || 
                        teamData.country === teamData.name ||
                        query.toLowerCase() === teamData.country?.toLowerCase();
     
+    // Step 3: Try to get players from BSD first
     let players: Player[] = [];
     
-    // Fetch squad from BSD (works for both clubs AND national teams!)
-    // The players endpoint can filter by team_id
-    const playersResponse = await fetch(
-      `/api/bsd-proxy?endpoint=/players/?team_id=${teamData.id}&limit=50`
-    );
-    
-    const playersResult = await playersResponse.json();
-    
-    if (playersResult.results && playersResult.results.length > 0) {
-      players = playersResult.results.map((player: any) => ({
-        id: player.id?.toString(),
-        name: player.name || 'Unknown',
-        currentTeam: teamData.name,
-        position: player.position || player.specific_position || 'Unknown',
-        age: player.date_of_birth ? calculateAge(player.date_of_birth) : undefined,
-        nationality: player.nationality || '',
-        careerGoals: undefined,
-        careerAssists: undefined,
-        majorAchievements: [],
-        careerSummary: `${player.name || 'Player'} plays for ${teamData.name}.`,
-        _source: 'BSD API v2',
-        _lastVerified: new Date().toISOString()
-      }));
+    try {
+      const playersResponse = await fetch(
+        `/api/bsd-proxy?endpoint=/players/?team_id=${teamData.id}&limit=50`
+      );
+      
+      if (playersResponse.ok) {
+        const playersResult = await playersResponse.json();
+        
+        if (playersResult.results && playersResult.results.length > 0) {
+          players = playersResult.results.map((player: any) => ({
+            id: player.id?.toString(),
+            name: player.name || 'Unknown',
+            currentTeam: teamData.name,
+            position: player.position || player.specific_position || 'Unknown',
+            age: player.date_of_birth ? calculateAge(player.date_of_birth) : undefined,
+            nationality: player.nationality || '',
+            careerGoals: undefined,
+            careerAssists: undefined,
+            majorAchievements: [],
+            careerSummary: `${player.name || 'Player'} plays for ${teamData.name}.`,
+            _source: 'BSD API v2',
+            _lastVerified: new Date().toISOString()
+          }));
+          console.log(`✅ [BSD] Retrieved ${players.length} players for ${teamData.name}`);
+        }
+      }
+    } catch (error) {
+      console.warn(`[BSD] Could not fetch players:`, error);
     }
     
-    console.log(`✅ [BSD] Retrieved ${players.length} players for ${teamData.name}`);
+    // Step 4: If no players found and it's a national team, try TheSportsDB
+    if (players.length === 0 && isNational) {
+      console.log(`📡 [BSD] No players found, falling back to TheSportsDB for national team`);
+      
+      try {
+        const thesportsdbPlayers = await fetchNationalTeamSquadFromTheSportsDB(teamData.name);
+        if (thesportsdbPlayers.length > 0) {
+          players = thesportsdbPlayers;
+          console.log(`✅ [TheSportsDB] Retrieved ${players.length} players for ${teamData.name}`);
+        }
+      } catch (error) {
+        console.warn(`[TheSportsDB] Could not fetch national team squad:`, error);
+      }
+    }
     
-    // Get achievements based on team type
-    const achievements = isNational 
-      ? await getNationalTeamAchievements(teamData.name)
-      : await getClubAchievements(teamData.name);
+    // Step 5: Enrich players with images from TheSportsDB (only if we have players with IDs)
+    if (players.length > 0) {
+      const playersWithImages = await enrichPlayersWithImages(players);
+      players = playersWithImages;
+    }
     
+    // Step 6: Get achievements based on team type
+    let achievements: Team['majorAchievements'];
+    try {
+      achievements = isNational 
+        ? await getNationalTeamAchievements(teamData.name)
+        : await getClubAchievements(teamData.name);
+    } catch (error) {
+      console.warn(`Could not fetch achievements:`, error);
+      achievements = { worldCup: [], international: [], continental: [], domestic: [] };
+    }
+    
+    // Step 7: Build the team object
     const team: Team = {
       name: teamData.name,
       shortName: teamData.short_name || teamData.name,
@@ -468,16 +552,18 @@ async function searchTeamWithBSD(query: string): Promise<{ team: Team; players: 
       currentCoach: 'Information not available',
       foundedYear: undefined,
       majorAchievements: achievements,
-      _source: 'BSD API v2',
+      _source: players.length > 0 ? (isNational ? 'TheSportsDB' : 'BSD API v2') : 'BSD API v2',
       _verified: true,
       _confidence: 95,
       _lastVerified: new Date().toISOString()
     };
     
+    console.log(`✅ Final result: ${team.name} - ${players.length} players, ${isNational ? 'national' : 'club'} team`);
+    
     return { team, players };
     
   } catch (error) {
-    console.error('[BSD] Error:', error);
+    console.error('[BSD] Fatal error in searchTeamWithBSD:', error);
     return null;
   }
 }
