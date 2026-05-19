@@ -25,7 +25,9 @@ const COMPETITION_MAP: Record<string, { id: string; name: string; fallbackId?: s
   'CL': { id: 'CL', name: 'UEFA Champions League' },
   'CLI': { id: 'CLI', name: 'Copa Libertadores' }
 };
+export const dynamic = 'force-dynamic'; // Add this at the top
 
+// Rest of your code
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const endpoint = searchParams.get('endpoint') || '';

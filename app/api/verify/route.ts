@@ -1,6 +1,8 @@
 // app/api/verify/route.ts
 import { NextRequest, NextResponse } from 'next/server';
+export const dynamic = 'force-dynamic'; // Add this at the top
 
+// Rest of your code
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const team = searchParams.get('team');

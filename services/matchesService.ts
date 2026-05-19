@@ -85,7 +85,11 @@ export const clearMatchCache = () => {
     console.error('Cache clear error:', e);
   }
 };
-
+// Add this to your matchesService.ts file
+export const getWeeklyMatches = async () => {
+  // Your implementation here
+  return [];
+};
 // API FETCHING
 const REQUEST_DELAY = 150;
 let lastRequestTime = 0;
