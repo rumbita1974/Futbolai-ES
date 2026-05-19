@@ -12,8 +12,9 @@ export async function GET(request: NextRequest) {
   const endpoint = searchParams.get('endpoint') || '';
   
   if (!FOOTBALL_DATA_API_KEY) {
+    console.error('[Proxy] FOOTBALL_DATA_API_KEY is not set');
     return NextResponse.json(
-      { error: 'API key not configured' },
+      { error: 'API key not configured on server' },
       { status: 500 }
     );
   }
@@ -30,8 +31,9 @@ export async function GET(request: NextRequest) {
     });
     
     if (!response.ok) {
+      console.error(`[Proxy] API returned ${response.status}: ${response.statusText}`);
       return NextResponse.json(
-        { error: `API returned ${response.status}` },
+        { error: `API returned ${response.status}`, details: await response.text() },
         { status: response.status }
       );
     }
@@ -42,7 +44,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('[Proxy] Error:', error);
     return NextResponse.json(
-      { error: 'Proxy error' },
+      { error: 'Proxy error', details: String(error) },
       { status: 500 }
     );
   }

@@ -146,27 +146,79 @@ async function searchFootballDataAPI(query: string): Promise<{ team: Team; playe
   try {
     console.log(`📡 [Football Data API] Searching for: ${query}`);
     
-    // Use local API route as proxy to avoid CORS
-    const searchResponse = await fetch(
-      `/api/football-proxy?endpoint=/teams?limit=10`
-    );
+    // First, try to get all competitions to find which league the team might be in
+    const queryLower = query.toLowerCase();
     
-    if (!searchResponse.ok) {
-      console.warn(`[Football Data API] Search failed with status ${searchResponse.status}`);
-      return null;
+    // Common team IDs for major teams (fallback if search fails)
+    const knownTeamIds: Record<string, number> = {
+      'real madrid': 86,
+      'barcelona': 81,
+      'atletico madrid': 78,
+      'valencia': 89,
+      'sevilla': 92,
+      'manchester city': 65,
+      'manchester united': 66,
+      'liverpool': 64,
+      'chelsea': 61,
+      'arsenal': 57,
+      'tottenham': 73,
+      'bayern munich': 5,
+      'borussia dortmund': 4,
+      'juventus': 109,
+      'ac milan': 98,
+      'inter milan': 108,
+      'paris saint-germain': 524,
+      'olympique lyonnais': 523,
+      'olympique marseille': 516,
+      'ajax': 3,
+      'porto': 504,
+      'benfica': 503,
+      'sporting': 505
+    };
+    
+    // Check if we have a known ID for this team
+    let matchedTeam = null;
+    let teamId = null;
+    
+    for (const [teamName, id] of Object.entries(knownTeamIds)) {
+      if (queryLower.includes(teamName) || teamName.includes(queryLower)) {
+        teamId = id;
+        console.log(`✅ [Football Data API] Using known team ID ${teamId} for ${query}`);
+        break;
+      }
     }
     
-    const data = await searchResponse.json();
-    const teams = data.teams || [];
+    if (teamId) {
+      // Fetch team directly by ID
+      const teamResponse = await fetch(
+        `/api/football-proxy?endpoint=/teams/${teamId}`
+      );
+      
+      if (teamResponse.ok) {
+        const teamDetails = await teamResponse.json();
+        matchedTeam = teamDetails;
+      }
+    }
     
-    // Find the best matching team
-    const queryLower = query.toLowerCase();
-    const matchedTeam = teams.find((team: any) => {
-      const nameMatch = team.name?.toLowerCase().includes(queryLower);
-      const shortNameMatch = team.shortName?.toLowerCase().includes(queryLower);
-      const tlaMatch = team.tla?.toLowerCase() === queryLower;
-      return nameMatch || shortNameMatch || tlaMatch;
-    });
+    // If no known ID or direct fetch failed, try searching
+    if (!matchedTeam) {
+      const searchResponse = await fetch(
+        `/api/football-proxy?endpoint=/teams?limit=50`  // Increased limit
+      );
+      
+      if (searchResponse.ok) {
+        const data = await searchResponse.json();
+        const teams = data.teams || [];
+        
+        // Find the best matching team
+        matchedTeam = teams.find((team: any) => {
+          const nameMatch = team.name?.toLowerCase().includes(queryLower);
+          const shortNameMatch = team.shortName?.toLowerCase().includes(queryLower);
+          const tlaMatch = team.tla?.toLowerCase() === queryLower;
+          return nameMatch || shortNameMatch || tlaMatch;
+        });
+      }
+    }
     
     if (!matchedTeam) {
       console.log(`[Football Data API] No match found for: ${query}`);
@@ -175,17 +227,18 @@ async function searchFootballDataAPI(query: string): Promise<{ team: Team; playe
     
     console.log(`✅ [Football Data API] Found team: ${matchedTeam.name} (ID: ${matchedTeam.id})`);
     
-    // Fetch complete team details including squad
-    const teamResponse = await fetch(
-      `/api/football-proxy?endpoint=/teams/${matchedTeam.id}`
-    );
+    // Fetch complete team details including squad (we already have it if we used direct ID)
+    let teamDetails = matchedTeam;
     
-    if (!teamResponse.ok) {
-      console.warn(`[Football Data API] Team details failed with status ${teamResponse.status}`);
-      return null;
+    if (!teamDetails.squad) {
+      const squadResponse = await fetch(
+        `/api/football-proxy?endpoint=/teams/${matchedTeam.id}`
+      );
+      
+      if (squadResponse.ok) {
+        teamDetails = await squadResponse.json();
+      }
     }
-    
-    const teamDetails = await teamResponse.json();
     
     // Transform to Team interface
     const team: Team = {
@@ -196,11 +249,11 @@ async function searchFootballDataAPI(query: string): Promise<{ team: Team; playe
       type: teamDetails.type === 'NATIONAL' ? 'national' : 'club',
       country: teamDetails.area?.name || '',
       stadium: teamDetails.venue,
-      currentCoach: teamDetails.coach?.name || 'Unknown',
+      currentCoach: teamDetails.coach?.name || 'Not specified',
       foundedYear: teamDetails.founded,
       website: teamDetails.website,
       venue: teamDetails.venue,
-      majorAchievements: {},
+      majorAchievements: {}, // Will be populated from knowledge base
       _source: 'Football Data API',
       _verified: true,
       _confidence: 95,
