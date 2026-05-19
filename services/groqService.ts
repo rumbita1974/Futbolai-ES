@@ -1,10 +1,12 @@
-// services/groqService.ts - COMPLETE WORKING VERSION WITH BSD v2
-// Supports: Club teams (full squads + images) | National teams (achievements only)
+// services/groqService.ts - COMPLETE HYBRID SOLUTION
+// BSD API: Team search, squad data (works for clubs AND national teams)
+// TheSportsDB: Player images only (direct lookup by player ID)
 
 import Groq from 'groq-sdk';
 
 // Types
 export interface Player {
+  id?: string;
   name: string;
   currentTeam: string;
   position: string;
@@ -102,6 +104,71 @@ function calculateAge(dateOfBirth: string): number | undefined {
 }
 
 // ============================================================================
+// THESPORTSDB - PLAYER IMAGES ONLY (Direct lookup by ID)
+// ============================================================================
+
+const SPORTSDB_API_KEY = process.env.NEXT_PUBLIC_SPORTSDB_KEY || '3';
+
+async function fetchPlayerImageFromTheSportsDB(playerId: string): Promise<string | undefined> {
+  if (!playerId) return undefined;
+  
+  try {
+    // Direct lookup endpoint - still works even with free key!
+    const url = `https://www.thesportsdb.com/api/v1/json/${SPORTSDB_API_KEY}/lookupplayer.php?id=${playerId}`;
+    const response = await fetch(url);
+    
+    if (!response.ok) return undefined;
+    
+    const data = await response.json();
+    
+    if (data.players && data.players.length > 0) {
+      const player = data.players[0];
+      // Return the cutout image (best quality), fallback to thumb
+      return player.strCutout || player.strThumb || player.strRender;
+    }
+    return undefined;
+    
+  } catch (error) {
+    console.error(`[TheSportsDB] Error fetching image for player ID ${playerId}:`, error);
+    return undefined;
+  }
+}
+
+async function enrichPlayersWithImages(players: Player[]): Promise<Player[]> {
+  if (!players || players.length === 0) return players;
+  
+  console.log(`🖼️ [TheSportsDB] Fetching images for ${players.length} players...`);
+  
+  const enrichedPlayers = [];
+  let imagesFound = 0;
+  
+  // Process in batches to avoid rate limiting
+  const batchSize = 5;
+  for (let i = 0; i < players.length; i += batchSize) {
+    const batch = players.slice(i, i + batchSize);
+    const batchResults = await Promise.all(
+      batch.map(async (player) => {
+        if (player.id) {
+          const imageUrl = await fetchPlayerImageFromTheSportsDB(player.id);
+          if (imageUrl) imagesFound++;
+          return { ...player, _imageUrl: imageUrl };
+        }
+        return player;
+      })
+    );
+    enrichedPlayers.push(...batchResults);
+    
+    // Small delay between batches
+    if (i + batchSize < players.length) {
+      await new Promise(resolve => setTimeout(resolve, 300));
+    }
+  }
+  
+  console.log(`✅ [TheSportsDB] Found images for ${imagesFound}/${players.length} players`);
+  return enrichedPlayers;
+}
+
+// ============================================================================
 // NATIONAL TEAM ACHIEVEMENTS (World Cup, Continental Titles)
 // ============================================================================
 
@@ -177,138 +244,6 @@ const NATIONAL_TEAM_ACHIEVEMENTS: Record<string, Team['majorAchievements']> = {
     international: [],
     continental: [],
     domestic: []
-  },
-  'poland': {
-    worldCup: ['1974 3rd Place', '1982 3rd Place'],
-    international: [],
-    continental: [],
-    domestic: []
-  },
-  'sweden': {
-    worldCup: ['1958 Runner-up', '1994 3rd Place'],
-    international: [],
-    continental: [],
-    domestic: []
-  },
-  'denmark': {
-    worldCup: [],
-    international: ['1x UEFA European Championship (1992)'],
-    continental: [],
-    domestic: []
-  },
-  'greece': {
-    worldCup: [],
-    international: ['1x UEFA European Championship (2004)'],
-    continental: [],
-    domestic: []
-  },
-  'chile': {
-    worldCup: ['1962 3rd Place'],
-    international: ['2x Copa América (2015, 2016)'],
-    continental: [],
-    domestic: []
-  },
-  'colombia': {
-    worldCup: [],
-    international: ['1x Copa América (2001)'],
-    continental: [],
-    domestic: []
-  },
-  'mexico': {
-    worldCup: [],
-    international: ['1x Copa América (2015)'],
-    continental: [],
-    domestic: []
-  },
-  'japan': {
-    worldCup: [],
-    international: ['4x AFC Asian Cup'],
-    continental: [],
-    domestic: []
-  },
-  'south korea': {
-    worldCup: ['2002 4th Place'],
-    international: ['2x AFC Asian Cup'],
-    continental: [],
-    domestic: []
-  },
-  'australia': {
-    worldCup: [],
-    international: ['4x OFC Nations Cup', '1x AFC Asian Cup (2015)'],
-    continental: [],
-    domestic: []
-  },
-  'morocco': {
-    worldCup: ['2022 4th Place'],
-    international: ['1x Africa Cup of Nations (1976)'],
-    continental: [],
-    domestic: []
-  },
-  'senegal': {
-    worldCup: ['2022 Round of 16'],
-    international: ['1x Africa Cup of Nations (2021)'],
-    continental: [],
-    domestic: []
-  },
-  'egypt': {
-    worldCup: [],
-    international: ['7x Africa Cup of Nations'],
-    continental: [],
-    domestic: []
-  },
-  'nigeria': {
-    worldCup: [],
-    international: ['3x Africa Cup of Nations'],
-    continental: [],
-    domestic: []
-  },
-  'cameroon': {
-    worldCup: ['1990 Quarter-final'],
-    international: ['5x Africa Cup of Nations'],
-    continental: [],
-    domestic: []
-  },
-  'ghana': {
-    worldCup: ['2010 Quarter-final'],
-    international: ['4x Africa Cup of Nations'],
-    continental: [],
-    domestic: []
-  },
-  'ivory coast': {
-    worldCup: [],
-    international: ['2x Africa Cup of Nations'],
-    continental: [],
-    domestic: []
-  },
-  'usa': {
-    worldCup: ['1930 Semi-final'],
-    international: ['7x CONCACAF Gold Cup'],
-    continental: [],
-    domestic: []
-  },
-  'canada': {
-    worldCup: ['2022 Group Stage'],
-    international: ['2x CONCACAF Gold Cup'],
-    continental: [],
-    domestic: []
-  },
-  'iraq': {
-    worldCup: [],
-    international: ['1x AFC Asian Cup (2007)'],
-    continental: [],
-    domestic: []
-  },
-  'saudi arabia': {
-    worldCup: [],
-    international: ['3x AFC Asian Cup'],
-    continental: [],
-    domestic: []
-  },
-  'qatar': {
-    worldCup: ['2022 Group Stage'],
-    international: ['1x AFC Asian Cup (2019)'],
-    continental: [],
-    domestic: []
   }
 };
 
@@ -322,7 +257,6 @@ async function getNationalTeamAchievements(teamName: string): Promise<Team['majo
     }
   }
   
-  // Default empty achievements
   return { worldCup: [], international: [], continental: [], domestic: [] };
 }
 
@@ -415,12 +349,6 @@ const CLUB_ACHIEVEMENTS: Record<string, Team['majorAchievements']> = {
     continental: ['7x UEFA Champions League'],
     domestic: ['19x Serie A', '5x Coppa Italia']
   },
-  'napoli': {
-    worldCup: [],
-    international: [],
-    continental: [],
-    domestic: ['3x Serie A']
-  },
   'psg': {
     worldCup: [],
     international: [],
@@ -444,12 +372,6 @@ const CLUB_ACHIEVEMENTS: Record<string, Team['majorAchievements']> = {
     international: [],
     continental: ['2x UEFA Champions League'],
     domestic: ['38x Primeira Liga', '26x Taça de Portugal']
-  },
-  'sporting cp': {
-    worldCup: [],
-    international: [],
-    continental: [],
-    domestic: ['19x Primeira Liga', '17x Taça de Portugal']
   }
 };
 
@@ -467,7 +389,7 @@ async function getClubAchievements(teamName: string): Promise<Team['majorAchieve
 }
 
 // ============================================================================
-// BSD API v2 - CORRECT ENDPOINTS
+// BSD API v2 - TEAM SEARCH & SQUAD DATA (Works for both Clubs and National Teams)
 // ============================================================================
 
 async function searchTeamWithBSD(query: string): Promise<{ team: Team; players: Player[] } | null> {
@@ -504,56 +426,32 @@ async function searchTeamWithBSD(query: string): Promise<{ team: Team; players: 
     
     let players: Player[] = [];
     
-    // Only fetch squad for club teams (national teams don't have squad data in BSD)
-    if (!isNational) {
-      // Try the documented squad endpoint first
-      let squadResponse = await fetch(
-        `/api/bsd-proxy?endpoint=/teams/${teamData.id}/squad/`
-      );
-      
-      let squadResult = await squadResponse.json();
-      
-      if (squadResult.players && squadResult.players.length > 0) {
-        players = squadResult.players.map((player: any) => ({
-          name: player.name || 'Unknown',
-          currentTeam: teamData.name,
-          position: player.position || player.specific_position || 'Unknown',
-          age: player.date_of_birth ? calculateAge(player.date_of_birth) : undefined,
-          nationality: player.nationality || '',
-          careerGoals: undefined,
-          careerAssists: undefined,
-          majorAchievements: [],
-          careerSummary: `${player.name || 'Player'} plays for ${teamData.name}.`,
-          _source: 'BSD API v2',
-          _imageUrl: player.id ? `https://sports.bzzoiro.com/img/player/${player.id}/` : undefined,
-          _lastVerified: new Date().toISOString()
-        }));
-      } else {
-        // Try alternative endpoint for players
-        const playersResponse = await fetch(
-          `/api/bsd-proxy?endpoint=/players/?team_id=${teamData.id}&limit=50`
-        );
-        const playersResult = await playersResponse.json();
-        if (playersResult.results && playersResult.results.length > 0) {
-          players = playersResult.results.map((player: any) => ({
-            name: player.name || 'Unknown',
-            currentTeam: teamData.name,
-            position: player.position || player.specific_position || 'Unknown',
-            age: player.date_of_birth ? calculateAge(player.date_of_birth) : undefined,
-            nationality: player.nationality || '',
-            careerGoals: undefined,
-            careerAssists: undefined,
-            majorAchievements: [],
-            careerSummary: `${player.name || 'Player'} plays for ${teamData.name}.`,
-            _source: 'BSD API v2',
-            _imageUrl: player.id ? `https://sports.bzzoiro.com/img/player/${player.id}/` : undefined,
-            _lastVerified: new Date().toISOString()
-          }));
-        }
-      }
-    } else {
-      console.log(`📡 [BSD] National team detected - using achievements database`);
+    // Fetch squad from BSD (works for both clubs AND national teams!)
+    // The players endpoint can filter by team_id
+    const playersResponse = await fetch(
+      `/api/bsd-proxy?endpoint=/players/?team_id=${teamData.id}&limit=50`
+    );
+    
+    const playersResult = await playersResponse.json();
+    
+    if (playersResult.results && playersResult.results.length > 0) {
+      players = playersResult.results.map((player: any) => ({
+        id: player.id?.toString(),
+        name: player.name || 'Unknown',
+        currentTeam: teamData.name,
+        position: player.position || player.specific_position || 'Unknown',
+        age: player.date_of_birth ? calculateAge(player.date_of_birth) : undefined,
+        nationality: player.nationality || '',
+        careerGoals: undefined,
+        careerAssists: undefined,
+        majorAchievements: [],
+        careerSummary: `${player.name || 'Player'} plays for ${teamData.name}.`,
+        _source: 'BSD API v2',
+        _lastVerified: new Date().toISOString()
+      }));
     }
+    
+    console.log(`✅ [BSD] Retrieved ${players.length} players for ${teamData.name}`);
     
     // Get achievements based on team type
     const achievements = isNational 
@@ -575,8 +473,6 @@ async function searchTeamWithBSD(query: string): Promise<{ team: Team; players: 
       _confidence: 95,
       _lastVerified: new Date().toISOString()
     };
-    
-    console.log(`✅ [BSD] Retrieved ${players.length} players for ${team.name}`);
     
     return { team, players };
     
@@ -606,7 +502,6 @@ Examples:
 - "barca" -> "Barcelona"
 - "vini jr" -> "Vinicius Junior"
 - "belli" -> "Jude Bellingham"
-- "man city" -> "Manchester City"
 - "atletico de mardrid" -> "Atletico Madrid"
 
 Return ONLY the corrected name, no punctuation, no explanation.`;
@@ -649,23 +544,25 @@ async function searchTeam(query: string): Promise<GROQSearchResponse> {
   const searchQuery = aiCorrected.corrected;
   verificationSteps.push(`🤖 AI corrected to: "${searchQuery}"`);
   
-  // Try BSD API
+  // Try BSD API for team search and squad data
   verificationSteps.push('📡 Querying BSD API...');
   const result = await searchTeamWithBSD(searchQuery);
   
   if (result) {
-    if (result.players.length === 0) {
-      verificationSteps.push(`⚠️ Team found but no squad data available (national team or API limitation)`);
-    } else {
-      verificationSteps.push(`✅ Found ${result.players.length} players via BSD API`);
-    }
+    verificationSteps.push(`✅ Found team: ${result.team.name} with ${result.players.length} players`);
+    
+    // Enrich players with images from TheSportsDB (works for both clubs AND national teams!)
+    verificationSteps.push('🖼️ Fetching player images from TheSportsDB...');
+    const playersWithImages = await enrichPlayersWithImages(result.players);
+    const imagesFound = playersWithImages.filter(p => p._imageUrl).length;
+    verificationSteps.push(`✅ Found images for ${imagesFound}/${playersWithImages.length} players`);
     
     return {
-      players: result.players,
+      players: playersWithImages,
       teams: [result.team],
       youtubeQuery: `${result.team.name} highlights ${SEASON_YEAR}`,
       _metadata: {
-        source: 'BSD API v2',
+        source: 'BSD API v2 + TheSportsDB Images',
         confidence: 95,
         season: CURRENT_SEASON,
         verified: true,
@@ -756,7 +653,6 @@ export const getHistoricalPlayers = async (
   language: string = 'en'
 ): Promise<Player[]> => {
   console.log(`🔍 [HISTORICAL] Fetching legends for: ${teamName}`);
-  // Historical players can be added later if needed
   return [];
 };
 
