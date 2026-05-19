@@ -88,59 +88,59 @@ async function searchTeamWithBSD(query: string): Promise<{ team: Team; players: 
   try {
     console.log(`📡 [BSD] Searching for team: ${query}`);
     
-    // BSD provides team search endpoint
+    // ✅ CORRECT v2 endpoint - uses 'name' parameter, not 'search'
     const searchResponse = await fetch(
-      `/api/bsd-proxy?endpoint=/teams/search/${encodeURIComponent(query)}`
+      `/api/bsd-proxy?endpoint=/teams/?name=${encodeURIComponent(query)}`
     );
     
     const searchData = await searchResponse.json();
     
-    if (!searchData.data || searchData.data.length === 0) {
+    // v2 returns 'results' array, not 'data'
+    if (!searchData.results || searchData.results.length === 0) {
       console.log(`[BSD] No team found for: ${query}`);
       return null;
     }
     
-    const teamData = searchData.data[0]; // First match
+    const teamData = searchData.results[0];
     
     console.log(`✅ [BSD] Found team: ${teamData.name} (ID: ${teamData.id})`);
     
-    // Get full squad using BSD's squad endpoint
+    // Get squad using v2 squad endpoint
     const squadResponse = await fetch(
-      `/api/bsd-proxy?endpoint=/teams/${teamData.id}/squad`
+      `/api/bsd-proxy?endpoint=/teams/${teamData.id}/squad/`
     );
     
     const squadData = await squadResponse.json();
     
-    // Transform team data
     const team: Team = {
       name: teamData.name,
       shortName: teamData.short_name || teamData.name,
-      crest: teamData.logo || teamData.image_path,
-      type: teamData.type === 'national' ? 'national' : 'club',
+      crest: `https://sports.bzzoiro.com/img/team/${teamData.id}/`,
+      type: 'club',
       country: teamData.country || '',
-      stadium: teamData.stadium,
-      currentCoach: teamData.coach || 'Information not available',
-      foundedYear: teamData.founded,
-      majorAchievements: {}, // Can be fetched separately if needed
-      _source: 'BSD API',
+      stadium: teamData.venue_id ? `Venue ID: ${teamData.venue_id}` : 'Unknown',
+      currentCoach: 'Unknown',
+      foundedYear: undefined,
+      majorAchievements: {},
+      _source: 'BSD API v2',
       _verified: true,
       _confidence: 95,
       _lastVerified: new Date().toISOString()
     };
     
-    // Transform players - dynamically fetched, always up-to-date!
-    const players: Player[] = (squadData.data || []).map((player: any) => ({
+    // v2 squad endpoint returns 'players' array
+    const players: Player[] = (squadData.players || []).map((player: any) => ({
       name: player.name,
       currentTeam: team.name,
       position: player.position || 'Unknown',
-      age: player.age,
+      age: player.date_of_birth ? calculateAge(player.date_of_birth) : undefined,
       nationality: player.nationality || '',
-      careerGoals: player.goals,
-      careerAssists: player.assists,
+      careerGoals: undefined,
+      careerAssists: undefined,
       majorAchievements: [],
-      careerSummary: `${player.name} plays for ${team.name} as a ${player.position || 'player'}.`,
-      _source: 'BSD API',
-      _imageUrl: player.image_path || player.photo,
+      careerSummary: `${player.name} plays for ${team.name}.`,
+      _source: 'BSD API v2',
+      _imageUrl: `https://sports.bzzoiro.com/img/player/${player.id}/`,
       _lastVerified: new Date().toISOString()
     }));
     
