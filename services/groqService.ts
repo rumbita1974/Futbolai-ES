@@ -83,6 +83,7 @@ const groq = new Groq({
 
 // Simple in-memory cache
 const cache = new Map<string, { data: GROQSearchResponse; timestamp: number }>();
+const SPORTSDB_API_KEY = process.env.NEXT_PUBLIC_SPORTSDB_KEY || '3';
 
 // ============================================================================
 // AI FUZZY MATCHING - FIXES MISSPELLINGS
@@ -624,8 +625,8 @@ async function fetchSquadFromSportsDB(teamId: string): Promise<Player[]> {
   try {
     // Try both endpoints to maximize squad data
     const urls = [
-      `https://www.thesportsdb.com/api/v1/json/3/lookup_all_players.php?id=${teamId}`,
-      `https://www.thesportsdb.com/api/v1/json/3/lookupsquad.php?id=${teamId}`
+  `https://www.thesportsdb.com/api/v1/json/${SPORTSDB_API_KEY}/lookup_all_players.php?id=${teamId}`,
+  `https://www.thesportsdb.com/api/v1/json/${SPORTSDB_API_KEY}/lookupsquad.php?id=${teamId}`
     ];
     
     let allPlayers: any[] = [];
@@ -697,7 +698,7 @@ async function verifyTeamWithSportsDB(teamName: string): Promise<{
   idTeam?: string;
 } | null> {
   try {
-    const url = `https://www.thesportsdb.com/api/v1/json/3/searchteams.php?t=${encodeURIComponent(teamName)}`;
+const url = `https://www.thesportsdb.com/api/v1/json/${SPORTSDB_API_KEY}/searchteams.php?t=${encodeURIComponent(teamName)}`;
     const response = await fetch(url);
     
     if (!response.ok) return null;
@@ -1148,7 +1149,7 @@ async function searchPlayers(query: string): Promise<GROQSearchResponse> {
   let sportsDBId: string | undefined = undefined;
   
   try {
-    const searchUrl = `https://www.thesportsdb.com/api/v1/json/3/searchplayers.php?p=${encodeURIComponent(searchQuery)}`;
+const searchUrl = `https://www.thesportsdb.com/api/v1/json/${SPORTSDB_API_KEY}/searchplayers.php?p=${encodeURIComponent(searchQuery)}`;
     const response = await fetch(searchUrl);
     
     if (response.ok) {
@@ -1206,7 +1207,7 @@ async function searchPlayers(query: string): Promise<GROQSearchResponse> {
   
   if (sportsDBId) {
     try {
-      const detailUrl = `https://www.thesportsdb.com/api/v1/json/3/lookupplayer.php?id=${sportsDBId}`;
+const detailUrl = `https://www.thesportsdb.com/api/v1/json/${SPORTSDB_API_KEY}/lookupplayer.php?id=${sportsDBId}`;
       const detailResponse = await fetch(detailUrl);
       if (detailResponse.ok) {
         const detailData = await detailResponse.json();
