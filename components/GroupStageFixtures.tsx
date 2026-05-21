@@ -36,24 +36,49 @@ interface GroupStageFixturesProps {
   defaultGroup?: string;
 }
 
+// Define proper kickoff times for matches (in UTC hours)
+// CEST is UTC+2, so 19:00 UTC = 21:00 CEST
+const KICKOFF_TIMES: { [key: string]: number } = {
+  // Group A
+  "Mexico vs South Africa": 19,      // 21:00 CEST - Opening match
+  "Korea Republic vs Czechia": 18,   // 20:00 CEST
+  "Czechia vs South Africa": 16,     // 18:00 CEST
+  "Mexico vs Korea Republic": 18,    // 20:00 CEST
+  "Czechia vs Mexico": 18,           // 20:00 CEST
+  "South Africa vs Korea Republic": 16, // 18:00 CEST
+  
+  // Group B
+  "Canada vs Switzerland": 17,       // 19:00 CEST
+  "Qatar vs Bosnia and Herzegovina": 17, // 19:00 CEST
+  "Switzerland vs Bosnia and Herzegovina": 16, // 18:00 CEST
+  "Canada vs Qatar": 18,             // 20:00 CEST
+  "Bosnia and Herzegovina vs Canada": 16, // 18:00 CEST
+  "Switzerland vs Qatar": 18,        // 20:00 CEST
+  
+  // Group C
+  "Haiti vs Scotland": 17,           // 19:00 CEST
+  
+  // Default for any match without specified time
+  "default": 19                      // 21:00 CEST
+};
+
 export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFixturesProps) {
   const [data, setData] = useState<WorldCupData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedGroup, setSelectedGroup] = useState<string>(defaultGroup);
   const [userTimezone, setUserTimezone] = useState<string>("");
+  const [mounted, setMounted] = useState(false);
   
-  // Use hooks
   const { language } = useLanguage();
   const { t } = useTranslation();
 
   useEffect(() => {
-    // Get user's timezone
+    setMounted(true);
     setUserTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone);
     fetchWorldCupData();
   }, []);
 
-  // Update selected group when defaultGroup prop changes
   useEffect(() => {
     if (defaultGroup && defaultGroup !== selectedGroup) {
       setSelectedGroup(defaultGroup);
@@ -82,12 +107,27 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
     }
   };
 
-  // Helper to format match date and time in user's local timezone
-  const formatMatchDateTime = (dateString: string) => {
+  // Get proper kickoff time for a match
+  const getMatchKickoffDate = (match: Match): Date => {
+    const matchKey = `${match.team1} vs ${match.team2}`;
+    const hour = KICKOFF_TIMES[matchKey] || KICKOFF_TIMES.default;
+    
+    // Parse the date and set the correct UTC hour
+    const date = new Date(match.date);
+    date.setUTCHours(hour, 0, 0);
+    return date;
+  };
+
+  // Format match date and time in user's local timezone
+  const formatMatchDateTime = (match: Match) => {
     try {
-      const matchDate = new Date(dateString);
+      const matchDate = getMatchKickoffDate(match);
       
-      // Format date: "Thu, Jun 11, 2026"
+      if (isNaN(matchDate.getTime())) {
+        return { date: match.date, time: "", cetRef: "" };
+      }
+      
+      // Format date
       const date = matchDate.toLocaleDateString(language === 'es' ? 'es-ES' : 'en-US', {
         weekday: "short",
         month: "short",
@@ -95,31 +135,25 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
         year: "numeric",
       });
       
-      // Format time: "21:00" or "9:00 PM"
+      // Format time in user's timezone
       const time = matchDate.toLocaleTimeString(language === 'es' ? 'es-ES' : 'en-US', {
         hour: "2-digit",
         minute: "2-digit",
         hour12: true
       });
       
-      return { date, time };
-    } catch (e) {
-      return { date: dateString, time: "" };
-    }
-  };
-
-  // Helper to get CET reference time
-  const getCETReference = (dateString: string) => {
-    try {
-      const matchDate = new Date(dateString);
-      return matchDate.toLocaleTimeString('en-US', {
+      // Get CET reference
+      const cetRef = matchDate.toLocaleTimeString('en-US', {
         hour: "2-digit",
         minute: "2-digit",
         timeZone: 'Europe/Paris',
+        hour12: true,
         timeZoneName: 'short'
       });
+      
+      return { date, time, cetRef };
     } catch (e) {
-      return "";
+      return { date: match.date, time: "", cetRef: "" };
     }
   };
 
@@ -143,7 +177,6 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
     return group ? group.matches : [];
   };
 
-  // Function to translate team names
   const translateTeam = (teamName: string) => {
     const translated = t(`teams.${teamName}`);
     if (translated && !translated.includes('teams.')) {
@@ -152,7 +185,6 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
     return teamName;
   };
 
-  // Function to get team flag emoji
   const getTeamFlag = (teamName: string) => {
     const flags: { [key: string]: string } = {
       'Mexico': '🇲🇽', 'USA': '🇺🇸', 'Canada': '🇨🇦',
@@ -172,14 +204,15 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
       'Honduras': '🇭🇳', 'El Salvador': '🇸🇻', 'Peru': '🇵🇪',
       'Ecuador': '🇪🇨', 'Paraguay': '🇵🇾', 'Bolivia': '🇧🇴',
       'Venezuela': '🇻🇪', 'Russia': '🇷🇺', 'Ukraine': '🇺🇦',
-      'Poland': '🇵🇱', 'Czech Republic': '🇨🇿', 'Slovakia': '🇸🇰',
-      'Hungary': '🇭🇺', 'Romania': '🇷🇴', 'Bulgaria': '🇧🇬',
-      'Serbia': '🇷🇸', 'Bosnia': '🇧🇦', 'Slovenia': '🇸🇮',
-      'North Macedonia': '🇲🇰', 'Albania': '🇦🇱', 'Greece': '🇬🇷',
-      'Turkey': '🇹🇷', 'Israel': '🇮🇱', 'Scotland': '🏴󠁧󠁢󠁳󠁣󠁴󠁿',
-      'Wales': '🏴󠁧󠁢󠁷󠁬󠁳󠁿', 'Northern Ireland': '🇬🇧',
-      'Republic of Ireland': '🇮🇪', 'Finland': '🇫🇮',
-      'Iceland': '🇮🇸', 'Faroe Islands': '🇫🇴'
+      'Poland': '🇵🇱', 'Czech Republic': '🇨🇿', 'Czechia': '🇨🇿',
+      'Slovakia': '🇸🇰', 'Hungary': '🇭🇺', 'Romania': '🇷🇴',
+      'Bulgaria': '🇧🇬', 'Serbia': '🇷🇸', 'Bosnia and Herzegovina': '🇧🇦',
+      'Slovenia': '🇸🇮', 'North Macedonia': '🇲🇰', 'Albania': '🇦🇱',
+      'Greece': '🇬🇷', 'Turkey': '🇹🇷', 'Israel': '🇮🇱',
+      'Scotland': '🏴󠁧󠁢󠁳󠁣󠁴󠁿', 'Wales': '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
+      'Northern Ireland': '🇬🇧', 'Republic of Ireland': '🇮🇪',
+      'Finland': '🇫🇮', 'Iceland': '🇮🇸', 'Faroe Islands': '🇫🇴',
+      'Korea Republic': '🇰🇷', 'Korea DPR': '🇰🇵', 'Haiti': '🇭🇹'
     };
     
     if (flags[teamName]) return flags[teamName];
@@ -192,6 +225,18 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
     
     return '⚽';
   };
+
+  // Prevent hydration errors by not rendering until mounted
+  if (!mounted) {
+    return (
+      <div className="bg-gray-900/40 rounded-2xl p-4 md:p-6 border border-gray-800">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-800 rounded mb-4 w-1/3"></div>
+          <div className="h-64 bg-gray-800/50 rounded"></div>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -258,12 +303,12 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
             <span className="font-semibold">{t('common.tip')}:</span> {t('worldCup.tapHint')}
           </p>
           <div className="text-xs text-blue-400 bg-blue-900/30 px-2 py-1 rounded">
-            🕐 Your timezone: {userTimezone || 'loading...'}
+            🕐 Your timezone: {userTimezone}
           </div>
         </div>
       </div>
 
-      {/* Group Selector - Mobile Scrollable */}
+      {/* Group Selector */}
       <div className="mb-6 md:mb-8">
         <h3 className="text-base md:text-lg font-semibold text-gray-300 mb-3">
           {t('worldCup.selectGroup')}
@@ -285,7 +330,7 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
         </div>
       </div>
 
-      {/* Group Teams - Interactive Team Cards */}
+      {/* Group Teams */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-lg md:text-xl font-bold text-white">
@@ -325,7 +370,6 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
             ))}
         </div>
         
-        {/* Group Navigation Hint */}
         <div className="text-center mb-4">
           <p className="text-xs text-gray-500">
             {t('worldCup.groupHint', { group: selectedGroup })}
@@ -340,7 +384,7 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
         </p>
       </div>
 
-      {/* Matches Table - Mobile Scrollable */}
+      {/* Matches Table */}
       <div className="overflow-x-auto rounded-xl border border-gray-800 -mx-2 px-2">
         <table className="min-w-full divide-y divide-gray-800">
           <thead className="bg-gray-900/60">
@@ -361,8 +405,7 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
           </thead>
           <tbody className="bg-gray-900/30 divide-y divide-gray-800">
             {getGroupMatches().map((match) => {
-              const { date, time } = formatMatchDateTime(match.date);
-              const cetRef = getCETReference(match.date);
+              const { date, time, cetRef } = formatMatchDateTime(match);
               return (
                 <tr key={match.id} className="hover:bg-gray-800/40 transition">
                   <td className="px-4 py-3 whitespace-nowrap">
@@ -427,7 +470,7 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
         </table>
       </div>
 
-      {/* Footer Info - Mobile Stacked */}
+      {/* Footer Info */}
       <div className="mt-6 p-4 bg-gray-800/30 rounded-xl border border-gray-700/50">
         <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
           <div>
@@ -442,7 +485,7 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
               {formatDate(data.tournamentStart)}
             </p>
             <p className="text-xs text-gray-500 mt-2">
-              🕐 All times shown in your local timezone
+              🕐 All times shown in your local timezone ({userTimezone})
             </p>
           </div>
           <div className="flex flex-col sm:flex-row gap-2">
