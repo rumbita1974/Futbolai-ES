@@ -41,12 +41,15 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedGroup, setSelectedGroup] = useState<string>(defaultGroup);
+  const [userTimezone, setUserTimezone] = useState<string>("");
   
   // Use hooks
   const { language } = useLanguage();
   const { t } = useTranslation();
 
   useEffect(() => {
+    // Get user's timezone
+    setUserTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone);
     fetchWorldCupData();
   }, []);
 
@@ -79,6 +82,47 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
     }
   };
 
+  // Helper to format match date and time in user's local timezone
+  const formatMatchDateTime = (dateString: string) => {
+    try {
+      const matchDate = new Date(dateString);
+      
+      // Format date: "Thu, Jun 11, 2026"
+      const date = matchDate.toLocaleDateString(language === 'es' ? 'es-ES' : 'en-US', {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+      
+      // Format time: "21:00" or "9:00 PM"
+      const time = matchDate.toLocaleTimeString(language === 'es' ? 'es-ES' : 'en-US', {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true
+      });
+      
+      return { date, time };
+    } catch (e) {
+      return { date: dateString, time: "" };
+    }
+  };
+
+  // Helper to get CET reference time
+  const getCETReference = (dateString: string) => {
+    try {
+      const matchDate = new Date(dateString);
+      return matchDate.toLocaleTimeString('en-US', {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: 'Europe/Paris',
+        timeZoneName: 'short'
+      });
+    } catch (e) {
+      return "";
+    }
+  };
+
   const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString);
@@ -101,15 +145,10 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
 
   // Function to translate team names
   const translateTeam = (teamName: string) => {
-    // Try to get translation from teams object
     const translated = t(`teams.${teamName}`);
-    
-    // If translation exists and is not the key itself, return it
     if (translated && !translated.includes('teams.')) {
       return translated;
     }
-    
-    // Fallback to original team name
     return teamName;
   };
 
@@ -143,10 +182,8 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
       'Iceland': '🇮🇸', 'Faroe Islands': '🇫🇴'
     };
     
-    // Check for exact match first
     if (flags[teamName]) return flags[teamName];
     
-    // Check for partial matches
     const teamKeys = Object.keys(flags);
     for (let i = 0; i < teamKeys.length; i++) {
       const country = teamKeys[i];
@@ -214,10 +251,15 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
         <p className="text-gray-400 text-sm md:text-base">
           {t('worldCup.fixturesDescription')}
         </p>
-        <div className="mt-4 p-3 bg-blue-900/20 rounded-lg border border-blue-800/30">
+        
+        {/* Timezone Info Bar */}
+        <div className="mt-4 p-3 bg-blue-900/20 rounded-lg border border-blue-800/30 flex flex-wrap items-center justify-between gap-2">
           <p className="text-blue-300 text-sm md:text-base">
             <span className="font-semibold">{t('common.tip')}:</span> {t('worldCup.tapHint')}
           </p>
+          <div className="text-xs text-blue-400 bg-blue-900/30 px-2 py-1 rounded">
+            🕐 Your timezone: {userTimezone || 'loading...'}
+          </div>
         </div>
       </div>
 
@@ -256,7 +298,7 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
         <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-4">
           {data.groups
             .find((g) => g.id === selectedGroup)
-            ?.teams.map((team, index) => (
+            ?.teams.map((team) => (
               <a
                 key={team}
                 href={`/?search=${encodeURIComponent(team)}&group=${selectedGroup}`}
@@ -291,6 +333,13 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
         </div>
       </div>
 
+      {/* CET Reference Bar */}
+      <div className="mb-4 p-2 bg-green-900/20 rounded-lg border border-green-800/30 text-center">
+        <p className="text-xs text-green-400">
+          🕐 CET Reference: Central European Time (UTC+1) / Central European Summer Time (UTC+2)
+        </p>
+      </div>
+
       {/* Matches Table - Mobile Scrollable */}
       <div className="overflow-x-auto rounded-xl border border-gray-800 -mx-2 px-2">
         <table className="min-w-full divide-y divide-gray-800">
@@ -311,59 +360,69 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
             </tr>
           </thead>
           <tbody className="bg-gray-900/30 divide-y divide-gray-800">
-            {getGroupMatches().map((match) => (
-              <tr key={match.id} className="hover:bg-gray-800/40 transition">
-                <td className="px-4 py-3 whitespace-nowrap">
-                  <div className="text-xs md:text-sm font-medium text-white">
-                    {formatDate(match.date)}
-                  </div>
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center space-x-2 md:space-x-4">
-                    <div className="flex-1 text-right">
-                      <a 
-                        href={`/?search=${encodeURIComponent(match.team1)}&group=${selectedGroup}`}
-                        className="font-bold text-white text-sm md:text-base hover:text-blue-300 transition"
-                      >
-                        {translateTeam(match.team1)}
-                      </a>
-                    </div>
-                    <div className="flex flex-col items-center min-w-[60px] md:min-w-[80px]">
-                      <div className="px-2 md:px-3 py-1 bg-gray-800/50 rounded-lg">
-                        <span className="font-bold text-gray-300 text-xs md:text-sm">
-                          VS
-                        </span>
-                      </div>
-                      <div className="text-xs text-gray-500 mt-1 hidden md:block">
-                        {t('worldCup.notPlayed')}
-                      </div>
-                    </div>
-                    <div className="flex-1">
-                      <a 
-                        href={`/?search=${encodeURIComponent(match.team2)}&group=${selectedGroup}`}
-                        className="font-bold text-white text-sm md:text-base hover:text-blue-300 transition"
-                      >
-                        {translateTeam(match.team2)}
-                      </a>
-                    </div>
-                  </div>
-                </td>
-                <td className="px-4 py-3">
-                  <div>
+            {getGroupMatches().map((match) => {
+              const { date, time } = formatMatchDateTime(match.date);
+              const cetRef = getCETReference(match.date);
+              return (
+                <tr key={match.id} className="hover:bg-gray-800/40 transition">
+                  <td className="px-4 py-3 whitespace-nowrap">
                     <div className="text-xs md:text-sm font-medium text-white">
-                      {match.venue}
+                      {date}
                     </div>
-                    <div className="text-xs text-gray-400">{match.city}</div>
-                  </div>
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap">
-                  <span className="inline-flex items-center px-2 md:px-3 py-1 rounded-full text-xs font-medium bg-yellow-900/30 text-yellow-300 border border-yellow-800/50">
-                    <span className="w-2 h-2 bg-yellow-500 rounded-full mr-1 md:mr-2"></span>
-                    {t('worldCup.scheduled')}
-                  </span>
-                </td>
-              </tr>
-            ))}
+                    <div className="text-xs text-green-400">
+                      {time}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1 hidden lg:block">
+                      CET: {cetRef}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center space-x-2 md:space-x-4">
+                      <div className="flex-1 text-right">
+                        <a 
+                          href={`/?search=${encodeURIComponent(match.team1)}&group=${selectedGroup}`}
+                          className="font-bold text-white text-sm md:text-base hover:text-blue-300 transition"
+                        >
+                          {translateTeam(match.team1)}
+                        </a>
+                      </div>
+                      <div className="flex flex-col items-center min-w-[60px] md:min-w-[80px]">
+                        <div className="px-2 md:px-3 py-1 bg-gray-800/50 rounded-lg">
+                          <span className="font-bold text-gray-300 text-xs md:text-sm">
+                            VS
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1 hidden md:block">
+                          {t('worldCup.notPlayed')}
+                        </div>
+                      </div>
+                      <div className="flex-1">
+                        <a 
+                          href={`/?search=${encodeURIComponent(match.team2)}&group=${selectedGroup}`}
+                          className="font-bold text-white text-sm md:text-base hover:text-blue-300 transition"
+                        >
+                          {translateTeam(match.team2)}
+                        </a>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div>
+                      <div className="text-xs md:text-sm font-medium text-white">
+                        {match.venue}
+                      </div>
+                      <div className="text-xs text-gray-400">{match.city}</div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <span className="inline-flex items-center px-2 md:px-3 py-1 rounded-full text-xs font-medium bg-yellow-900/30 text-yellow-300 border border-yellow-800/50">
+                      <span className="w-2 h-2 bg-yellow-500 rounded-full mr-1 md:mr-2"></span>
+                      {t('worldCup.scheduled')}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -381,6 +440,9 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
             <p className="text-xs md:text-sm text-gray-400 mt-1">
               <span className="font-medium text-gray-300">{t('worldCup.tournamentStarts')}</span>{" "}
               {formatDate(data.tournamentStart)}
+            </p>
+            <p className="text-xs text-gray-500 mt-2">
+              🕐 All times shown in your local timezone
             </p>
           </div>
           <div className="flex flex-col sm:flex-row gap-2">
