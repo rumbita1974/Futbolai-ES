@@ -1,0 +1,24 @@
+buzon de sugerencias e email.
+
+curiosidad del dia
+
+verificar resultados entrenadores
+
+pagina equipos:
+
+plantilla actual
+
+jugadores historicos
+
+
+pagina jugadores y highlights:
+
+que tipo de contenido quiero mostrar?
+
+agregar a developed by A. Guillen banderas de Venezuela y espana
+
+npm run dev
+
+git add. 
+
+
