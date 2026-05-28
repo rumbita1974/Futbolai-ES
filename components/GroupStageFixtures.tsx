@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useLanguage } from "@/context/LanguageContext";
 import { useTranslation } from "@/hooks/useTranslation";
 
 interface Match {
   id: number;
   date: string;
+  time: string;
   group: string;
   team1: string;
   team2: string;
@@ -36,32 +37,6 @@ interface GroupStageFixturesProps {
   defaultGroup?: string;
 }
 
-// Define proper kickoff times for matches (in UTC hours)
-// CEST is UTC+2, so 19:00 UTC = 21:00 CEST
-const KICKOFF_TIMES: { [key: string]: number } = {
-  // Group A
-  "Mexico vs South Africa": 19,      // 21:00 CEST - Opening match
-  "Korea Republic vs Czechia": 18,   // 20:00 CEST
-  "Czechia vs South Africa": 16,     // 18:00 CEST
-  "Mexico vs Korea Republic": 18,    // 20:00 CEST
-  "Czechia vs Mexico": 18,           // 20:00 CEST
-  "South Africa vs Korea Republic": 16, // 18:00 CEST
-  
-  // Group B
-  "Canada vs Switzerland": 17,       // 19:00 CEST
-  "Qatar vs Bosnia and Herzegovina": 17, // 19:00 CEST
-  "Switzerland vs Bosnia and Herzegovina": 16, // 18:00 CEST
-  "Canada vs Qatar": 18,             // 20:00 CEST
-  "Bosnia and Herzegovina vs Canada": 16, // 18:00 CEST
-  "Switzerland vs Qatar": 18,        // 20:00 CEST
-  
-  // Group C
-  "Haiti vs Scotland": 17,           // 19:00 CEST
-  
-  // Default for any match without specified time
-  "default": 19                      // 21:00 CEST
-};
-
 export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFixturesProps) {
   const [data, setData] = useState<WorldCupData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -79,18 +54,20 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
     fetchWorldCupData();
   }, []);
 
+  // Separate effect for handling defaultGroup changes
   useEffect(() => {
     if (defaultGroup && defaultGroup !== selectedGroup) {
       setSelectedGroup(defaultGroup);
     }
-  }, [defaultGroup]);
+  }, [defaultGroup]); // Remove selectedGroup from dependencies to avoid loop
 
-  const fetchWorldCupData = async () => {
+  const fetchWorldCupData = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch("/api/worldcup");
-      if (!response.ok)
+      if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
+      }
       const result = await response.json();
 
       if (!result.success) {
@@ -105,57 +82,7 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
     } finally {
       setLoading(false);
     }
-  };
-
-  // Get proper kickoff time for a match
-  const getMatchKickoffDate = (match: Match): Date => {
-    const matchKey = `${match.team1} vs ${match.team2}`;
-    const hour = KICKOFF_TIMES[matchKey] || KICKOFF_TIMES.default;
-    
-    // Parse the date and set the correct UTC hour
-    const date = new Date(match.date);
-    date.setUTCHours(hour, 0, 0);
-    return date;
-  };
-
-  // Format match date and time in user's local timezone
-  const formatMatchDateTime = (match: Match) => {
-    try {
-      const matchDate = getMatchKickoffDate(match);
-      
-      if (isNaN(matchDate.getTime())) {
-        return { date: match.date, time: "", cetRef: "" };
-      }
-      
-      // Format date
-      const date = matchDate.toLocaleDateString(language === 'es' ? 'es-ES' : 'en-US', {
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      });
-      
-      // Format time in user's timezone
-      const time = matchDate.toLocaleTimeString(language === 'es' ? 'es-ES' : 'en-US', {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true
-      });
-      
-      // Get CET reference
-      const cetRef = matchDate.toLocaleTimeString('en-US', {
-        hour: "2-digit",
-        minute: "2-digit",
-        timeZone: 'Europe/Paris',
-        hour12: true,
-        timeZoneName: 'short'
-      });
-      
-      return { date, time, cetRef };
-    } catch (e) {
-      return { date: match.date, time: "", cetRef: "" };
-    }
-  };
+  }, [t]);
 
   const formatDate = (dateString: string) => {
     try {
@@ -212,7 +139,10 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
       'Scotland': '🏴󠁧󠁢󠁳󠁣󠁴󠁿', 'Wales': '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
       'Northern Ireland': '🇬🇧', 'Republic of Ireland': '🇮🇪',
       'Finland': '🇫🇮', 'Iceland': '🇮🇸', 'Faroe Islands': '🇫🇴',
-      'Korea Republic': '🇰🇷', 'Korea DPR': '🇰🇵', 'Haiti': '🇭🇹'
+      'Korea Republic': '🇰🇷', 'Korea DPR': '🇰🇵', 'Haiti': '🇭🇹',
+      'Cabo Verde': '🇨🇻', 'Curaçao': '🇨🇼', 'Côte d\'Ivoire': '🇨🇮',
+      'Congo DR': '🇨🇩', 'Uzbekistan': '🇺🇿', 'Jordan': '🇯🇴',
+      'Cape Verde': '🇨🇻'
     };
     
     if (flags[teamName]) return flags[teamName];
@@ -226,7 +156,11 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
     return '⚽';
   };
 
-  // Prevent hydration errors by not rendering until mounted
+  // Handle group change
+  const handleGroupChange = (groupId: string) => {
+    setSelectedGroup(groupId);
+  };
+
   if (!mounted) {
     return (
       <div className="bg-gray-900/40 rounded-2xl p-4 md:p-6 border border-gray-800">
@@ -317,7 +251,7 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
           {data.groups.map((group) => (
             <button
               key={group.id}
-              onClick={() => setSelectedGroup(group.id)}
+              onClick={() => handleGroupChange(group.id)}
               className={`px-4 py-2 rounded-lg transition font-medium whitespace-nowrap flex-shrink-0 ${
                 selectedGroup === group.id
                   ? "bg-gradient-to-r from-blue-600 to-green-500 text-white shadow-lg"
@@ -404,68 +338,62 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
             </tr>
           </thead>
           <tbody className="bg-gray-900/30 divide-y divide-gray-800">
-            {getGroupMatches().map((match) => {
-              const { date, time, cetRef } = formatMatchDateTime(match);
-              return (
-                <tr key={match.id} className="hover:bg-gray-800/40 transition">
-                  <td className="px-4 py-3 whitespace-nowrap">
+            {getGroupMatches().map((match) => (
+              <tr key={match.id} className="hover:bg-gray-800/40 transition">
+                <td className="px-4 py-3 whitespace-nowrap">
+                  <div className="text-xs md:text-sm font-medium text-white">
+                    {formatDate(match.date)}
+                  </div>
+                  <div className="text-xs text-green-400">
+                    {match.time}
+                  </div>
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center space-x-2 md:space-x-4">
+                    <div className="flex-1 text-right">
+                      <a 
+                        href={`/?search=${encodeURIComponent(match.team1)}&group=${selectedGroup}`}
+                        className="font-bold text-white text-sm md:text-base hover:text-blue-300 transition"
+                      >
+                        {translateTeam(match.team1)}
+                      </a>
+                    </div>
+                    <div className="flex flex-col items-center min-w-[60px] md:min-w-[80px]">
+                      <div className="px-2 md:px-3 py-1 bg-gray-800/50 rounded-lg">
+                        <span className="font-bold text-gray-300 text-xs md:text-sm">
+                          VS
+                        </span>
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1 hidden md:block">
+                        {t('worldCup.notPlayed')}
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <a 
+                        href={`/?search=${encodeURIComponent(match.team2)}&group=${selectedGroup}`}
+                        className="font-bold text-white text-sm md:text-base hover:text-blue-300 transition"
+                      >
+                        {translateTeam(match.team2)}
+                      </a>
+                    </div>
+                  </div>
+                </td>
+                <td className="px-4 py-3">
+                  <div>
                     <div className="text-xs md:text-sm font-medium text-white">
-                      {date}
+                      {match.venue}
                     </div>
-                    <div className="text-xs text-green-400">
-                      {time}
-                    </div>
-                    <div className="text-xs text-gray-500 mt-1 hidden lg:block">
-                      CET: {cetRef}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center space-x-2 md:space-x-4">
-                      <div className="flex-1 text-right">
-                        <a 
-                          href={`/?search=${encodeURIComponent(match.team1)}&group=${selectedGroup}`}
-                          className="font-bold text-white text-sm md:text-base hover:text-blue-300 transition"
-                        >
-                          {translateTeam(match.team1)}
-                        </a>
-                      </div>
-                      <div className="flex flex-col items-center min-w-[60px] md:min-w-[80px]">
-                        <div className="px-2 md:px-3 py-1 bg-gray-800/50 rounded-lg">
-                          <span className="font-bold text-gray-300 text-xs md:text-sm">
-                            VS
-                          </span>
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1 hidden md:block">
-                          {t('worldCup.notPlayed')}
-                        </div>
-                      </div>
-                      <div className="flex-1">
-                        <a 
-                          href={`/?search=${encodeURIComponent(match.team2)}&group=${selectedGroup}`}
-                          className="font-bold text-white text-sm md:text-base hover:text-blue-300 transition"
-                        >
-                          {translateTeam(match.team2)}
-                        </a>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div>
-                      <div className="text-xs md:text-sm font-medium text-white">
-                        {match.venue}
-                      </div>
-                      <div className="text-xs text-gray-400">{match.city}</div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <span className="inline-flex items-center px-2 md:px-3 py-1 rounded-full text-xs font-medium bg-yellow-900/30 text-yellow-300 border border-yellow-800/50">
-                      <span className="w-2 h-2 bg-yellow-500 rounded-full mr-1 md:mr-2"></span>
-                      {t('worldCup.scheduled')}
-                    </span>
-                  </td>
-                </tr>
-              );
-            })}
+                    <div className="text-xs text-gray-400">{match.city}</div>
+                  </div>
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap">
+                  <span className="inline-flex items-center px-2 md:px-3 py-1 rounded-full text-xs font-medium bg-yellow-900/30 text-yellow-300 border border-yellow-800/50">
+                    <span className="w-2 h-2 bg-yellow-500 rounded-full mr-1 md:mr-2"></span>
+                    {t('worldCup.scheduled')}
+                  </span>
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
@@ -485,7 +413,7 @@ export default function GroupStageFixtures({ defaultGroup = "A" }: GroupStageFix
               {formatDate(data.tournamentStart)}
             </p>
             <p className="text-xs text-gray-500 mt-2">
-              🕐 All times shown in your local timezone ({userTimezone})
+              🕐 All times shown in CET (Central European Time)
             </p>
           </div>
           <div className="flex flex-col sm:flex-row gap-2">
