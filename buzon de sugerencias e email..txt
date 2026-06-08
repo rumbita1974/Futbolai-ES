@@ -19,6 +19,9 @@ agregar a developed by A. Guillen banderas de Venezuela y espana
 
 npm run dev
 
-git add. 
+git add . 
+git commit -m "fix: correct World Cup 2026 groups and matches display
+git push origin main
+
 
 
