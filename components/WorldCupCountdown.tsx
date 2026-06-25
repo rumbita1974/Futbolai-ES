@@ -1,94 +1,286 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useLanguage } from '@/context/LanguageContext';
+import { useTranslation } from '@/hooks/useTranslation';
+
+interface Match {
+  id: number;
+  date: string;
+  time: string;
+  group: string;
+  team1: string;
+  team2: string;
+  venue: string;
+  city: string;
+  status: 'scheduled' | 'live' | 'completed';
+  score1?: number;
+  score2?: number;
+}
+
+interface Group {
+  id: string;
+  name: string;
+  teams: string[];
+  matches: Match[];
+}
+
+interface WorldCupData {
+  success: boolean;
+  tournamentStart: string;
+  groups: Group[];
+  totalMatches: number;
+  lastUpdated: string;
+}
 
 export default function WorldCupCountdown() {
-  const [timeRemaining, setTimeRemaining] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+  const [todayMatches, setTodayMatches] = useState<Match[]>([]);
+  const [loading, setLoading] = useState(true);
   const [userTimezone, setUserTimezone] = useState('');
-  const [cetTime, setCetTime] = useState('');
-
-  // Opening match: June 11, 2026 at 21:00 CEST (UTC+2)
-  // Using UTC+2 for Central European Summer Time
-  const getTargetDate = () => {
-    return new Date('2026-06-11T21:00:00+02:00');
-  };
+  const [currentDate, setCurrentDate] = useState('');
+  const { language } = useLanguage();
+  const { t } = useTranslation();
 
   useEffect(() => {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
     setUserTimezone(tz);
     
-    const target = getTargetDate();
+    // Set current date
+    const now = new Date();
+    setCurrentDate(now.toLocaleDateString(language === 'es' ? 'es-ES' : 'en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    }));
     
-    // Get CET reference time
-    const cetTimeString = target.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      timeZone: 'Europe/Paris',
-      timeZoneName: 'short'
-    });
-    setCetTime(cetTimeString);
-
-    const timer = setInterval(() => {
-      const now = new Date();
-      const difference = target.getTime() - now.getTime();
-      
-      if (difference <= 0) {
-        setTimeRemaining({ days: 0, hours: 0, minutes: 0, seconds: 0 });
-      } else {
-        setTimeRemaining({
-          days: Math.floor(difference / (1000 * 60 * 60 * 24)),
-          hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
-          minutes: Math.floor((difference / (1000 * 60)) % 60),
-          seconds: Math.floor((difference / 1000) % 60)
-        });
-      }
-    }, 1000);
+    fetchTodayMatches();
     
-    return () => clearInterval(timer);
+    // Refresh every 60 seconds when matches are live
+    const interval = setInterval(() => {
+      fetchTodayMatches();
+    }, 60000);
+    
+    return () => clearInterval(interval);
   }, []);
+
+  const fetchTodayMatches = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/worldcup');
+      if (!response.ok) return;
+      
+      const data: WorldCupData = await response.json();
+      if (!data.groups) return;
+      
+      // Get today's date in YYYY-MM-DD format
+      const today = new Date();
+      const todayStr = today.toISOString().split('T')[0];
+      
+      // Find all matches scheduled for today
+      const matches: Match[] = [];
+      data.groups.forEach(group => {
+        group.matches.forEach(match => {
+          if (match.date === todayStr) {
+            matches.push({ ...match, group: group.id });
+          }
+        });
+      });
+      
+      // Sort by time
+      matches.sort((a, b) => a.time.localeCompare(b.time));
+      setTodayMatches(matches);
+    } catch (error) {
+      console.error('Error fetching today\'s matches:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getTeamFlag = (teamName: string) => {
+    const flags: { [key: string]: string } = {
+      'Mexico': '🇲🇽', 'USA': '🇺🇸', 'Canada': '🇨🇦',
+      'Brazil': '🇧🇷', 'Argentina': '🇦🇷', 'Germany': '🇩🇪',
+      'France': '🇫🇷', 'Spain': '🇪🇸', 'England': '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
+      'Portugal': '🇵🇹', 'Italy': '🇮🇹', 'Netherlands': '🇳🇱',
+      'Japan': '🇯🇵', 'South Korea': '🇰🇷', 'Australia': '🇦🇺',
+      'Morocco': '🇲🇦', 'Senegal': '🇸🇳', 'Egypt': '🇪🇬',
+      'Uruguay': '🇺🇾', 'Chile': '🇨🇱', 'Colombia': '🇨🇴',
+      'Belgium': '🇧🇪', 'Croatia': '🇭🇷', 'Switzerland': '🇨🇭',
+      'Denmark': '🇩🇰', 'Sweden': '🇸🇪', 'Norway': '🇳🇴',
+      'South Africa': '🇿🇦', 'Nigeria': '🇳🇬', 'Ghana': '🇬🇭',
+      'Ivory Coast': '🇨🇮', 'Cameroon': '🇨🇲', 'Algeria': '🇩🇿',
+      'Tunisia': '🇹🇳', 'Saudi Arabia': '🇸🇦', 'Iran': '🇮🇷',
+      'Qatar': '🇶🇦', 'Ecuador': '🇪🇨', 'Paraguay': '🇵🇾',
+      'Turkey': '🇹🇷', 'Scotland': '🏴󠁧󠁢󠁳󠁣󠁴󠁿',
+      'Korea Republic': '🇰🇷', 'Haiti': '🇭🇹', 'Cabo Verde': '🇨🇻',
+      'Curaçao': '🇨🇼', 'Côte d\'Ivoire': '🇨🇮', 'Congo DR': '🇨🇩',
+      'Uzbekistan': '🇺🇿', 'Jordan': '🇯🇴', 'Panama': '🇵🇦',
+      'Czechia': '🇨🇿', 'Bosnia and Herzegovina': '🇧🇦',
+      'Cape Verde': '🇨🇻', 'Ivory Coast': '🇨🇮'
+    };
+    
+    if (flags[teamName]) return flags[teamName];
+    
+    const teamKeys = Object.keys(flags);
+    for (let i = 0; i < teamKeys.length; i++) {
+      const country = teamKeys[i];
+      if (teamName.includes(country)) return flags[country];
+    }
+    return '⚽';
+  };
+
+  const renderStatus = (match: Match) => {
+    if (match.status === 'live') {
+      return (
+        <span className="inline-flex items-center text-xs font-medium text-green-400">
+          <span className="w-2 h-2 bg-green-500 rounded-full mr-1 animate-pulse"></span>
+          LIVE
+        </span>
+      );
+    }
+    if (match.status === 'completed') {
+      return (
+        <span className="text-xs font-medium text-blue-400">
+          FT
+        </span>
+      );
+    }
+    return (
+      <span className="text-xs font-medium text-yellow-400">
+        Scheduled
+      </span>
+    );
+  };
+
+  const translateTeam = (teamName: string) => {
+    const translated = t(`teams.${teamName}`);
+    if (translated && !translated.includes('teams.')) {
+      return translated;
+    }
+    return teamName;
+  };
+
+  if (loading) {
+    return (
+      <div className="bg-gradient-to-r from-blue-900/30 to-green-900/30 rounded-2xl p-6 border border-blue-700/30">
+        <div className="animate-pulse">
+          <div className="h-6 bg-gray-700 rounded w-1/3 mb-4 mx-auto"></div>
+          <div className="space-y-3">
+            <div className="h-16 bg-gray-800/50 rounded"></div>
+            <div className="h-16 bg-gray-800/50 rounded"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (todayMatches.length === 0) {
+    return (
+      <div className="bg-gradient-to-r from-blue-900/30 to-green-900/30 rounded-2xl p-6 border border-blue-700/30 text-center">
+        <div className="text-4xl mb-3">📅</div>
+        <h3 className="text-lg font-semibold text-white mb-1">
+          No Matches Today
+        </h3>
+        <p className="text-gray-400 text-sm">
+          {currentDate}
+        </p>
+        <p className="text-gray-500 text-xs mt-2">
+          Check back tomorrow for upcoming World Cup matches
+        </p>
+        <p className="text-gray-500 text-xs mt-1">
+          Your timezone: {userTimezone}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-gradient-to-r from-blue-900/30 to-green-900/30 rounded-2xl p-6 border border-blue-700/30">
-      <h3 className="text-lg font-semibold text-white mb-3 text-center">
-        Countdown to World Cup 2026 Opening Match
-      </h3>
-      <div className="grid grid-cols-4 gap-2 sm:gap-4 mb-4">
-        <div className="bg-gray-900/80 rounded-xl p-3 text-center">
-          <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-blue-400">
-            {timeRemaining.days}
-          </div>
-          <div className="text-xs text-gray-400">DAYS</div>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="text-lg font-semibold text-white">
+            📅 Today's Matches
+          </h3>
+          <p className="text-gray-400 text-sm">
+            {currentDate}
+          </p>
         </div>
-        <div className="bg-gray-900/80 rounded-xl p-3 text-center">
-          <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-blue-400">
-            {timeRemaining.hours}
-          </div>
-          <div className="text-xs text-gray-400">HOURS</div>
-        </div>
-        <div className="bg-gray-900/80 rounded-xl p-3 text-center">
-          <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-blue-400">
-            {timeRemaining.minutes}
-          </div>
-          <div className="text-xs text-gray-400">MINUTES</div>
-        </div>
-        <div className="bg-gray-900/80 rounded-xl p-3 text-center">
-          <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-blue-400">
-            {timeRemaining.seconds}
-          </div>
-          <div className="text-xs text-gray-400">SECONDS</div>
+        <div className="text-right">
+          <span className="text-xs text-gray-500">
+            {todayMatches.length} match{todayMatches.length !== 1 ? 'es' : ''}
+          </span>
+          <p className="text-xs text-gray-500">
+            🕐 {userTimezone}
+          </p>
         </div>
       </div>
-      
-      {/* Timezone Info */}
-      <div className="text-center space-y-1">
-        <p className="text-sm text-blue-300">
-          Opening Match: Mexico vs South Africa • June 11, 2026 • 21:00 CET (9:00 PM)
-        </p>
-        <p className="text-xs text-gray-400">
-          🕐 CET reference: {cetTime || '21:00 CEST'} | Central European Time (UTC+1/UTC+2)
-        </p>
+
+      <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
+        {todayMatches.map((match) => (
+          <a
+            key={match.id}
+            href={`/?search=${encodeURIComponent(match.team1)}&group=${match.group}`}
+            className={`block p-3 rounded-xl border transition-all hover:scale-[1.01] ${
+              match.status === 'live'
+                ? 'bg-green-900/20 border-green-700/50 hover:border-green-500/70'
+                : match.status === 'completed'
+                ? 'bg-gray-800/30 border-gray-700/50 hover:border-blue-500/30'
+                : 'bg-gray-800/30 border-gray-700/50 hover:border-yellow-500/30'
+            }`}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex-1 text-right">
+                <div className="flex items-center justify-end gap-2">
+                  <span className="font-medium text-white text-sm">
+                    {translateTeam(match.team1)}
+                  </span>
+                  <span className="text-lg">
+                    {getTeamFlag(match.team1)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex flex-col items-center min-w-[60px]">
+                <div className="font-bold text-white text-sm">
+                  {match.status === 'live' || match.status === 'completed' ? (
+                    <span className="text-lg">
+                      {match.score1 ?? 0} - {match.score2 ?? 0}
+                    </span>
+                  ) : (
+                    <span className="text-gray-400 text-xs font-normal">VS</span>
+                  )}
+                </div>
+                <div className="text-xs text-gray-500 mt-0.5">
+                  {renderStatus(match)}
+                </div>
+              </div>
+
+              <div className="flex-1 text-left">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">
+                    {getTeamFlag(match.team2)}
+                  </span>
+                  <span className="font-medium text-white text-sm">
+                    {translateTeam(match.team2)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-700/30 text-xs text-gray-500">
+              <span>{match.time}</span>
+              <span>Group {match.group}</span>
+              <span>{match.venue}</span>
+            </div>
+          </a>
+        ))}
+      </div>
+
+      <div className="mt-4 pt-3 border-t border-gray-700/30 text-center">
         <p className="text-xs text-gray-500">
-          Your local timezone: {userTimezone || 'loading...'}
+          🕐 All times shown in your local timezone ({userTimezone})
+          {todayMatches.some(m => m.status === 'live') && ' • 🔴 Live updates active'}
         </p>
       </div>
     </div>
