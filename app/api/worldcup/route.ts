@@ -1,9 +1,161 @@
 // app/api/worldcup/route.ts
 import { NextResponse } from 'next/server';
 
-export const revalidate = 300;
+// Revalidate every 60 seconds for near-real-time updates
+export const revalidate = 60;
+
+// World Cup IDs from BSD API
+const WORLD_CUP_LEAGUE_ID = 27;
+const WORLD_CUP_SEASON_ID = 188;
+
+// Group definitions (team lists only - match data comes from API)
+const GROUP_TEAMS: Record<string, string[]> = {
+  'A': ['Mexico', 'South Africa', 'Korea Republic', 'Czechia'],
+  'B': ['Canada', 'Bosnia and Herzegovina', 'Qatar', 'Switzerland'],
+  'C': ['Brazil', 'Morocco', 'Haiti', 'Scotland'],
+  'D': ['USA', 'Paraguay', 'Australia', 'Turkey'],
+  'E': ['Germany', 'Curaçao', 'Ivory Coast', 'Ecuador'],
+  'F': ['Netherlands', 'Japan', 'Sweden', 'Tunisia'],
+  'G': ['Belgium', 'Egypt', 'Iran', 'New Zealand'],
+  'H': ['Spain', 'Cabo Verde', 'Saudi Arabia', 'Uruguay'],
+  'I': ['France', 'Senegal', 'Iraq', 'Norway'],
+  'J': ['Argentina', 'Algeria', 'Austria', 'Jordan'],
+  'K': ['Portugal', 'Congo DR', 'Uzbekistan', 'Colombia'],
+  'L': ['England', 'Croatia', 'Ghana', 'Panama']
+};
+
+// Get BSD API key from environment
+const BSD_API_KEY = process.env.NEXT_PUBLIC_BSD_API_KEY;
+
+async function fetchLiveWorldCupMatches() {
+  if (!BSD_API_KEY) {
+    console.warn('BSD_API_KEY not configured, using fallback static data');
+    return null;
+  }
+
+  try {
+    // Fetch all World Cup events from BSD API
+    const response = await fetch(
+      `https://sports.bzzoiro.com/api/v2/events/?league_id=${WORLD_CUP_LEAGUE_ID}&season_id=${WORLD_CUP_SEASON_ID}&limit=250`,
+      {
+        headers: {
+          'Authorization': `Token ${BSD_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        next: { revalidate: 60 } // Revalidate every 60 seconds
+      }
+    );
+
+    if (!response.ok) {
+      console.warn(`BSD API returned ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json();
+    return data.results || [];
+  } catch (error) {
+    console.error('Error fetching live World Cup data:', error);
+    return null;
+  }
+}
+
+function mapBSDStatus(status: string): 'scheduled' | 'live' | 'completed' {
+  if (status === 'inprogress' || status === 'live') return 'live';
+  if (status === 'finished') return 'completed';
+  return 'scheduled';
+}
+
+function extractGroupLetter(groupName: string | null): string {
+  if (!groupName) return 'A';
+  const match = groupName.match(/Group ([A-L])/);
+  return match ? match[1] : 'A';
+}
+
+// Valid team names to filter out placeholder teams
+const VALID_TEAMS = [
+  'Mexico', 'South Africa', 'Korea Republic', 'Czechia',
+  'Canada', 'Bosnia and Herzegovina', 'Qatar', 'Switzerland',
+  'Brazil', 'Morocco', 'Haiti', 'Scotland',
+  'USA', 'Paraguay', 'Australia', 'Turkey',
+  'Germany', 'Curaçao', 'Ivory Coast', 'Ecuador',
+  'Netherlands', 'Japan', 'Sweden', 'Tunisia',
+  'Belgium', 'Egypt', 'Iran', 'New Zealand',
+  'Spain', 'Cabo Verde', 'Saudi Arabia', 'Uruguay',
+  'France', 'Senegal', 'Iraq', 'Norway',
+  'Argentina', 'Algeria', 'Austria', 'Jordan',
+  'Portugal', 'Congo DR', 'Uzbekistan', 'Colombia',
+  'England', 'Croatia', 'Ghana', 'Panama'
+];
+
+function isValidMatch(homeTeam: string, awayTeam: string): boolean {
+  return VALID_TEAMS.includes(homeTeam) && VALID_TEAMS.includes(awayTeam);
+}
 
 export async function GET() {
+  let liveMatches = await fetchLiveWorldCupMatches();
+  
+  // If no live data, use static data as fallback
+  if (!liveMatches) {
+    return getStaticData();
+  }
+
+  // Filter only valid group stage matches
+  const groupStageMatches = liveMatches.filter((match: any) => 
+    isValidMatch(match.home_team, match.away_team) &&
+    match.group_name && 
+    match.group_name !== ''
+  );
+
+  // Build groups with live data
+  const groups = Object.keys(GROUP_TEAMS).map(groupId => {
+    const groupMatches = groupStageMatches
+      .filter((match: any) => {
+        const groupLetter = extractGroupLetter(match.group_name);
+        return groupLetter === groupId;
+      })
+      .map((match: any) => ({
+        id: match.id,
+        date: match.event_date ? new Date(match.event_date).toISOString().split('T')[0] : '2026-06-11',
+        time: match.event_date ? new Date(match.event_date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : '00:00',
+        group: groupId,
+        team1: match.home_team,
+        team2: match.away_team,
+        venue: match.venue?.name || 'TBD',
+        city: match.venue?.city || 'TBD',
+        status: mapBSDStatus(match.status),
+        score1: match.home_score ?? undefined,
+        score2: match.away_score ?? undefined
+      }))
+      .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    return {
+      id: groupId,
+      name: `Group ${groupId}`,
+      teams: GROUP_TEAMS[groupId],
+      matches: groupMatches
+    };
+  });
+
+  const worldcupData = {
+    success: true,
+    tournamentName: "FIFA World Cup 2026",
+    tournamentStart: "2026-06-11",
+    tournamentEnd: "2026-07-19",
+    hostCountries: ["USA", "Canada", "Mexico"],
+    totalMatches: groupStageMatches.length,
+    lastUpdated: new Date().toISOString(),
+    groups: groups
+  };
+
+  return NextResponse.json(worldcupData, {
+    headers: {
+      'Cache-Control': 's-maxage=60, stale-while-revalidate=30',
+    }
+  });
+}
+
+// Fallback static data (your existing data)
+function getStaticData() {
   const worldcupData = {
     success: true,
     tournamentName: "FIFA World Cup 2026",
