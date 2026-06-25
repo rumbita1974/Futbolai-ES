@@ -81,36 +81,48 @@ const groq = new Groq({
 
 const cache = new Map<string, { data: GROQSearchResponse; timestamp: number }>();
 
+// List of common player names (to auto-detect player vs team)
+const COMMON_PLAYER_NAMES = [
+  'messi', 'ronaldo', 'vinicius', 'vini', 'lamine', 'yamal', 'mbappe', 'mbappé',
+  'haaland', 'neymar', 'salah', 'lewandowski', 'de bruyne', 'bellingham', 'pedri',
+  'gavi', 'musiala', 'wirtz', 'havertz', 'sane', 'kroos', 'modric', 'valverde',
+  'camavinga', 'tchouameni', 'rodrygo', 'raphinha', 'dembele', 'griezmann',
+  'kane', 'son', 'van dijk', 'salah', 'mane', 'ribery', 'robben', 'muller',
+  'ramos', 'pique', 'puyol', 'xavi', 'iniesta', 'busquets', 'alba', 'alves',
+  'mendy', 'walker', 'stones', 'dias', 'gvardiol', 'kimmich', 'goretzka'
+];
+
 // ============================================================================
-// AI-POWERED TEAM NAME CORRECTION & DISAMBIGUATION
+// AI-POWERED TEAM/PLAYER NAME CORRECTION & DISAMBIGUATION
 // ============================================================================
 
-async function correctTeamNameWithAI(query: string): Promise<{
+async function correctQueryWithAI(query: string): Promise<{
   corrected: string;
-  type: 'club' | 'national';
+  type: 'club' | 'national' | 'player';
   confidence: number;
   country?: string;
 }> {
-  console.log(`🤖 [AI] Analyzing team query: "${query}"`);
+  console.log(`🤖 [AI] Analyzing query: "${query}"`);
   
-  const systemPrompt = `You are a football database expert. Analyze the team name and return a JSON object.
+  const systemPrompt = `You are a football database expert. Analyze the query and return a JSON object.
 
 RULES:
-1. Determine if it's a club or national team
+1. Determine if it's a club, national team, or player
 2. Correct any misspellings
 3. For ambiguous names like "Barcelona", determine if the user likely means FC Barcelona (Spain) vs Barcelona SC (Ecuador)
 4. For national teams, return the standard FIFA country name
+5. For players, return the full name
 
 Return ONLY valid JSON in this format:
-{"corrected": "official name", "type": "club or national", "confidence": 0-100, "country": "country name if applicable"}
+{"corrected": "official name", "type": "club or national or player", "confidence": 0-100, "country": "country name if applicable"}
 
 Examples:
 - "barca" -> {"corrected": "FC Barcelona", "type": "club", "confidence": 95, "country": "Spain"}
 - "real madird" -> {"corrected": "Real Madrid", "type": "club", "confidence": 95, "country": "Spain"}
 - "brazil" -> {"corrected": "Brazil", "type": "national", "confidence": 100, "country": "Brazil"}
-- "usa national team" -> {"corrected": "United States", "type": "national", "confidence": 95, "country": "USA"}
-- "man city" -> {"corrected": "Manchester City", "type": "club", "confidence": 95, "country": "England"}
-- "psg" -> {"corrected": "Paris Saint-Germain", "type": "club", "confidence": 95, "country": "France"}`;
+- "messi" -> {"corrected": "Lionel Messi", "type": "player", "confidence": 100, "country": "Argentina"}
+- "vini" -> {"corrected": "Vinícius Júnior", "type": "player", "confidence": 95, "country": "Brazil"}
+- "lamine" -> {"corrected": "Lamine Yamal", "type": "player", "confidence": 95, "country": "Spain"}`;
 
   try {
     const completion = await groq.chat.completions.create({
@@ -118,7 +130,7 @@ Examples:
         { role: 'system', content: systemPrompt },
         { role: 'user', content: query }
       ],
-      model: 'llama-3.1-8b-instant',
+      model: 'llama-3.3-70b-versatile',
       temperature: 0.1,
       max_tokens: 150,
     });
@@ -146,6 +158,200 @@ Examples:
 }
 
 // ============================================================================
+// PLAYER SEARCH
+// ============================================================================
+
+async function searchPlayer(query: string): Promise<GROQSearchResponse> {
+  console.log(`👤 [PLAYER SEARCH] "${query}"`);
+  
+  const systemPrompt = `You are a football database expert. Provide detailed information about the football player "${query}".
+
+Return a JSON object with this exact structure:
+{
+  "name": "Full player name",
+  "position": "Position (e.g., Forward, Midfielder, Defender, Goalkeeper)",
+  "currentTeam": "Current club",
+  "age": number,
+  "nationality": "Country",
+  "careerGoals": number or null,
+  "careerAssists": number or null,
+  "internationalAppearances": number or null,
+  "internationalGoals": number or null,
+  "majorAchievements": ["Achievement 1", "Achievement 2"],
+  "careerSummary": "Brief summary of their career"
+}
+
+If you don't know the player, return null.`;
+
+  try {
+    const completion = await groq.chat.completions.create({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: query }
+      ],
+      model: 'llama-3.3-70b-versatile',
+      temperature: 0.3,
+      max_tokens: 600,
+    });
+
+    const result = completion.choices[0]?.message?.content?.trim() || '';
+    const jsonMatch = result.match(/\{[\s\S]*\}/);
+    
+    if (jsonMatch) {
+      const playerData = JSON.parse(jsonMatch[0]);
+      if (playerData && playerData.name) {
+        const player: Player = {
+          name: playerData.name,
+          position: playerData.position || 'Unknown',
+          nationality: playerData.nationality || '',
+          age: playerData.age,
+          currentTeam: playerData.currentTeam || 'Unknown',
+          careerGoals: playerData.careerGoals,
+          careerAssists: playerData.careerAssists,
+          internationalAppearances: playerData.internationalAppearances,
+          internationalGoals: playerData.internationalGoals,
+          majorAchievements: playerData.majorAchievements || [],
+          careerSummary: playerData.careerSummary || `${playerData.name} is a football player.`,
+          _source: 'AI Search',
+          _lastVerified: new Date().toISOString()
+        };
+        
+        return {
+          players: [player],
+          teams: [],
+          youtubeQuery: `${playerData.name} highlights ${SEASON_YEAR}`,
+          _metadata: {
+            source: 'AI Player Search',
+            confidence: 85,
+            season: CURRENT_SEASON,
+            verified: false,
+            hasSquad: false
+          }
+        };
+      }
+    }
+    
+    // Fallback: try to get player from Wikipedia
+    const wikiPlayer = await searchPlayerFromWikipedia(query);
+    if (wikiPlayer) {
+      return {
+        players: [wikiPlayer],
+        teams: [],
+        youtubeQuery: `${query} highlights ${SEASON_YEAR}`,
+        _metadata: {
+          source: 'Wikipedia',
+          confidence: 70,
+          season: CURRENT_SEASON,
+          verified: false,
+          hasSquad: false
+        }
+      };
+    }
+    
+    return {
+      players: [],
+      teams: [],
+      youtubeQuery: `${query} highlights ${SEASON_YEAR}`,
+      error: `Player "${query}" not found.`,
+      _metadata: {
+        source: 'Not Found',
+        confidence: 0,
+        season: CURRENT_SEASON,
+        verified: false,
+        hasSquad: false
+      }
+    };
+    
+  } catch (error) {
+    console.error('[PLAYER SEARCH] Error:', error);
+    return {
+      players: [],
+      teams: [],
+      youtubeQuery: `${query} highlights ${SEASON_YEAR}`,
+      error: 'Error searching for player.',
+      _metadata: {
+        source: 'Error',
+        confidence: 0,
+        season: CURRENT_SEASON,
+        verified: false,
+        hasSquad: false
+      }
+    };
+  }
+}
+
+// Wikipedia fallback for players
+async function searchPlayerFromWikipedia(query: string): Promise<Player | null> {
+  try {
+    // Try with the query as-is
+    let url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`;
+    let response = await fetch(url);
+    
+    // If not found, try with " (footballer)" suffix
+    if (!response.ok) {
+      url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}%20(footballer)`;
+      response = await fetch(url);
+    }
+    
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    if (!data.extract) return null;
+    
+    const extract = data.extract;
+    
+    // Extract player name from title
+    const name = data.title || query;
+    
+    // Try to find position
+    const positionKeywords = ['forward', 'midfielder', 'defender', 'goalkeeper', 'winger', 'striker'];
+    let position = 'Unknown';
+    for (const pos of positionKeywords) {
+      if (extract.toLowerCase().includes(pos)) {
+        position = pos.charAt(0).toUpperCase() + pos.slice(1);
+        break;
+      }
+    }
+    
+    // Try to find nationality
+    const nationalities = ['Spanish', 'French', 'German', 'Italian', 'English', 'Portuguese', 'Dutch', 'Brazilian', 'Argentine', 'Belgian', 'Croatian', 'Danish', 'Swedish', 'Norwegian', 'Polish', 'Austrian', 'Swiss', 'Turkish', 'Uruguayan', 'Colombian', 'Chilean', 'Mexican', 'American', 'Canadian', 'Japanese', 'Korean', 'Australian', 'Moroccan', 'Senegalese', 'Egyptian', 'Nigerian', 'Ghanaian', 'Cameroonian', 'Ivorian'];
+    let nationality = '';
+    for (const nat of nationalities) {
+      if (extract.includes(nat)) {
+        nationality = nat;
+        break;
+      }
+    }
+    
+    // Try to extract age from birth date
+    let age: number | undefined = undefined;
+    const ageMatch = extract.match(/born (\d{1,2} (?:January|February|March|April|May|June|July|August|September|October|November|December) \d{4})/i);
+    if (ageMatch) {
+      const birthDate = new Date(ageMatch[1]);
+      if (!isNaN(birthDate.getTime())) {
+        age = new Date().getFullYear() - birthDate.getFullYear();
+      }
+    }
+    
+    return {
+      name: name,
+      position: position,
+      nationality: nationality || '',
+      age: age,
+      currentTeam: 'Unknown',
+      majorAchievements: [],
+      careerSummary: extract.split('.')[0] + '.',
+      _source: 'Wikipedia',
+      _lastVerified: new Date().toISOString()
+    };
+    
+  } catch (error) {
+    console.error('[Wikipedia] Error:', error);
+    return null;
+  }
+}
+
+// ============================================================================
 // SEARCH FOOTBALL DATA API (Dynamic - Any Team)
 // ============================================================================
 
@@ -160,7 +366,6 @@ async function searchFootballDataAPI(teamName: string, country?: string): Promis
   try {
     console.log(`📡 [Football Data API] Searching: ${teamName}`);
     
-    // Search via teams endpoint (limited but works for major teams)
     const searchResponse = await fetch(
       `/api/football-proxy?endpoint=/teams?limit=50`
     );
@@ -170,7 +375,6 @@ async function searchFootballDataAPI(teamName: string, country?: string): Promis
     const data = await searchResponse.json();
     const teams = data.teams || [];
     
-    // Find best match using AI-corrected name
     const queryLower = teamName.toLowerCase();
     let bestMatch = null;
     let bestScore = 0;
@@ -182,9 +386,13 @@ async function searchFootballDataAPI(teamName: string, country?: string): Promis
       else if (team.shortName?.toLowerCase().includes(queryLower)) score = 70;
       else if (team.tla?.toLowerCase() === queryLower) score = 90;
       
-      // Boost score if country matches
       if (country && team.area?.name?.toLowerCase().includes(country.toLowerCase())) {
         score += 10;
+      }
+      
+      // Penalize partial matches that are too short (like "Spain" matching "AC Port Of Spain")
+      if (queryLower.length <= 4 && team.name?.toLowerCase().includes(queryLower) && team.name?.toLowerCase() !== queryLower) {
+        score -= 50; // Reduce score for partial matches on short queries
       }
       
       if (score > bestScore) {
@@ -200,7 +408,6 @@ async function searchFootballDataAPI(teamName: string, country?: string): Promis
     
     console.log(`✅ [Football Data API] Found: ${bestMatch.name}`);
     
-    // Fetch full team details
     const teamResponse = await fetch(
       `/api/football-proxy?endpoint=/teams/${bestMatch.id}`
     );
@@ -260,13 +467,13 @@ async function searchBSDAPI(teamName: string, teamType: 'club' | 'national'): Pr
   try {
     console.log(`📡 [BSD API] Searching: ${teamName}`);
     
-    // Try multiple search variations
     const searchTerms = [teamName];
     if (teamType === 'national') {
       searchTerms.push(teamName.replace(' national team', ''));
     }
     
     let teamData = null;
+    let bestMatchScore = 0;
     
     for (const term of searchTerms) {
       const response = await fetch(
@@ -276,18 +483,40 @@ async function searchBSDAPI(teamName: string, teamType: 'club' | 'national'): Pr
       if (response.ok) {
         const data = await response.json();
         if (data.results && data.results.length > 0) {
-          // Filter by type if needed
-          let found = data.results[0];
-          if (teamType === 'national') {
-            found = data.results.find((t: any) => t.type === 'national') || found;
+          const queryLower = term.toLowerCase();
+          // Find the best match, not just the first
+          for (const team of data.results) {
+            let score = 0;
+            if (team.name?.toLowerCase() === queryLower) score = 100;
+            else if (team.name?.toLowerCase().includes(queryLower)) {
+              // Penalize partial matches on short queries
+              if (queryLower.length <= 4 && team.name?.toLowerCase() !== queryLower) {
+                score = 30;
+              } else {
+                score = 70;
+              }
+            }
+            
+            // Boost if it's a national team and we're looking for one
+            if (teamType === 'national' && team.type === 'national') {
+              score += 20;
+            }
+            
+            // Boost if it's a club and we're looking for one
+            if (teamType === 'club' && team.type !== 'national') {
+              score += 10;
+            }
+            
+            if (score > bestMatchScore) {
+              bestMatchScore = score;
+              teamData = team;
+            }
           }
-          teamData = found;
-          break;
         }
       }
     }
     
-    if (!teamData) {
+    if (!teamData || bestMatchScore < 50) {
       console.log(`[BSD API] No team found`);
       return null;
     }
@@ -334,7 +563,7 @@ async function searchBSDAPI(teamName: string, teamType: 'club' | 'national'): Pr
       majorAchievements: {},
       _source: 'BSD API',
       _verified: true,
-      _confidence: 85,
+      _confidence: bestMatchScore,
       _lastVerified: new Date().toISOString()
     };
     
@@ -368,7 +597,7 @@ Use real current players. For clubs, use their actual squad. For national teams,
         { role: 'system', content: systemPrompt },
         { role: 'user', content: `Generate squad for ${teamName}` }
       ],
-      model: 'llama-3.1-8b-instant',
+      model: 'llama-3.3-70b-versatile',
       temperature: 0.3,
       max_tokens: 1000,
     });
@@ -414,7 +643,6 @@ async function fetchAchievementsFromWikipedia(teamName: string): Promise<Team['m
     const data = await response.json();
     const extract = data.extract || '';
     
-    // Parse achievements from Wikipedia extract (simplified)
     const achievements: Team['majorAchievements'] = {
       worldCup: [],
       international: [],
@@ -453,12 +681,25 @@ async function searchTeam(query: string): Promise<GROQSearchResponse> {
   const verificationSteps: string[] = [];
   verificationSteps.push(`Original query: "${query}"`);
   
-  // Step 1: AI-powered team name correction
-  verificationSteps.push('🤖 AI analyzing team name...');
-  const aiResult = await correctTeamNameWithAI(query);
+  // Step 1: AI-powered name correction
+  verificationSteps.push('🤖 AI analyzing query...');
+  const aiResult = await correctQueryWithAI(query);
   const searchQuery = aiResult.corrected;
-  const teamType = aiResult.type;
-  verificationSteps.push(`✅ AI identified: ${searchQuery} (${teamType})`);
+  const queryType = aiResult.type;
+  verificationSteps.push(`✅ AI identified: ${searchQuery} (${queryType})`);
+  
+  // If AI detected it's a player, handle differently
+  if (queryType === 'player') {
+    verificationSteps.push('👤 Handling as player search...');
+    const playerResult = await searchPlayer(searchQuery);
+    playerResult._metadata = {
+      ...playerResult._metadata,
+      verificationSteps,
+      originalQuery: query,
+      correctedQuery: searchQuery !== query ? searchQuery : undefined
+    };
+    return playerResult;
+  }
   
   let result: { team: Team; players: Player[] } | null = null;
   let source = '';
@@ -474,6 +715,7 @@ async function searchTeam(query: string): Promise<GROQSearchResponse> {
   // Step 3: Try BSD API as fallback
   if (!result) {
     verificationSteps.push('📡 Trying BSD API...');
+    const teamType = aiResult.type === 'national' ? 'national' : 'club';
     result = await searchBSDAPI(searchQuery, teamType);
     if (result) {
       source = 'BSD API';
@@ -523,7 +765,7 @@ async function searchTeam(query: string): Promise<GROQSearchResponse> {
   verificationSteps.push('🤖 No API data, generating complete team with AI...');
   const aiTeam: Team = {
     name: searchQuery,
-    type: teamType,
+    type: aiResult.type === 'national' ? 'national' : 'club',
     country: aiResult.country || '',
     currentCoach: 'Information not available',
     majorAchievements: {},
@@ -532,7 +774,7 @@ async function searchTeam(query: string): Promise<GROQSearchResponse> {
     _confidence: 40
   };
   
-  const aiPlayers = await generateAISquad(searchQuery, teamType);
+  const aiPlayers = await generateAISquad(searchQuery, aiResult.type === 'national' ? 'national' : 'club');
   
   return {
     players: aiPlayers,
@@ -584,9 +826,9 @@ export const searchWithGROQ = async (
   isTeamSearch: boolean = true
 ): Promise<GROQSearchResponse> => {
   
-  console.log(`🔍 [GROQ SERVICE] Search: "${query}"`);
+  console.log(`🔍 [GROQ SERVICE] Search: "${query}" | Team Mode: ${isTeamSearch}`);
   
-  const cacheKey = `${query}_${language}`;
+  const cacheKey = `${query}_${isTeamSearch}_${language}`;
   
   if (!bustCache && cache.has(cacheKey)) {
     const cached = cache.get(cacheKey)!;

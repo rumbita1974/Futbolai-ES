@@ -567,7 +567,7 @@ export const getDailyFootballFact = async (): Promise<FootballFunFact> => {
           content: "Give me today's football fun fact. Make it interesting and true! Don't include any markdown or formatting, just plain text."
         }
       ],
-      model: "llama-3.1-8b-instant", // Current working model
+      model: "llama-3.3-70b-versatile", // Current working model
       temperature: 0.7,
       max_tokens: 150,
     });
