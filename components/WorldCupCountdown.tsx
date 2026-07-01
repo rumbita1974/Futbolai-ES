@@ -25,10 +25,25 @@ interface Group {
   matches: Match[];
 }
 
+interface KnockoutMatch {
+  id: number;
+  stage: string;
+  team1: string;
+  team2: string;
+  date: string;
+  time: string;
+  venue: string;
+  city: string;
+  status: 'scheduled' | 'live' | 'completed';
+  score1?: number;
+  score2?: number;
+}
+
 interface WorldCupData {
   success: boolean;
   tournamentStart: string;
   groups: Group[];
+  knockout?: KnockoutMatch[];
   totalMatches: number;
   lastUpdated: string;
 }
@@ -62,7 +77,7 @@ export default function WorldCupCountdown() {
     }, 60000);
     
     return () => clearInterval(interval);
-  }, []);
+  }, [language]);
 
   const fetchTodayMatches = async () => {
     try {
@@ -71,7 +86,6 @@ export default function WorldCupCountdown() {
       if (!response.ok) return;
       
       const data: WorldCupData = await response.json();
-      if (!data.groups) return;
       
       // Get today's date in YYYY-MM-DD format
       const today = new Date();
@@ -79,13 +93,33 @@ export default function WorldCupCountdown() {
       
       // Find all matches scheduled for today
       const matches: Match[] = [];
-      data.groups.forEach(group => {
-        group.matches.forEach(match => {
+      
+      // Group stage matches
+      if (data.groups) {
+        data.groups.forEach(group => {
+          group.matches.forEach(match => {
+            if (match.date === todayStr) {
+              matches.push({ ...match, group: group.id });
+            }
+          });
+        });
+      }
+      
+      // Knockout stage matches
+      if (data.knockout && Array.isArray(data.knockout)) {
+        data.knockout.forEach((match: any) => {
           if (match.date === todayStr) {
-            matches.push({ ...match, group: group.id });
+            // Only show knockout matches that have actual team names (not placeholders)
+            if (!match.team1.includes('Winner') && !match.team2.includes('Winner')) {
+              matches.push({
+                ...match,
+                group: match.stage || 'Knockout',
+                group: match.stage || 'Knockout'
+              });
+            }
           }
         });
-      });
+      }
       
       // Sort by time
       matches.sort((a, b) => a.time.localeCompare(b.time));
@@ -270,7 +304,7 @@ export default function WorldCupCountdown() {
 
             <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-700/30 text-xs text-gray-500">
               <span>{match.time}</span>
-              <span>Group {match.group}</span>
+              <span>{match.group}</span>
               <span>{match.venue}</span>
             </div>
           </a>
