@@ -1,19 +1,31 @@
+// app/world-cup/page.tsx
 'use client';
+
 import WorldCupCountdown from '@/components/WorldCupCountdown';
 import GroupStageFixtures from '@/components/GroupStageFixtures';
+import ChampionBanner from '@/components/ChampionBanner';
 import { useTranslation } from '@/hooks/useTranslation';
+import { useState, useEffect } from 'react';
 
 export default function WorldCupPage() {
   const { t } = useTranslation();
+  const [showBanner, setShowBanner] = useState(true);
 
-  // Helper function to safely get translations with fallbacks
+  useEffect(() => {
+    // Check if banner was already shown in this session
+    const bannerShown = sessionStorage.getItem('championBannerShown');
+    if (bannerShown) {
+      setShowBanner(false);
+    } else {
+      sessionStorage.setItem('championBannerShown', 'true');
+    }
+  }, []);
+
   const getTranslation = (key: string): string => {
     const translation = t(`worldCup.${key}`);
-    // Return translation if found, otherwise return a reasonable default
     return translation && translation !== `worldCup.${key}` ? translation : getDefaultTranslation(key);
   };
 
-  // Default English translations as fallback
   const getDefaultTranslation = (key: string): string => {
     const defaults: Record<string, string> = {
       'title': 'FIFA World Cup 2026',
@@ -49,6 +61,15 @@ export default function WorldCupPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-black text-white pb-16 md:pb-0">
+      {/* Champion Banner */}
+      {showBanner && (
+        <ChampionBanner 
+          champion="🇪🇸 Spain" 
+          year="2026" 
+          score="1-0 vs Argentina"
+        />
+      )}
+
       {/* Hero Section */}
       <div className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-r from-blue-900/30 via-transparent to-green-900/30"></div>
@@ -63,9 +84,11 @@ export default function WorldCupPage() {
               {getTranslation('subtitle')}
             </p>
             
-            {/* World Cup Countdown */}
-            <div className="mb-12">
-              <WorldCupCountdown />
+            {/* Champion Badge */}
+            <div className="mb-8 inline-block bg-gradient-to-r from-yellow-500/20 to-yellow-300/20 border border-yellow-500/50 rounded-xl px-6 py-3">
+              <span className="text-yellow-400 font-bold text-lg">
+                🏆 Spain 2026 FIFA World Champions 🏆
+              </span>
             </div>
           </div>
         </div>
@@ -210,6 +233,21 @@ export default function WorldCupPage() {
                       <span>{getTranslation('mexicoMatches')}</span>
                     </div>
                   </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Champion Card */}
+            <div className="bg-gradient-to-br from-yellow-900/30 to-red-900/30 rounded-2xl p-6 border border-yellow-700/50">
+              <div className="text-center">
+                <div className="text-5xl mb-3">🏆</div>
+                <h3 className="text-2xl font-bold text-yellow-400">Spain 2026</h3>
+                <p className="text-yellow-300 font-semibold">FIFA World Champions</p>
+                <p className="text-gray-400 text-sm mt-2">1-0 vs Argentina • July 19, 2026</p>
+                <div className="mt-3 flex justify-center gap-2">
+                  <span className="px-3 py-1 bg-yellow-500/20 text-yellow-300 rounded-full text-xs">🇪🇸</span>
+                  <span className="px-3 py-1 bg-yellow-500/20 text-yellow-300 rounded-full text-xs">⭐</span>
+                  <span className="px-3 py-1 bg-yellow-500/20 text-yellow-300 rounded-full text-xs">🏅</span>
                 </div>
               </div>
             </div>
